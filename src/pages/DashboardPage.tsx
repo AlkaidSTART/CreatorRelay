@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -7,14 +8,17 @@ import {
   Globe2,
   Plus,
   Send,
-} from "lucide-react";
+} from "../components/Icons";
 import { useNavigate } from "react-router";
+import { OverviewTrendChart } from "../components/OverviewTrendChart";
 import { PageHeader } from "../components/PageHeader";
+import { demoOverviewTrends, type TrendRange } from "../data/demoData";
 import { useContentStore, useUiStore, useWorkspaceStore } from "../stores";
 import { formatRelativeTime } from "../utils/format";
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const [trendRange, setTrendRange] = useState<TrendRange>("7d");
 
   const documents = useWorkspaceStore((state) => state.documents);
   const selectDocumentSafely = useWorkspaceStore((state) => state.selectDocumentSafely);
@@ -117,6 +121,51 @@ export function DashboardPage() {
             数据口径说明：不同平台的阅读量、播放量与粉丝统计口径存在差异，总览仅按平台维度独立呈现，不做未定义口径的直接相加。
           </span>
         </div>
+
+        <section className="overflow-hidden rounded-xl border border-zinc-200/80 bg-white">
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-zinc-100 px-5 py-4">
+            <div>
+              <span className="text-[10px] font-semibold tracking-widest text-zinc-400 uppercase">
+                TRAFFIC TRENDS
+              </span>
+              <h2 className="mt-0.5 text-base font-semibold text-zinc-900">平台流量趋势</h2>
+              <p className="mt-1 text-xs text-zinc-500">按平台分别展示，指标沿用各平台原始口径</p>
+            </div>
+            <div className="flex rounded-lg border border-zinc-200 bg-zinc-50 p-0.5" aria-label="趋势时间范围">
+              {([
+                ["7d", "近 7 天"],
+                ["30d", "近 30 天"],
+              ] as const).map(([range, label]) => (
+                <button
+                  key={range}
+                  type="button"
+                  aria-pressed={trendRange === range}
+                  onClick={() => setTrendRange(range)}
+                  className={`h-7 cursor-pointer rounded-md px-2.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 ${trendRange === range ? "bg-white font-medium text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 items-stretch gap-3 px-4 pt-3 pb-4 xl:grid-cols-[minmax(0,1fr)_180px]">
+            <OverviewTrendChart dataset={demoOverviewTrends[trendRange]} height={272} />
+            <div className="grid grid-cols-2 gap-2 xl:grid-cols-1 xl:content-start">
+              {demoOverviewTrends[trendRange].series.map((series) => (
+                <div key={series.platformId} className="flex min-w-0 items-start gap-2 border-b border-zinc-100 px-1 py-2 last:border-b-0">
+                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: series.color }} />
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-medium text-zinc-800">{series.platformName}</div>
+                    <div className="truncate text-[10px] text-zinc-400">{series.metricLabel}</div>
+                    <div className="mt-1 text-xs tabular-nums text-zinc-600">
+                      {series.values[series.values.length - 1]?.toLocaleString("zh-CN") ?? "—"}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
 
         {/* Two Column Cards */}
         <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">

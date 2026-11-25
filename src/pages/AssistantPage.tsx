@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bot, Send, ShieldCheck, Sparkles, Terminal } from "lucide-react";
+import { Bot, Send, ShieldCheck, Sparkles, Terminal } from "../components/Icons";
 import { useNavigate } from "react-router";
 import { PageHeader } from "../components/PageHeader";
 import { useContentStore, useUiStore } from "../stores";

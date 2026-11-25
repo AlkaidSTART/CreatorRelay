@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { ExternalLink, Search } from "lucide-react";
+import { ExternalLink, Search } from "../components/Icons";
 import { PageHeader } from "../components/PageHeader";
 import { useContentStore, useUiStore } from "../stores";
 

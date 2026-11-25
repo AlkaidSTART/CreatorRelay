@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   ChevronsUpDown,
   FilePlus2,
@@ -6,7 +7,7 @@ import {
   PanelLeftOpen,
   Plus,
   X,
-} from "lucide-react";
+} from "../components/Icons";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { PRIMARY_ROUTES, SECONDARY_ROUTES } from "../routes/navigation";
 import { useContentStore, useUiStore, useWorkspaceStore } from "../stores";
@@ -14,6 +15,7 @@ import { useContentStore, useUiStore, useWorkspaceStore } from "../stores";
 export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const reducedMotion = useReducedMotion();
 
   const workspace = useWorkspaceStore((state) => state.workspace);
   const loading = useWorkspaceStore((state) => state.loading);
@@ -82,192 +84,196 @@ export function AppLayout() {
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-white text-zinc-900">
-      <aside
-        className={`flex h-full shrink-0 flex-col border-r border-zinc-200/80 bg-zinc-50/70 transition-[width] duration-200 ${
-          sidebarOpen ? "w-[224px] px-3 py-4" : "w-[60px] items-center px-2 py-4"
-        }`}
+      <motion.aside
+        className="relative z-10 flex h-full shrink-0 flex-col overflow-hidden border-r border-zinc-200/80 bg-zinc-50/90 px-3 py-4"
+        initial={false}
+        animate={{ width: sidebarOpen ? 240 : 72 }}
+        transition={reducedMotion ? { duration: 0 } : { type: "spring", stiffness: 340, damping: 34, mass: 0.8 }}
+        aria-label="应用侧边栏"
       >
-        {/* Brand Row */}
-        <div
-          className={`flex h-8 items-center ${
-            sidebarOpen ? "justify-between px-1.5" : "justify-center"
-          }`}
-        >
-          <div className="flex items-center gap-2.5">
+        <div className="flex h-8 shrink-0 items-center justify-between gap-2 px-0.5">
+          <div className="flex min-w-0 items-center gap-2.5">
             <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-zinc-900 text-[11px] font-semibold tracking-tight text-white">
               cr
             </div>
-            {sidebarOpen && (
-              <span className="text-[14px] font-semibold tracking-tight text-zinc-900">
-                CreatorRelay
-              </span>
-            )}
+            <AnimatePresence initial={false}>
+              {sidebarOpen && (
+                <motion.span
+                  key="brand-label"
+                  initial={reducedMotion ? false : { opacity: 0, x: -7 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={reducedMotion ? undefined : { opacity: 0, x: -5 }}
+                  transition={{ duration: reducedMotion ? 0 : 0.16, delay: sidebarOpen && !reducedMotion ? 0.06 : 0 }}
+                  className="whitespace-nowrap text-[14px] font-semibold tracking-tight text-zinc-900"
+                >
+                  CreatorRelay
+                </motion.span>
+              )}
+            </AnimatePresence>
           </div>
-          {sidebarOpen && (
-            <button
-              className="grid h-7 w-7 cursor-pointer place-items-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-200/60 hover:text-zinc-700"
-              aria-label="收起侧栏"
-              onClick={() => setSidebarOpen(false)}
-            >
-              <PanelLeftClose size={15} />
-            </button>
-          )}
+          <motion.button
+            type="button"
+            whileHover={reducedMotion ? undefined : { scale: 1.06, backgroundColor: "#e4e4e7" }}
+            whileTap={reducedMotion ? undefined : { scale: 0.94 }}
+            transition={{ duration: reducedMotion ? 0 : 0.14 }}
+            className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-md text-zinc-500 outline-none hover:text-zinc-900 focus-visible:ring-2 focus-visible:ring-zinc-400"
+            aria-label={sidebarOpen ? "收起侧边栏" : "展开侧边栏"}
+            aria-expanded={sidebarOpen}
+            title={sidebarOpen ? "收起侧边栏" : "展开侧边栏"}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+          >
+            {sidebarOpen ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
+          </motion.button>
         </div>
 
-        {!sidebarOpen && (
-          <button
-            className="mt-3 grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-200/60 hover:text-zinc-700"
-            aria-label="展开侧栏"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <PanelLeftOpen size={16} />
-          </button>
-        )}
-
-        {/* Workspace Switcher */}
         <button
-          className={`mt-4 flex cursor-pointer items-center rounded-lg border border-zinc-200/80 bg-white text-left transition-colors hover:border-zinc-300 ${
-            sidebarOpen ? "w-full gap-2.5 px-2.5 py-2" : "h-9 w-9 justify-center p-0"
-          }`}
+          className={`mt-4 flex h-10 shrink-0 cursor-pointer items-center overflow-hidden rounded-lg border border-zinc-200/80 bg-white text-left transition-colors hover:border-zinc-300 hover:bg-zinc-50 ${sidebarOpen ? "w-full gap-2.5 px-2" : "w-10 justify-center self-center p-0"}`}
           onClick={() => void chooseWorkspace()}
           title={workspace?.name ?? "选择工作区"}
+          aria-label={sidebarOpen ? undefined : `工作区：${workspace?.name ?? "选择工作区"}`}
         >
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-zinc-100 text-xs font-semibold text-zinc-700">
             {workspace?.name.slice(0, 1).toUpperCase() ?? "C"}
           </span>
-          {sidebarOpen && (
-            <>
-              <span className="flex min-w-0 flex-1 flex-col">
-                <strong className="truncate text-xs font-medium text-zinc-800">
-                  {workspace?.name ?? "选择工作区"}
-                </strong>
-                <small className="text-[10px] text-zinc-400">本地空间</small>
-              </span>
-              <ChevronsUpDown size={13} className="shrink-0 text-zinc-400" />
-            </>
-          )}
+          <AnimatePresence initial={false}>
+            {sidebarOpen && (
+              <motion.span
+                key="workspace-label"
+                initial={reducedMotion ? false : { opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={reducedMotion ? undefined : { opacity: 0, x: -4 }}
+                transition={{ duration: reducedMotion ? 0 : 0.15 }}
+                className="flex min-w-0 flex-1 items-center gap-2.5"
+              >
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <strong className="truncate text-xs font-medium text-zinc-800">
+                    {workspace?.name ?? "选择工作区"}
+                  </strong>
+                  <small className="text-[10px] text-zinc-400">本地空间</small>
+                </span>
+                <ChevronsUpDown size={13} className="shrink-0 text-zinc-400" />
+              </motion.span>
+            )}
+          </AnimatePresence>
         </button>
 
-        {/* Quick New Document CTA */}
-        <button
-          className={`mt-3 flex cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-zinc-900 text-xs font-medium text-white transition-colors hover:bg-zinc-800 ${
-            sidebarOpen ? "h-8 w-full px-3" : "h-9 w-9 p-0"
-          }`}
+        <motion.button
+          whileHover={reducedMotion ? undefined : { y: -1, backgroundColor: "#27272a" }}
+          whileTap={reducedMotion ? undefined : { scale: 0.97 }}
+          transition={{ duration: reducedMotion ? 0 : 0.14 }}
+          className={`mt-3 flex h-9 shrink-0 cursor-pointer items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-lg bg-zinc-900 text-xs font-medium text-white ${sidebarOpen ? "w-full px-3" : "w-10 self-center p-0"}`}
           onClick={() => setIsCreating(true)}
           title="新建文章 (⌘N)"
+          aria-label={sidebarOpen ? undefined : "新建文章"}
         >
           <Plus size={14} />
-          {sidebarOpen && (
-            <>
-              <span>新建文章</span>
-              <kbd className="ml-auto rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-normal text-zinc-300">
-                ⌘N
-              </kbd>
-            </>
-          )}
-        </button>
-
-        {/* Primary Navigation */}
-        {sidebarOpen ? (
-          <>
-            <div className="mt-6 mb-1.5 px-2 text-[10px] font-medium tracking-wider text-zinc-400 uppercase">
-              工作区
-            </div>
-            <nav className="flex flex-col gap-0.5" aria-label="主导航">
-              {PRIMARY_ROUTES.map((item) => {
-                const Icon = item.icon;
-                const badge = item.id === "publishing" && pendingTaskCount > 0
-                  ? String(pendingTaskCount)
-                  : undefined;
-                return (
-                  <NavLink
-                    key={item.id}
-                    to={item.path}
-                    className={({ isActive }) =>
-                      `flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] transition-colors ${
-                        isActive
-                          ? "bg-zinc-200/70 font-medium text-zinc-950"
-                          : "text-zinc-600 hover:bg-zinc-200/40 hover:text-zinc-900"
-                      }`
-                    }
-                  >
-                    <Icon size={16} strokeWidth={1.75} className="shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                    {badge && (
-                      <span className="ml-auto rounded-full bg-zinc-200 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700">
-                        {badge}
-                      </span>
-                    )}
-                  </NavLink>
-                );
-              })}
-            </nav>
-
-            <div className="mt-auto flex flex-col gap-0.5 pt-4">
-              <div className="mb-1.5 px-2 text-[10px] font-medium tracking-wider text-zinc-400 uppercase">
-                工具与系统
-              </div>
-              {SECONDARY_ROUTES.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <NavLink
-                    key={item.id}
-                    to={item.path}
-                    className={({ isActive }) =>
-                      `flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-[12.5px] transition-colors ${
-                        isActive
-                          ? "bg-zinc-200/70 font-medium text-zinc-950"
-                          : "text-zinc-500 hover:bg-zinc-200/40 hover:text-zinc-900"
-                      }`
-                    }
-                  >
-                    <Icon size={15} strokeWidth={1.75} className="shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                    {item.id === "assistant" && (
-                      <span className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    )}
-                  </NavLink>
-                );
-              })}
-
-              <button
-                onClick={() => navigate("/settings")}
-                className="mt-3 flex cursor-pointer items-center gap-2.5 border-t border-zinc-200/80 px-1.5 pt-3 text-left transition-opacity hover:opacity-80"
+          <AnimatePresence initial={false}>
+            {sidebarOpen && (
+              <motion.span
+                key="create-label"
+                initial={reducedMotion ? false : { opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={reducedMotion ? undefined : { opacity: 0, x: -4 }}
+                transition={{ duration: reducedMotion ? 0 : 0.15 }}
+                className="flex min-w-0 flex-1 items-center whitespace-nowrap"
               >
-                <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-zinc-200 bg-white text-xs font-medium text-zinc-700">
-                  林
+                <span>新建文章</span>
+                <kbd className="ml-auto rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-normal text-zinc-300">⌘N</kbd>
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </motion.button>
+
+        <div className={`mt-6 min-h-0 flex-1 ${sidebarOpen ? "flex flex-col" : "flex flex-col items-center"}`}>
+          <AnimatePresence mode="wait" initial={false}>
+            {sidebarOpen ? (
+              <motion.div
+                key="expanded-navigation"
+                initial={reducedMotion ? false : { opacity: 0, x: -5 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={reducedMotion ? undefined : { opacity: 0, x: -4 }}
+                transition={{ duration: reducedMotion ? 0 : 0.15 }}
+                className="flex h-full min-h-0 flex-col"
+              >
+                <div className="mb-1.5 px-2 text-[10px] font-medium tracking-wider text-zinc-400 uppercase">工作区</div>
+                <nav className="flex flex-col gap-0.5" aria-label="主导航">
+                  {PRIMARY_ROUTES.map((item) => {
+                    const Icon = item.icon;
+                    const badge = item.id === "publishing" && pendingTaskCount > 0 ? String(pendingTaskCount) : undefined;
+                    return (
+                      <motion.div key={item.id} whileHover={reducedMotion ? undefined : { x: 2 }} whileTap={reducedMotion ? undefined : { scale: 0.98 }} transition={{ duration: reducedMotion ? 0 : 0.13 }}>
+                        <NavLink
+                          to={item.path}
+                          className={({ isActive }) => `group flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 ${isActive ? "bg-zinc-200/80 font-medium text-zinc-950" : "text-zinc-600 hover:bg-zinc-200/60 hover:text-zinc-950"}`}
+                        >
+                          <Icon size={16} className="shrink-0 transition-transform duration-150 group-hover:scale-105" />
+                          <span className="truncate">{item.label}</span>
+                          {badge && <span className="ml-auto rounded-md bg-zinc-300/70 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700">{badge}</span>}
+                        </NavLink>
+                      </motion.div>
+                    );
+                  })}
+                </nav>
+
+                <div className="mt-auto flex flex-col gap-0.5 border-t border-zinc-200/80 pt-3">
+                  <div className="mb-1.5 px-2 text-[10px] font-medium tracking-wider text-zinc-400 uppercase">工具与系统</div>
+                  {SECONDARY_ROUTES.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <motion.div key={item.id} whileHover={reducedMotion ? undefined : { x: 2 }} whileTap={reducedMotion ? undefined : { scale: 0.98 }} transition={{ duration: reducedMotion ? 0 : 0.13 }}>
+                        <NavLink
+                          to={item.path}
+                          className={({ isActive }) => `group flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-[12.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 ${isActive ? "bg-zinc-200/80 font-medium text-zinc-950" : "text-zinc-500 hover:bg-zinc-200/60 hover:text-zinc-950"}`}
+                        >
+                          <Icon size={15} className="shrink-0 transition-transform duration-150 group-hover:scale-105" />
+                          <span className="truncate">{item.label}</span>
+                          {item.id === "assistant" && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />}
+                        </NavLink>
+                      </motion.div>
+                    );
+                  })}
+                  <button
+                    onClick={() => navigate("/settings")}
+                    className="mt-2 flex cursor-pointer items-center gap-2.5 border-t border-zinc-200/80 px-1.5 pt-3 text-left transition-opacity hover:opacity-80"
+                  >
+                    <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-zinc-200 bg-white text-xs font-medium text-zinc-700">林</div>
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <strong className="truncate text-xs font-medium text-zinc-800">创作者</strong>
+                      <small className="truncate text-[10px] text-zinc-400">本地优先模式</small>
+                    </div>
+                  </button>
                 </div>
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <strong className="truncate text-xs font-medium text-zinc-800">创作者</strong>
-                  <small className="truncate text-[10px] text-zinc-400">本地优先模式</small>
-                </div>
-              </button>
-            </div>
-          </>
-        ) : (
-          <nav className="mt-5 flex flex-1 flex-col items-center gap-1" aria-label="快捷导航">
-            {[...PRIMARY_ROUTES, ...SECONDARY_ROUTES].map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.id}
-                  to={item.path}
-                  title={`${item.label} (${item.enLabel})`}
-                  className={({ isActive }) =>
-                    `grid h-9 w-9 place-items-center rounded-lg transition-colors ${
-                      isActive
-                        ? "bg-zinc-200/80 text-zinc-950"
-                        : "text-zinc-500 hover:bg-zinc-200/40 hover:text-zinc-900"
-                    }`
-                  }
-                >
-                  <Icon size={17} strokeWidth={1.75} />
-                </NavLink>
-              );
-            })}
-          </nav>
-        )}
-      </aside>
+              </motion.div>
+            ) : (
+              <motion.nav
+                key="collapsed-navigation"
+                initial={reducedMotion ? false : { opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reducedMotion ? undefined : { opacity: 0, y: -4 }}
+                transition={{ duration: reducedMotion ? 0 : 0.13 }}
+                className="flex h-full min-h-0 flex-col items-center gap-1 overflow-y-auto"
+                aria-label="快捷导航"
+              >
+                {[...PRIMARY_ROUTES, ...SECONDARY_ROUTES].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <motion.div key={item.id} whileHover={reducedMotion ? undefined : { scale: 1.07, y: -1 }} whileTap={reducedMotion ? undefined : { scale: 0.94 }} transition={{ duration: reducedMotion ? 0 : 0.12 }}>
+                      <NavLink
+                        to={item.path}
+                        title={`${item.label} (${item.enLabel})`}
+                        aria-label={item.label}
+                        className={({ isActive }) => `grid h-9 w-10 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 ${isActive ? "bg-zinc-200/80 text-zinc-950" : "text-zinc-500 hover:bg-zinc-200/60 hover:text-zinc-950"}`}
+                      >
+                        <Icon size={16} />
+                      </NavLink>
+                    </motion.div>
+                  );
+                })}
+              </motion.nav>
+            )}
+          </AnimatePresence>
+        </div>
+      </motion.aside>
 
       {/* Main Content Stage */}
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-white">

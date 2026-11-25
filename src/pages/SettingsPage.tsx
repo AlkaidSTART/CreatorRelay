@@ -1,4 +1,4 @@
-import { FolderOpen, KeyRound, Plug, Server, Shield } from "lucide-react";
+import { FolderOpen, KeyRound, Plug, Server, Shield } from "../components/Icons";
 import { PageHeader } from "../components/PageHeader";
 import { useUiStore, useWorkspaceStore } from "../stores";
 

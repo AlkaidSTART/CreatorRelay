@@ -1,4 +1,4 @@
-import { BarChart3, TrendingUp } from "lucide-react";
+import { BarChart3, TrendingUp } from "../components/Icons";
 import { PageHeader } from "../components/PageHeader";
 import { useContentStore, type AnalyticsRange } from "../stores";
 

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "../components/Icons";
 
 interface PageHeaderProps {
   eyebrow: string;

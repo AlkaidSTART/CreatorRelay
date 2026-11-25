@@ -1,4 +1,4 @@
-import { CheckCircle2, Globe2, Plus, RefreshCw, ShieldAlert } from "lucide-react";
+import { CheckCircle2, Globe2, Plus, RefreshCw, ShieldAlert } from "../components/Icons";
 import { PageHeader } from "../components/PageHeader";
 import { plannedPlatforms, type AccountStatus } from "../data/demoData";
 import { useContentStore, useUiStore } from "../stores";

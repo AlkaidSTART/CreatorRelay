@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, Clock3, ExternalLink, Plus, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock3, ExternalLink, Plus, RefreshCw } from "../components/Icons";
 import { useNavigate } from "react-router";
 import { PageHeader } from "../components/PageHeader";
 import type { PublishTaskStatus } from "../data/demoData";

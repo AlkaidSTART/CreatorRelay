@@ -23,7 +23,7 @@ import {
   Search,
   Tags,
   X,
-} from "lucide-react";
+} from "../components/Icons";
 import { useNavigate } from "react-router";
 import { useUiStore, useWorkspaceStore } from "../stores";
 import { formatRelativeTime } from "../utils/format";

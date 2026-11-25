@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import type { IconComponent } from "../components/Icons";
 import {
   BarChart3,
   BookOpen,
@@ -8,7 +8,7 @@ import {
   Library,
   Send,
   Settings2,
-} from "lucide-react";
+} from "../components/Icons";
 
 export type RouteId =
   | "dashboard"
@@ -31,7 +31,7 @@ export interface RouteMeta {
   description: string;
   priority: "P0" | "P0/P1" | "P1";
   group: NavGroup;
-  icon: LucideIcon;
+  icon: IconComponent;
   badge?: string;
 }
 
