@@ -287,3 +287,9 @@
   .rail-document { padding-top: 8px; padding-bottom: 7px; }
   .rail-document > p { margin-top: 3px; margin-bottom: 5px; }
 }
+.workspace-onboarding { display: flex; flex-direction: column; align-items: flex-start; max-width: 430px; margin: clamp(70px, 17vh, 170px) auto 0; padding: 0 15px; }
+.onboarding-mark { display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 25px; border: 1px solid #e5e7df; border-radius: 11px; background: #f1f2ec; color: #738267; }
+.workspace-onboarding h1 { margin: 8px 0 9px; color: #363830; font-family: var(--serif); font-size: 27px; font-weight: 500; letter-spacing: -.04em; }
+.workspace-onboarding p { max-width: 370px; margin: 0 0 19px; color: #85867e; font-family: var(--serif); font-size: 13px; line-height: 1.85; }
+.workspace-onboarding .primary-button { height: 34px; padding: 0 13px; }
+.workspace-onboarding > small { margin-top: 11px; color: #a2a39b; font-size: 9px; }

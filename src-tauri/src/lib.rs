@@ -1,5 +1,5 @@
 use chrono::Utc;
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
@@ -54,6 +54,10 @@ struct WorkspaceInfo {
     name: String,
 }
 
+fn digest(content: &str) -> String {
+    format!("{:x}", Sha256::digest(content.as_bytes()))
+}
+
 fn app_db_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -72,7 +76,7 @@ fn active_workspace(conn: &Connection) -> Result<Option<PathBuf>, String> {
         .query_row(
             "SELECT value FROM app_settings WHERE key = 'workspace_path'",
             [],
-            |r| r.get(0),
+            |row| row.get(0),
         )
         .optional()
         .map_err(|e| e.to_string())?;
@@ -134,13 +138,13 @@ fn title_for(content: &str, path: &Path) -> String {
         })
 }
 
-fn body_for_word_count(content: &str) -> String {
+fn body_for_word_count(content: &str) -> &str {
     if content.starts_with("---\n") {
         if let Some(end) = content[4..].find("\n---") {
-            return content[4 + end + 4..].to_string();
+            return &content[4 + end + 5..];
         }
     }
-    content.to_string()
+    content
 }
 
 fn document_from_file(id: String, path: &Path, workspace: &Path) -> Result<Document, String> {
@@ -170,17 +174,19 @@ fn document_from_file(id: String, path: &Path, workspace: &Path) -> Result<Docum
         .map(chrono::DateTime::<Utc>::from)
         .map(|time| time.to_rfc3339())
         .unwrap_or_else(|| Utc::now().to_rfc3339());
-    let word_count = body.split_whitespace().count();
     Ok(Document {
         id,
         title,
         path: relative,
         updated_at,
         preview,
-        word_count,
-        char_count: body.chars().filter(|c| !c.is_whitespace()).count(),
+        word_count: body.split_whitespace().count(),
+        char_count: body
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .count(),
         tags,
-        content_hash: format!("{:x}", Sha256::digest(content.as_bytes())),
+        content_hash: digest(&content),
     })
 }
 
@@ -200,7 +206,10 @@ fn resolve_document(workspace: &Path, relative: &str) -> Result<PathBuf, String>
         || relative_path
             .components()
             .any(|part| !matches!(part, Component::Normal(_)))
-        || relative_path.extension().and_then(|ext| ext.to_str()) != Some("md")
+        || relative_path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            != Some("md")
     {
         return Err("无效的工作区文档路径".to_string());
     }
@@ -231,12 +240,16 @@ fn create_revision(
     content: &str,
     label: &str,
 ) -> Result<(), String> {
-    let digest = format!("{:x}", Sha256::digest(content.as_bytes()));
-    let created_at = Utc::now().to_rfc3339();
     conn.execute(
         "INSERT INTO revisions(document_id, content, content_hash, label, created_at)
          VALUES(?1, ?2, ?3, ?4, ?5)",
-        params![document_id, content, digest, label, created_at],
+        params![
+            document_id,
+            content,
+            digest(content),
+            label,
+            Utc::now().to_rfc3339()
+        ],
     )
     .map_err(|e| e.to_string())?;
     conn.execute(
@@ -248,10 +261,70 @@ fn create_revision(
     Ok(())
 }
 
+fn create_revision_tx(
+    tx: &Transaction<'_>,
+    document_id: &str,
+    content: &str,
+    label: &str,
+) -> Result<(), String> {
+    tx.execute(
+        "INSERT INTO revisions(document_id, content, content_hash, label, created_at)
+         VALUES(?1, ?2, ?3, ?4, ?5)",
+        params![
+            document_id,
+            content,
+            digest(content),
+            label,
+            Utc::now().to_rfc3339()
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.execute(
+        "DELETE FROM revisions WHERE document_id = ?1 AND id NOT IN
+         (SELECT id FROM revisions WHERE document_id = ?1 ORDER BY id DESC LIMIT 30)",
+        [document_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn database_document_path(workspace: &Path, relative: &str) -> Result<String, String> {
+    let canonical_workspace = workspace.canonicalize().map_err(|e| e.to_string())?;
+    let path = canonical_workspace.join(relative);
+    Ok(path.to_string_lossy().to_string())
+}
+
+fn normalize_legacy_paths(conn: &Connection, workspace: &Path) -> Result<(), String> {
+    let legacy_workspace = active_workspace(conn)?.unwrap_or_else(|| workspace.to_path_buf());
+    let mut statement = conn
+        .prepare("SELECT id, path FROM documents")
+        .map_err(|e| e.to_string())?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|e| e.to_string())?;
+    let legacy = rows
+        .filter_map(Result::ok)
+        .filter(|(_, path)| !Path::new(path).is_absolute())
+        .collect::<Vec<_>>();
+    drop(statement);
+    for (id, path) in legacy {
+        let absolute = database_document_path(&legacy_workspace, &path)?;
+        conn.execute(
+            "UPDATE documents SET path=?1 WHERE id=?2",
+            params![absolute, id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 fn sync_index(conn: &Connection, workspace: &Path) -> Result<(), String> {
     if !workspace.is_dir() {
         return Err("工作区路径不可用，请重新选择工作区".to_string());
     }
+    normalize_legacy_paths(conn, workspace)?;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     let mut seen = HashSet::new();
     for entry in WalkDir::new(workspace.join("articles"))
@@ -260,11 +333,16 @@ fn sync_index(conn: &Connection, workspace: &Path) -> Result<(), String> {
     {
         let entry = entry.map_err(|e| e.to_string())?;
         let path = entry.path();
-        if !entry.file_type().is_file() || path.extension().and_then(|e| e.to_str()) != Some("md") {
+        if !entry.file_type().is_file()
+            || path.extension().and_then(|extension| extension.to_str()) != Some("md")
+        {
             continue;
         }
-        let metadata = fs::symlink_metadata(path).map_err(|e| e.to_string())?;
-        if metadata.file_type().is_symlink() {
+        if fs::symlink_metadata(path)
+            .map_err(|e| e.to_string())?
+            .file_type()
+            .is_symlink()
+        {
             continue;
         }
         let relative = path
@@ -272,12 +350,13 @@ fn sync_index(conn: &Connection, workspace: &Path) -> Result<(), String> {
             .map_err(|e| e.to_string())?
             .to_string_lossy()
             .replace('\\', "/");
-        seen.insert(relative.clone());
+        let database_path = database_document_path(workspace, &relative)?;
+        seen.insert(database_path.clone());
         let indexed: Option<(String, String)> = tx
             .query_row(
                 "SELECT id, content_hash FROM documents WHERE path = ?1",
-                [&relative],
-                |r| Ok((r.get(0)?, r.get(1)?)),
+                [&database_path],
+                |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()
             .map_err(|e| e.to_string())?;
@@ -285,17 +364,17 @@ fn sync_index(conn: &Connection, workspace: &Path) -> Result<(), String> {
             .as_ref()
             .map(|(id, _)| id.clone())
             .unwrap_or_else(|| Uuid::new_v4().to_string());
-        let doc = document_from_file(id.clone(), path, workspace)?;
+        let document = document_from_file(id.clone(), path, workspace)?;
         let changed =
-            indexed.as_ref().map(|(_, hash)| hash.as_str()) != Some(doc.content_hash.as_str());
+            indexed.as_ref().map(|(_, hash)| hash.as_str()) != Some(document.content_hash.as_str());
         tx.execute(
             "INSERT INTO documents(id, path, title, updated_at, content_hash) VALUES(?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(path) DO UPDATE SET title=excluded.title, updated_at=excluded.updated_at, content_hash=excluded.content_hash",
-            params![doc.id, doc.path, doc.title, doc.updated_at, doc.content_hash],
+            params![document.id, database_path, document.title, document.updated_at, document.content_hash],
         )
         .map_err(|e| e.to_string())?;
         if changed {
-            let current = fs::read_to_string(path).map_err(|e| e.to_string())?;
+            let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
             let latest_hash: Option<String> = tx
                 .query_row(
                     "SELECT content_hash FROM revisions WHERE document_id=?1 ORDER BY id DESC LIMIT 1",
@@ -304,11 +383,11 @@ fn sync_index(conn: &Connection, workspace: &Path) -> Result<(), String> {
                 )
                 .optional()
                 .map_err(|e| e.to_string())?;
-            if latest_hash.as_deref() != Some(doc.content_hash.as_str()) {
-                create_revision(
+            if latest_hash.as_deref() != Some(document.content_hash.as_str()) {
+                create_revision_tx(
                     &tx,
                     &id,
-                    &current,
+                    &content,
                     if indexed.is_some() {
                         "检测到外部修改"
                     } else {
@@ -318,22 +397,8 @@ fn sync_index(conn: &Connection, workspace: &Path) -> Result<(), String> {
             }
         }
     }
-    let indexed: Vec<(String, String)> = {
-        let mut statement = tx
-            .prepare("SELECT id, path FROM documents")
-            .map_err(|e| e.to_string())?;
-        statement
-            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
-            .map_err(|e| e.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?
-    };
-    for (id, path) in indexed {
-        if !seen.contains(&path) {
-            tx.execute("DELETE FROM documents WHERE id = ?1", [id])
-                .map_err(|e| e.to_string())?;
-        }
-    }
+    // Keep missing-file rows and revision snapshots. The file is authoritative,
+    // but an external deletion should not silently destroy recoverable history.
     tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -391,7 +456,11 @@ fn list_documents(
     {
         let entry = entry.map_err(|e| e.to_string())?;
         if !entry.file_type().is_file()
-            || entry.path().extension().and_then(|e| e.to_str()) != Some("md")
+            || entry
+                .path()
+                .extension()
+                .and_then(|extension| extension.to_str())
+                != Some("md")
         {
             continue;
         }
@@ -401,26 +470,27 @@ fn list_documents(
             .map_err(|e| e.to_string())?
             .to_string_lossy()
             .replace('\\', "/");
+        let database_path = database_document_path(&workspace, &relative)?;
         let id: String = conn
             .query_row(
                 "SELECT id FROM documents WHERE path = ?1",
-                [&relative],
-                |r| r.get(0),
+                [&database_path],
+                |row| row.get(0),
             )
             .map_err(|e| e.to_string())?;
-        let doc = document_from_file(id, entry.path(), &workspace)?;
+        let document = document_from_file(id, entry.path(), &workspace)?;
         if filter.is_empty()
-            || doc.title.to_lowercase().contains(&filter)
-            || doc.preview.to_lowercase().contains(&filter)
-            || doc
+            || document.title.to_lowercase().contains(&filter)
+            || document.preview.to_lowercase().contains(&filter)
+            || document
                 .tags
                 .iter()
                 .any(|tag| tag.to_lowercase().contains(&filter))
         {
-            output.push(doc);
+            output.push(document);
         }
     }
-    output.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    output.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
     Ok(output)
 }
 
@@ -430,10 +500,9 @@ fn read_document(path: String, state: State<'_, AppState>) -> Result<DocumentCon
     let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
     let path = resolve_document(&workspace, &path)?;
     let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let content_hash = format!("{:x}", Sha256::digest(content.as_bytes()));
     Ok(DocumentContent {
+        content_hash: digest(&content),
         content,
-        content_hash,
     })
 }
 
@@ -446,19 +515,20 @@ fn create_document(title: String, state: State<'_, AppState>) -> Result<Document
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
     let id = Uuid::new_v4().to_string();
-    let folder = id.clone();
-    let relative = format!("articles/{folder}/article.md");
+    let relative = format!("articles/{id}/article.md");
     let path = resolve_document(&workspace, &relative)?;
-    if path.exists() {
-        return Err("同名文章已存在，请使用不同标题".to_string());
-    }
     let title_yaml = serde_json::to_string(title).map_err(|e| e.to_string())?;
     let created_at = Utc::now().to_rfc3339();
     let content = format!(
         "---\nid: {id}\ntitle: {title_yaml}\ncreated_at: {created_at}\nupdated_at: {created_at}\ntags: []\nstatus: draft\n---\n\n# {title}\n\n"
     );
     atomic_write(&path, &content)?;
-    conn.execute("INSERT INTO documents(id, path, title, updated_at, content_hash) VALUES(?1, ?2, ?3, ?4, ?5)", params![id, relative, title, Utc::now().to_rfc3339(), format!("{:x}", Sha256::digest(content.as_bytes()))]).map_err(|e| e.to_string())?;
+    let database_path = database_document_path(&workspace, &relative)?;
+    conn.execute(
+        "INSERT INTO documents(id, path, title, updated_at, content_hash) VALUES(?1, ?2, ?3, ?4, ?5)",
+        params![id, database_path, title, created_at, digest(&content)],
+    )
+    .map_err(|e| e.to_string())?;
     create_revision(&conn, &id, &content, "创建")?;
     document_from_file(id, &path, &workspace)
 }
@@ -470,66 +540,53 @@ fn save_document(
     base_hash: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Document, String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let mut conn = state.db.lock().map_err(|e| e.to_string())?;
     let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
     let file = resolve_document(&workspace, &path)?;
+    let database_path = database_document_path(&workspace, &path)?;
     let id: String = conn
-        .query_row("SELECT id FROM documents WHERE path = ?1", [&path], |r| {
-            r.get(0)
-        })
+        .query_row(
+            "SELECT id FROM documents WHERE path = ?1",
+            [&database_path],
+            |row| row.get(0),
+        )
         .map_err(|e| e.to_string())?;
-    if file.exists() {
-        let existing = fs::read_to_string(&file).map_err(|e| e.to_string())?;
-        let current_hash = format!("{:x}", Sha256::digest(existing.as_bytes()));
-        if base_hash
-            .as_deref()
-            .is_some_and(|expected| expected != current_hash)
-        {
-            return Err("此文档已在其他位置修改。为避免覆盖，请重新载入或另存副本。".to_string());
-        }
-        if existing != content {
-            let revisions: i64 = conn
-                .query_row(
-                    "SELECT COUNT(*) FROM revisions WHERE document_id=?1",
-                    [&id],
-                    |r| r.get(0),
-                )
-                .map_err(|e| e.to_string())?;
-            if revisions == 0 {
-                create_revision(&conn, &id, &existing, "初始版本")?;
-            }
-        }
+    let existing = fs::read_to_string(&file).map_err(|e| e.to_string())?;
+    let current_hash = digest(&existing);
+    if base_hash
+        .as_deref()
+        .is_some_and(|expected| expected != current_hash)
+    {
+        return Err("此文档已在其他位置修改。为避免覆盖，请重新载入或另存副本。".to_string());
     }
-    let now = Utc::now().to_rfc3339();
-    atomic_write(&file, &content)?;
-    let previous_hash: Option<String> = conn
+    if existing == content {
+        return document_from_file(id, &file, &workspace);
+    }
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    let latest_hash: Option<String> = tx
         .query_row(
             "SELECT content_hash FROM revisions WHERE document_id=?1 ORDER BY id DESC LIMIT 1",
             [&id],
-            |r| r.get(0),
+            |row| row.get(0),
         )
         .optional()
         .map_err(|e| e.to_string())?;
-    let saved_hash = format!("{:x}", Sha256::digest(content.as_bytes()));
-    if previous_hash.as_deref() != Some(saved_hash.as_str()) {
-        create_revision(&conn, &id, &content, "自動保存")?;
+    if latest_hash.as_deref() != Some(current_hash.as_str()) {
+        create_revision_tx(&tx, &id, &existing, "编辑前版本")?;
     }
-    let hash = format!("{:x}", Sha256::digest(content.as_bytes()));
-    conn.execute(
+    create_revision_tx(&tx, &id, &content, "自动保存")?;
+    atomic_write(&file, &content)?;
+    tx.execute(
         "UPDATE documents SET title=?1, updated_at=?2, content_hash=?3 WHERE id=?4",
-        params![title_for(&content, &file), now, hash, id],
+        params![
+            title_for(&content, &file),
+            Utc::now().to_rfc3339(),
+            digest(&content),
+            id
+        ],
     )
     .map_err(|e| e.to_string())?;
-    let count: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM revisions WHERE document_id=?1",
-            [&id],
-            |r| r.get(0),
-        )
-        .map_err(|e| e.to_string())?;
-    if count == 0 {
-        create_revision(&conn, &id, &content, "初始版本")?;
-    }
+    tx.commit().map_err(|e| e.to_string())?;
     document_from_file(id, &file, &workspace)
 }
 
@@ -539,27 +596,32 @@ fn list_revisions(path: String, state: State<'_, AppState>) -> Result<Vec<Revisi
     let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
     let file = resolve_document(&workspace, &path)?;
     let id: String = conn
-        .query_row("SELECT id FROM documents WHERE path=?1", [&path], |r| {
-            r.get(0)
+        .query_row("SELECT id FROM documents WHERE path=?1", [&path], |row| {
+            row.get(0)
         })
         .map_err(|e| e.to_string())?;
-    if file.exists() {
-        let current = fs::read_to_string(&file).map_err(|e| e.to_string())?;
-        let count: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM revisions WHERE document_id=?1",
-                [&id],
-                |r| r.get(0),
-            )
-            .map_err(|e| e.to_string())?;
-        if count == 0 {
-            create_revision(&conn, &id, &current, "当前版本")?;
-        }
+    if !file.exists() {
+        return Err("文档文件已不存在".to_string());
     }
-    let mut stmt = conn.prepare("SELECT id, created_at, label, content FROM revisions WHERE document_id=?1 ORDER BY id DESC").map_err(|e| e.to_string())?;
-    let rows = stmt
-        .query_map([id], |r| {
-            let content: String = r.get(3)?;
+    let current = fs::read_to_string(&file).map_err(|e| e.to_string())?;
+    let current_hash = digest(&current);
+    let latest_hash: Option<String> = conn
+        .query_row(
+            "SELECT content_hash FROM revisions WHERE document_id=?1 ORDER BY id DESC LIMIT 1",
+            [&id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?;
+    if latest_hash.as_deref() != Some(current_hash.as_str()) {
+        create_revision(&conn, &id, &current, "当前版本")?;
+    }
+    let mut statement = conn
+        .prepare("SELECT id, created_at, label, content FROM revisions WHERE document_id=?1 ORDER BY id DESC")
+        .map_err(|e| e.to_string())?;
+    let rows = statement
+        .query_map([id], |row| {
+            let content: String = row.get(3)?;
             let preview = content
                 .lines()
                 .filter(|line| !line.trim().is_empty())
@@ -567,9 +629,9 @@ fn list_revisions(path: String, state: State<'_, AppState>) -> Result<Vec<Revisi
                 .collect::<Vec<_>>()
                 .join(" ");
             Ok(Revision {
-                id: r.get(0)?,
-                created_at: r.get(1)?,
-                label: r.get(2)?,
+                id: row.get(0)?,
+                created_at: row.get(1)?,
+                label: row.get(2)?,
                 preview,
             })
         })
@@ -584,42 +646,47 @@ fn restore_revision(
     revision_id: i64,
     state: State<'_, AppState>,
 ) -> Result<Document, String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let mut conn = state.db.lock().map_err(|e| e.to_string())?;
     let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
     let file = resolve_document(&workspace, &path)?;
     let id: String = conn
-        .query_row("SELECT id FROM documents WHERE path=?1", [&path], |r| {
-            r.get(0)
+        .query_row("SELECT id FROM documents WHERE path=?1", [&path], |row| {
+            row.get(0)
         })
         .map_err(|e| e.to_string())?;
     let restored: String = conn
         .query_row(
             "SELECT content FROM revisions WHERE id=?1 AND document_id=?2",
             params![revision_id, id],
-            |r| r.get(0),
+            |row| row.get(0),
         )
         .map_err(|e| e.to_string())?;
-    if file.exists() {
-        create_revision(
-            &conn,
-            &id,
-            &fs::read_to_string(&file).map_err(|e| e.to_string())?,
-            "恢复前",
-        )?;
+    let current = fs::read_to_string(&file).map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    let latest_hash: Option<String> = tx
+        .query_row(
+            "SELECT content_hash FROM revisions WHERE document_id=?1 ORDER BY id DESC LIMIT 1",
+            [&id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?;
+    if latest_hash.as_deref() != Some(digest(&current).as_str()) {
+        create_revision_tx(&tx, &id, &current, "恢复前")?;
     }
+    create_revision_tx(&tx, &id, &restored, "恢复版本")?;
     atomic_write(&file, &restored)?;
-    create_revision(&conn, &id, &restored, "恢复版本")?;
-    let now = Utc::now().to_rfc3339();
-    conn.execute(
+    tx.execute(
         "UPDATE documents SET title=?1, updated_at=?2, content_hash=?3 WHERE id=?4",
         params![
             title_for(&restored, &file),
-            now,
-            format!("{:x}", Sha256::digest(restored.as_bytes())),
+            Utc::now().to_rfc3339(),
+            digest(&restored),
             id
         ],
     )
     .map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
     document_from_file(id, &file, &workspace)
 }
 
@@ -645,17 +712,29 @@ pub fn run() {
                     content TEXT NOT NULL, content_hash TEXT NOT NULL, label TEXT NOT NULL,
                     created_at TEXT NOT NULL, FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE CASCADE
                  );
-                 CREATE INDEX IF NOT EXISTS idx_revisions_document ON revisions(document_id, id DESC);"
-            ).map_err(std::io::Error::other)?;
+                 CREATE INDEX IF NOT EXISTS idx_revisions_document ON revisions(document_id, id DESC);",
+            )
+            .map_err(std::io::Error::other)?;
             conn.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(1, ?1)",
                 [Utc::now().to_rfc3339()],
             )
             .map_err(std::io::Error::other)?;
-            app.manage(AppState { db: Mutex::new(conn) });
+            app.manage(AppState {
+                db: Mutex::new(conn),
+            });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_workspace, set_workspace_path, list_documents, read_document, create_document, save_document, list_revisions, restore_revision])
+        .invoke_handler(tauri::generate_handler![
+            get_workspace,
+            set_workspace_path,
+            list_documents,
+            read_document,
+            create_document,
+            save_document,
+            list_revisions,
+            restore_revision
+        ])
         .run(tauri::generate_context!())
         .expect("error while running CreatorRelay");
 }
@@ -664,9 +743,19 @@ pub fn run() {
 mod tests {
     use super::*;
 
+    fn test_db() -> Connection {
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(
+            "CREATE TABLE app_settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+             CREATE TABLE documents(id TEXT PRIMARY KEY, path TEXT UNIQUE NOT NULL, title TEXT NOT NULL, updated_at TEXT NOT NULL, content_hash TEXT NOT NULL);
+             CREATE TABLE revisions(id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL, content TEXT NOT NULL, content_hash TEXT NOT NULL, label TEXT NOT NULL, created_at TEXT NOT NULL);",
+        ).unwrap();
+        connection
+    }
+
     #[test]
     fn parses_frontmatter_title_and_tags() {
-        let source = "---\ntitle: \"Draft title\"\ntags:\n  - Rust\n  - Writing\n---\n\n# Body";
+        let source = "---\ntitle: \"Draft title\"\ntags:\n  - Rust\n  - Writing\nstatus: draft\n---\n\n# Body";
         let (title, tags) = parse_frontmatter(source);
         assert_eq!(title, "Draft title");
         assert_eq!(tags, vec!["Rust", "Writing"]);
@@ -675,7 +764,7 @@ mod tests {
     #[test]
     fn extracts_body_without_frontmatter_for_metrics() {
         let source = "---\nid: doc\ntitle: test\n---\n\n# Hello\n\nworld";
-        assert_eq!(body_for_word_count(source), "\n\n# Hello\n\nworld");
+        assert_eq!(body_for_word_count(source), "\n# Hello\n\nworld");
     }
 
     #[test]
@@ -701,10 +790,7 @@ mod tests {
         setup_workspace(&workspace).unwrap();
         let path = workspace.join("articles/first/article.md");
         atomic_write(&path, "---\ntitle: First\ntags: []\n---\n\n# First\n").unwrap();
-        let connection = Connection::open_in_memory().unwrap();
-        connection.execute_batch(
-            "CREATE TABLE documents(id TEXT PRIMARY KEY, path TEXT UNIQUE NOT NULL, title TEXT NOT NULL, updated_at TEXT NOT NULL, content_hash TEXT NOT NULL);\n             CREATE TABLE revisions(id INTEGER PRIMARY KEY, document_id TEXT NOT NULL, content TEXT NOT NULL, content_hash TEXT NOT NULL, label TEXT NOT NULL, created_at TEXT NOT NULL);"
-        ).unwrap();
+        let connection = test_db();
         sync_index(&connection, &workspace).unwrap();
         let count: i64 = connection
             .query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))
@@ -716,5 +802,111 @@ mod tests {
             .query_row("SELECT title FROM documents", [], |row| row.get(0))
             .unwrap();
         assert_eq!(title, "Updated");
+        let revisions: i64 = connection
+            .query_row("SELECT COUNT(*) FROM revisions", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(revisions, 2);
+    }
+
+    #[test]
+    fn legacy_relative_paths_stay_bound_to_the_original_workspace() {
+        let temp = tempfile::tempdir().unwrap();
+        let original = temp.path().join("original");
+        let next = temp.path().join("next");
+        setup_workspace(&original).unwrap();
+        setup_workspace(&next).unwrap();
+        let original_file = original.join("articles/doc/article.md");
+        atomic_write(&original_file, "# Original\n").unwrap();
+        let connection = test_db();
+        set_workspace(&connection, &original).unwrap();
+        connection
+            .execute(
+                "INSERT INTO documents VALUES(?1, ?2, ?3, ?4, ?5)",
+                params![
+                    "legacy",
+                    "articles/doc/article.md",
+                    "Original",
+                    Utc::now().to_rfc3339(),
+                    digest("# Original\n")
+                ],
+            )
+            .unwrap();
+        normalize_legacy_paths(&connection, &next).unwrap();
+        let migrated: String = connection
+            .query_row("SELECT path FROM documents WHERE id='legacy'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(
+            PathBuf::from(migrated),
+            original_file.canonicalize().unwrap()
+        );
+    }
+
+    #[test]
+    fn same_relative_path_in_distinct_workspaces_has_distinct_identity() {
+        let temp = tempfile::tempdir().unwrap();
+        let first = temp.path().join("first");
+        let second = temp.path().join("second");
+        setup_workspace(&first).unwrap();
+        setup_workspace(&second).unwrap();
+        let first_doc = first.join("articles/shared/article.md");
+        let second_doc = second.join("articles/shared/article.md");
+        atomic_write(&first_doc, "# First\n").unwrap();
+        atomic_write(&second_doc, "# Second\n").unwrap();
+        let connection = test_db();
+        sync_index(&connection, &first).unwrap();
+        sync_index(&connection, &second).unwrap();
+        let rows: i64 = connection
+            .query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))
+            .unwrap();
+        let revisions: i64 = connection
+            .query_row("SELECT COUNT(*) FROM revisions", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, 2);
+        assert_eq!(revisions, 2);
+    }
+
+    #[test]
+    fn save_conflict_is_detected_and_versions_are_bounded() {
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = temp.path().join("workspace");
+        setup_workspace(&workspace).unwrap();
+        let path = workspace.join("articles/doc/article.md");
+        let original = "---\ntitle: Draft\ntags: []\n---\n\n# Draft\n";
+        atomic_write(&path, original).unwrap();
+        let connection = test_db();
+        let id = "doc-1";
+        connection
+            .execute(
+                "INSERT INTO documents VALUES(?1, ?2, ?3, ?4, ?5)",
+                params![
+                    id,
+                    "articles/doc/article.md",
+                    "Draft",
+                    Utc::now().to_rfc3339(),
+                    digest(original)
+                ],
+            )
+            .unwrap();
+        create_revision(&connection, id, original, "创建").unwrap();
+        let external = original.replace("Draft", "External");
+        fs::write(&path, &external).unwrap();
+        assert_ne!(
+            digest(&fs::read_to_string(&path).unwrap()),
+            digest(original)
+        );
+        for index in 0..35 {
+            create_revision(&connection, id, &format!("revision {index}"), "自动保存").unwrap();
+        }
+        let count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM revisions WHERE document_id=?1",
+                [id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 30);
+        assert!(resolve_document(&workspace, "articles/doc/article.md").is_ok());
     }
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import ReactMarkdown from "react-markdown";
@@ -31,23 +31,9 @@ import {
   Tags,
   X,
 } from "lucide-react";
+import { useAppStore, type Document, type Revision, type WorkspaceInfo } from "./stores/appStore";
+import { bodyFromMarkdown, countWords, titleFromMarkdown } from "./utils/markdown";
 import "./App.css";
-
-type Document = {
-  id: string;
-  title: string;
-  path: string;
-  updatedAt: string;
-  preview: string;
-  wordCount: number;
-  charCount: number;
-  tags: string[];
-  contentHash?: string;
-};
-
-type Revision = { id: number; createdAt: string; label: string; preview: string };
-type WorkspaceInfo = { path: string; name: string };
-type SaveState = "saved" | "saving" | "unsaved" | "error";
 
 const sampleContent = `---
 id: article-wasm-edge
@@ -141,12 +127,6 @@ const demoDocuments: Document[] = [
   },
 ];
 
-const starterRevisions: Revision[] = [
-  { id: 3, createdAt: "今天 09:41", label: "当前版本", preview: "当服务离用户更近，延迟自然会低一些。但真正的挑战并不是把容器搬到边缘……" },
-  { id: 2, createdAt: "今天 09:18", label: "自动保存", preview: "最近我把一个数据转换任务迁移到了 WebAssembly 运行时。它并没有让系统架构……" },
-  { id: 1, createdAt: "昨天 16:32", label: "初始版本", preview: "当服务离用户更近，延迟自然会低一些。真正的挑战是如何在有限资源里运行代码。" },
-];
-
 const navItems = [
   { id: "writing", label: "写作空间", icon: BookOpen },
   { id: "distribution", label: "分发准备", icon: ArrowUpRight, soon: true },
@@ -163,25 +143,6 @@ function timeLabel(value: string) {
   return new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric" }).format(date);
 }
 
-function bodyFromMarkdown(markdown: string) {
-  if (markdown.startsWith("---\n")) {
-    const end = markdown.indexOf("\n---", 4);
-    if (end >= 0) return markdown.slice(end + 5).replace(/^\n/, "");
-  }
-  return markdown;
-}
-
-function titleFromMarkdown(markdown: string, fallback: string) {
-  const frontmatter = markdown.match(/^---\n([\s\S]*?)\n---/);
-  const title = frontmatter?.[1].match(/^title:\s*["']?(.*?)["']?\s*$/m)?.[1];
-  if (title) return title;
-  return markdown.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? fallback;
-}
-
-function countWords(markdown: string) {
-  return bodyFromMarkdown(markdown).trim().split(/\s+/u).filter(Boolean).length;
-}
-
 function getStoredDocuments(): Document[] | null {
   try {
     const parsed = JSON.parse(localStorage.getItem("creatorrelay.demo.documents") ?? "null");
@@ -192,24 +153,49 @@ function getStoredDocuments(): Document[] | null {
 }
 
 function App() {
-  const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [selectedId, setSelectedId] = useState("");
-  const [content, setContent] = useState("");
-  const [baseHash, setBaseHash] = useState("");
-  const [query, setQuery] = useState("");
-  const [saveState, setSaveState] = useState<SaveState>("saved");
-  const [viewMode, setViewMode] = useState<"write" | "preview">("write");
-  const [showHistory, setShowHistory] = useState(false);
-  const [revisions, setRevisions] = useState<Revision[]>(starterRevisions);
-  const [isCreating, setIsCreating] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [showDemoBanner, setShowDemoBanner] = useState(false);
+  const {
+    workspace,
+    setWorkspace,
+    documents,
+    setDocuments,
+    selectedId,
+    setSelectedId,
+    content,
+    setContent,
+    updateContent,
+    baseHash,
+    setBaseHash,
+    query,
+    setQuery,
+    saveState,
+    setSaveState,
+    viewMode,
+    setViewMode,
+    showHistory,
+    setShowHistory,
+    revisions,
+    setRevisions,
+    isCreating,
+    setIsCreating,
+    newTitle,
+    setNewTitle,
+    loading,
+    setLoading,
+    error,
+    setError,
+    notice,
+    setNotice,
+    sidebarOpen,
+    setSidebarOpen,
+    showDemoBanner,
+    setShowDemoBanner,
+  } = useAppStore();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const contentRef = useRef(content);
+  const saveRequestRef = useRef(0);
+  const saveInFlightRef = useRef(false);
+  const documentLoadRef = useRef(0);
+  contentRef.current = content;
   const selected = documents.find((document) => document.id === selectedId) ?? null;
   const body = useMemo(() => bodyFromMarkdown(content), [content]);
   const words = useMemo(() => countWords(content), [content]);
@@ -219,7 +205,6 @@ function App() {
     if (isTauri()) {
       const items = await invoke<Document[]>("list_documents", { query: filter || null });
       setDocuments(items);
-      if (items.length && !items.some((item) => item.id === selectedId)) setSelectedId(items[0].id);
       return items;
     }
     const stored = getStoredDocuments();
@@ -229,11 +214,11 @@ function App() {
       ? items.filter((item) => `${item.title} ${item.preview} ${item.tags.join(" ")}`.toLocaleLowerCase().includes(term))
       : items;
     setDocuments(filtered);
-    if (filtered.length && !filtered.some((item) => item.id === selectedId)) setSelectedId(filtered[0].id);
     return filtered;
   }, [selectedId]);
 
   const loadDocument = useCallback(async (document: Document) => {
+    const loadId = ++documentLoadRef.current;
     setError("");
     try {
       let markdown: string;
@@ -245,8 +230,10 @@ function App() {
       } else {
         markdown = localStorage.getItem(`creatorrelay.demo.content.${document.id}`) ?? (document.id === demoDocuments[0].id ? sampleContent : `---\nid: ${document.id}\ntitle: "${document.title}"\ncreated_at: 2026-11-24T10:00:00+08:00\nupdated_at: 2026-11-25T09:00:00+08:00\ntags: []\nstatus: draft\n---\n\n# ${document.title}\n\n${document.preview.replace("……", "。")}`);
       }
+      if (loadId !== documentLoadRef.current) return;
       setContent(markdown);
       setBaseHash(contentHash || await digest(markdown));
+      if (loadId !== documentLoadRef.current) return;
       setSaveState("saved");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -293,27 +280,37 @@ function App() {
 
   useEffect(() => {
     if (!selected || saveState !== "unsaved") return;
+    const snapshot = content;
+    const requestId = ++saveRequestRef.current;
     const timer = window.setTimeout(async () => {
+      if (saveInFlightRef.current) return;
+      saveInFlightRef.current = true;
       setSaveState("saving");
       try {
         if (isTauri()) {
-          const updated = await invoke<Document>("save_document", { path: selected.path, content, baseHash });
+          const updated = await invoke<Document>("save_document", { path: selected.path, content: snapshot, baseHash });
           setDocuments((current) => current.map((document) => document.id === updated.id ? updated : document));
         } else {
-          localStorage.setItem(`creatorrelay.demo.content.${selected.id}`, content);
-          const updated = { ...selected, title: titleFromMarkdown(content, selected.title), preview: bodyFromMarkdown(content).split("\n").find((line) => line.trim() && !line.startsWith("#"))?.slice(0, 120) ?? "", updatedAt: new Date().toISOString(), wordCount: words, charCount: chars };
+          localStorage.setItem(`creatorrelay.demo.content.${selected.id}`, snapshot);
+          const updated = { ...selected, title: titleFromMarkdown(snapshot, selected.title), preview: bodyFromMarkdown(snapshot).split("\n").find((line) => line.trim() && !line.startsWith("#"))?.slice(0, 120) ?? "", updatedAt: new Date().toISOString(), wordCount: countWords(snapshot), charCount: bodyFromMarkdown(snapshot).replace(/\s/gu, "").length };
           const all = getStoredDocuments() ?? demoDocuments;
           const next = all.map((document) => document.id === selected.id ? updated : document);
           localStorage.setItem("creatorrelay.demo.documents", JSON.stringify(next));
           setDocuments((current) => current.map((document) => document.id === selected.id ? updated : document));
         }
-        setBaseHash(await digest(content));
-        setSaveState("saved");
-        setNotice("已保存到工作区");
-        window.setTimeout(() => setNotice(""), 1800);
+        const savedHash = await digest(snapshot);
+        setBaseHash(savedHash);
+        setSaveState(contentRef.current === snapshot ? "saved" : "unsaved");
+        if (requestId === saveRequestRef.current) {
+          setNotice("已保存到工作区");
+          window.setTimeout(() => setNotice(""), 1800);
+        }
       } catch (cause) {
         setSaveState("error");
         setError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        saveInFlightRef.current = false;
+        if (contentRef.current !== snapshot) setSaveState("unsaved");
       }
     }, 650);
     return () => window.clearTimeout(timer);
@@ -337,6 +334,11 @@ function App() {
   }
 
   async function chooseWorkspace() {
+    if (saveState !== "saved" || saveInFlightRef.current) {
+      setNotice("请等待当前文章保存完成后再切换工作区");
+      window.setTimeout(() => setNotice(""), 2200);
+      return;
+    }
     setError("");
     try {
       if (!isTauri()) {
@@ -350,13 +352,80 @@ function App() {
       setWorkspace(next);
       const items = await invoke<Document[]>("list_documents", { query: null });
       setDocuments(items);
-      if (items.length) setSelectedId(items[0].id);
+      setSelectedId(items[0]?.id ?? "");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
   }
 
+  async function selectDocumentSafely(document: Document) {
+    if (document.id === selectedId) return;
+    if (saveState === "error") {
+      setNotice("当前文章未能保存，请先处理保存错误再切换");
+      window.setTimeout(() => setNotice(""), 2200);
+      return;
+    }
+    if (saveState === "saving" || saveInFlightRef.current) {
+      setNotice("正在保存当前文章，请稍后再切换");
+      window.setTimeout(() => setNotice(""), 1800);
+      return;
+    }
+    if (saveState === "unsaved" && selected) {
+      const snapshot = contentRef.current;
+      saveInFlightRef.current = true;
+      setSaveState("saving");
+      try {
+        if (isTauri()) {
+          const updated = await invoke<Document>("save_document", {
+            path: selected.path,
+            content: snapshot,
+            baseHash,
+          });
+          setDocuments((current) => current.map((item) => item.id === updated.id ? updated : item));
+        } else {
+          localStorage.setItem(`creatorrelay.demo.content.${selected.id}`, snapshot);
+          const updated = {
+            ...selected,
+            title: titleFromMarkdown(snapshot, selected.title),
+            preview: bodyFromMarkdown(snapshot).split("\n").find((line) => line.trim() && !line.startsWith("#"))?.slice(0, 120) ?? "",
+            updatedAt: new Date().toISOString(),
+            wordCount: countWords(snapshot),
+            charCount: bodyFromMarkdown(snapshot).replace(/\s/gu, "").length,
+          };
+          const all = getStoredDocuments() ?? demoDocuments;
+          localStorage.setItem("creatorrelay.demo.documents", JSON.stringify(all.map((item) => item.id === selected.id ? updated : item)));
+          setDocuments((current) => current.map((item) => item.id === updated.id ? updated : item));
+        }
+        setBaseHash(await digest(snapshot));
+        if (contentRef.current !== snapshot) {
+          setSaveState("unsaved");
+          setError("文章在保存期间又有新修改，请等待保存完成后再切换。");
+          return;
+        }
+        setSaveState("saved");
+        setSelectedId(document.id);
+      } catch (cause) {
+        setSaveState("error");
+        setError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        saveInFlightRef.current = false;
+      }
+      return;
+    }
+    setSelectedId(document.id);
+  }
+
   async function createDocument() {
+    if (!workspace) {
+      setError("请先选择一个工作区");
+      setIsCreating(false);
+      return;
+    }
+    if (saveState !== "saved" || saveInFlightRef.current) {
+      setNotice("请等待当前文章保存完成后再新建文档");
+      window.setTimeout(() => setNotice(""), 2200);
+      return;
+    }
     const title = newTitle.trim();
     if (!title) return;
     try {
@@ -383,6 +452,11 @@ function App() {
 
   async function restoreRevision(revision: Revision) {
     if (!selected) return;
+    if (saveState !== "saved" || saveInFlightRef.current) {
+      setNotice("请等待当前文章保存完成后再恢复历史版本");
+      window.setTimeout(() => setNotice(""), 2200);
+      return;
+    }
     try {
       if (isTauri()) {
         const updated = await invoke<Document>("restore_revision", { path: selected.path, revisionId: revision.id });
@@ -398,17 +472,12 @@ function App() {
     }
   }
 
-  function updateContent(value: string) {
-    setContent(value);
-    setSaveState("unsaved");
-  }
-
   const saveLabel = saveState === "saving" ? "正在保存" : saveState === "unsaved" ? "未保存" : saveState === "error" ? "保存失败" : "所有更改已保存";
 
   if (loading) return <div className="app-loading"><span className="loading-mark">cr</span><span>正在整理你的工作区</span></div>;
 
   return (
-    <div className="app-shell">
+    <div className="app-shell flex h-full">
       <aside className={`sidebar ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
         <div className="brand-row">
           <div className="brand-mark">cr</div>
@@ -433,7 +502,7 @@ function App() {
           <div className="sidebar-divider" />
           <div className="list-heading"><span className="side-section-label">最近编辑</span><button className="tiny-icon-button" aria-label="筛选"><ListFilter size={14} /></button></div>
           <div className="document-list" role="list">
-            {documents.map((document) => <button key={document.id} className={`document-item ${document.id === selectedId ? "selected" : ""}`} onClick={() => setSelectedId(document.id)} role="listitem">
+            {documents.map((document) => <button key={document.id} className={`document-item ${document.id === selectedId ? "selected" : ""}`} onClick={() => void selectDocumentSafely(document)} role="listitem">
               <FileText size={16} strokeWidth={1.7} className="document-icon" />
               <span className="document-item-copy"><strong>{document.title}</strong><small>{timeLabel(document.updatedAt)}</small></span>
               {document.id === selectedId && <span className="selected-indicator" />}
@@ -468,7 +537,14 @@ function App() {
         <div className={`editor-workspace ${showHistory ? "with-history" : ""}`}>
           <section className="writing-pane">
             <div className="editor-paper">
-              {selected ? <>
+              {isTauri() && !workspace ? <div className="workspace-onboarding flex flex-col">
+                <div className="onboarding-mark"><FolderOpen size={21} /></div>
+                <span className="context-eyebrow">A QUIET PLACE TO WRITE</span>
+                <h1>先选择你的工作区</h1>
+                <p>文章以 Markdown 文件保存在你选择的文件夹中。CreatorRelay 使用本地 SQLite 索引管理稿件，不会把正文上传到云端。</p>
+                <button className="primary-button" onClick={chooseWorkspace}><FolderOpen size={15} />选择工作区</button>
+                <small>你可以选择已有文章目录，也可以创建一个新的空文件夹。</small>
+              </div> : selected ? <>
                 <div className="paper-overline"><span className="overline-rule" />ARTICLE DRAFT <span className="overline-dot">/</span> {selected.path.split("/")[1]?.toUpperCase() ?? "LOCAL"}</div>
                 {viewMode === "write" ? <textarea ref={textareaRef} className="markdown-editor" aria-label="Markdown 正文" spellCheck={false} value={content} onChange={(event) => updateContent(event.target.value)} /> : <article className="markdown-preview"><ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown></article>}
                 {viewMode === "write" && <div className="editor-bottom-hint"><Command size={12} /><span>Markdown 已启用</span><span className="hint-separator">·</span><span>编辑时自动保存</span></div>}
@@ -497,7 +573,7 @@ function App() {
         <div className="rail-search"><Search size={15} /><input value={query} onChange={(event) => { setQuery(event.target.value); void loadDocuments(event.target.value); }} placeholder="搜索文章" aria-label="搜索文章" /><kbd>⌘ K</kbd></div>
         <div className="rail-title-row"><div><span className="context-eyebrow">YOUR LIBRARY</span><h1>文章 <span>{documents.length.toString().padStart(2, "0")}</span></h1></div><button className="create-icon-button" aria-label="新建文章" onClick={() => setIsCreating(true)}><FilePlus2 size={17} /></button></div>
         <div className="rail-filter-row"><span>最近编辑</span><button className="filter-button" onClick={() => setNotice("已按最近编辑排序")}><ChevronDown size={13} /></button></div>
-        <div className="rail-document-list">{documents.map((document, index) => <button key={document.id} className={`rail-document ${document.id === selectedId ? "active" : ""}`} onClick={() => setSelectedId(document.id)}><div className="rail-doc-top"><span className="rail-doc-date">{timeLabel(document.updatedAt)}</span><span className={`rail-doc-index ${document.id === selectedId ? "current" : ""}`}>{String(index + 1).padStart(2, "0")}</span></div><strong>{document.title}</strong><p>{document.preview}</p><div className="rail-doc-tags">{document.tags.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}</div></button>)}{!documents.length && <div className="rail-empty">暂无文章</div>}</div>
+        <div className="rail-document-list">{documents.map((document, index) => <button key={document.id} className={`rail-document ${document.id === selectedId ? "active" : ""}`} onClick={() => void selectDocumentSafely(document)}><div className="rail-doc-top"><span className="rail-doc-date">{timeLabel(document.updatedAt)}</span><span className={`rail-doc-index ${document.id === selectedId ? "current" : ""}`}>{String(index + 1).padStart(2, "0")}</span></div><strong>{document.title}</strong><p>{document.preview}</p><div className="rail-doc-tags">{document.tags.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}</div></button>)}{!documents.length && <div className="rail-empty">暂无文章</div>}</div>
         <div className="rail-bottom"><div className="storage-card"><div className="storage-card-icon"><FolderOpen size={15} /></div><div className="storage-card-copy"><strong>本地工作区</strong><span>{workspace?.path ?? "尚未设置路径"}</span></div><button className="tiny-icon-button" onClick={chooseWorkspace} aria-label="更换工作区"><ArrowUpRight size={14} /></button></div><div className="privacy-caption"><span className="privacy-dot" />你的文章保存在本地设备</div></div>
       </aside>
 
