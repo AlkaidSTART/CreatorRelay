@@ -17,6 +17,8 @@ describe("buildOverviewTrendOption", () => {
     expect(series.map((item) => item.name)).toEqual(["掘金", "Bilibili", "CSDN", "知乎"]);
     for (const [index, item] of series.entries()) {
       expect(item.type).toBe("line");
+      expect(item.showSymbol).toBe(true);
+      expect(item.connectNulls).toBe(false);
       expect(item.data).toEqual(dataset.series[index].values);
     }
   });

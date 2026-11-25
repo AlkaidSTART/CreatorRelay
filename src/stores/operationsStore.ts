@@ -19,6 +19,7 @@ import type {
   SyncPlatformWorksInput,
   SyncRunResult,
 } from "../types/operations";
+import { buildDemoAnalytics } from "../utils/operations";
 import { useUiStore } from "./uiStore";
 
 const PLATFORM_IDS: Record<string, string> = {
@@ -118,15 +119,6 @@ const initialDemoWorks: ExternalWork[] = demoPublishedContents.map((item) => ({
     },
   ],
 }));
-
-const emptyAnalytics = (query: AnalyticsQuery): AnalyticsResult => ({
-  range: query.range,
-  granularity: query.granularity,
-  from: new Date(Date.now() - 7 * 86400_000).toISOString(),
-  to: new Date().toISOString(),
-  series: [],
-  warnings: ["浏览器预览没有真实平台采样；请在桌面应用同步账号作品后查看趋势"],
-});
 
 export interface OperationsStore {
   tasks: PublishTask[];
@@ -235,7 +227,7 @@ const createOperationsStoreState: StateCreator<OperationsStore> = (set, get) => 
 
   loadAnalytics: async (query) => {
     if (!isTauri()) {
-      set({ analytics: emptyAnalytics(query) });
+      set({ analytics: buildDemoAnalytics(query) });
       return;
     }
     try {

@@ -182,10 +182,15 @@ export function filterExternalWorks(
   });
 }
 
+const TRAFFIC_METRIC_PATTERN = /播放|阅读|浏览|曝光|查看|观看|流量|访问/;
+
+export function isTrafficMetric(metricName: string): boolean {
+  return TRAFFIC_METRIC_PATTERN.test(metricName);
+}
+
 export function primaryMetric(work: ExternalWork) {
-  const preferred = /播放|阅读|浏览|曝光|查看|观看/;
   return (
-    work.metrics.find((metric) => preferred.test(metric.metricName)) ?? work.metrics[0] ?? null
+    work.metrics.find((metric) => isTrafficMetric(metric.metricName)) ?? work.metrics[0] ?? null
   );
 }
 
@@ -256,6 +261,128 @@ export function computeDashboardView(input: {
 
 const ANALYTICS_COLORS = ["#6B9ED4", "#E38AA6", "#68B692", "#E39472", "#9D89C8", "#5DAAA8"];
 
+const DEMO_90D_DATES = [
+  "09-01",
+  "09-10",
+  "09-20",
+  "09-30",
+  "10-10",
+  "10-20",
+  "10-30",
+  "11-08",
+  "11-17",
+  "11-25",
+];
+
+const DEMO_90D_SCALE = [0.36, 0.44, 0.51, 0.58, 0.65, 0.72, 0.79, 0.86, 0.93, 1.0];
+
+function isoWeekBucket(date: Date): string {
+  const utc = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const dayNum = utc.getUTCDay() || 7;
+  utc.setUTCDate(utc.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((utc.getTime() - yearStart.getTime()) / 86400_000 + 1) / 7);
+  return `${utc.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+function formatDemoBucket(isoDate: string, granularity: AnalyticsGranularity): string {
+  const date = new Date(`${isoDate}T12:00:00Z`);
+  if (granularity === "day") return isoDate;
+  if (granularity === "month") return isoDate.slice(0, 7);
+  return isoWeekBucket(date);
+}
+
+function demoContentKind(contentType: string): ContentKind {
+  if (contentType === "视频") return "video";
+  if (contentType === "图文") return "imageText";
+  return "article";
+}
+
+export function buildDemoAnalytics(query: AnalyticsQuery): AnalyticsResult {
+  const baseDataset = query.range === "7d" ? demoOverviewTrends["7d"] : demoOverviewTrends["30d"];
+  const rawDates = query.range === "90d" ? DEMO_90D_DATES : baseDataset.dates;
+  const isoDates = rawDates.map((mmdd) => `2026-${mmdd}`);
+
+  const workByPlatform = new Map(
+    demoPublishedContents.map((item) => {
+      const platformId =
+        demoPlatformAccounts.find((account) => account.platformName === item.platform)
+          ?.platformId ?? item.platform;
+      return [platformId, item] as const;
+    }),
+  );
+  const accountByPlatform = new Map(
+    demoPlatformAccounts.map((account) => [account.platformId, account] as const),
+  );
+
+  const series: AnalyticsSeries[] = [];
+  for (const trend of baseDataset.series) {
+    const account = accountByPlatform.get(trend.platformId);
+    const work = workByPlatform.get(trend.platformId);
+    const workId = work?.id ?? `demo-work-${trend.platformId}`;
+    const contentKind = work ? demoContentKind(work.contentType) : "article";
+
+    if (query.platformId && trend.platformId !== query.platformId) continue;
+    if (query.accountId && account?.id !== query.accountId) continue;
+    if (query.contentKind && contentKind !== query.contentKind) continue;
+    if (query.workId && workId !== query.workId) continue;
+
+    const latestValue =
+      trend.values.reduce<number>((acc, val) => (typeof val === "number" ? val : acc), 0) || 1000;
+    const rawValues =
+      query.range === "90d"
+        ? DEMO_90D_SCALE.map((factor) => Math.round(latestValue * factor))
+        : trend.values;
+
+    const bucketed = new Map<string, AnalyticsPoint>();
+    for (let index = 0; index < isoDates.length; index += 1) {
+      const value = rawValues[index];
+      if (value == null) continue;
+      const isoDate = isoDates[index];
+      const bucket = formatDemoBucket(isoDate, query.granularity);
+      bucketed.set(bucket, {
+        bucket,
+        capturedAt: `${isoDate}T12:00:00Z`,
+        value,
+      });
+    }
+
+    series.push({
+      key: `${workId}::${trend.metricLabel}`,
+      workId,
+      title: work?.title ?? `${trend.platformName}演示作品`,
+      platformId: trend.platformId,
+      platformName: trend.platformName,
+      accountAlias: trend.accountAlias,
+      contentKind,
+      metricName: trend.metricLabel,
+      metricDefinition: "浏览器预览演示流量数据，按平台原始口径独立统计",
+      unit: "次",
+      points: Array.from(bucketed.values()),
+      comparable: false,
+      comparabilityNote: "仅展示同一作品、同一平台的原始流量指标，不与其他平台或形态聚合",
+    });
+  }
+
+  const from = `${isoDates[0]}T00:00:00Z`;
+  const to = `${isoDates[isoDates.length - 1]}T23:59:59Z`;
+  const warnings = [
+    "当前为浏览器预览演示流量数据；在桌面应用同步账号作品后将展示真实平台采样趋势",
+  ];
+  if (series.length === 0) {
+    warnings.push("当前筛选条件下没有匹配的流量序列");
+  }
+
+  return {
+    range: query.range,
+    from,
+    to,
+    granularity: query.granularity,
+    series,
+    warnings,
+  };
+}
+
 export function analyticsToTrendDataset(analytics: AnalyticsResult): OverviewTrendDataset & {
   series: Array<OverviewTrendDataset["series"][number] & { title: string }>;
 } {
@@ -267,20 +394,27 @@ export function analyticsToTrendDataset(analytics: AnalyticsResult): OverviewTre
     else ordered.splice(index, 0, value);
     return ordered;
   }, []);
-  const series = analytics.series
-    .filter((item) => item.points.length > 0)
-    .map((item, index) => {
-      const byBucket = new Map(item.points.map((point) => [point.bucket, point.value]));
-      return {
-        platformId: item.platformId,
-        platformName: `${item.platformName} · ${item.title}`,
-        accountAlias: item.accountAlias,
-        metricLabel: item.metricName,
-        color: ANALYTICS_COLORS[index % ANALYTICS_COLORS.length],
-        values: dates.map((date) => byBucket.get(date) ?? null),
-        title: item.title,
-      };
-    });
+  const activeSeries = analytics.series.filter((item) => item.points.length > 0);
+  const baseNameCounts = new Map<string, number>();
+  for (const item of activeSeries) {
+    const baseName = `${item.platformName} · ${item.title}`;
+    baseNameCounts.set(baseName, (baseNameCounts.get(baseName) ?? 0) + 1);
+  }
+  const series = activeSeries.map((item, index) => {
+    const byBucket = new Map(item.points.map((point) => [point.bucket, point.value]));
+    const baseName = `${item.platformName} · ${item.title}`;
+    const platformName =
+      (baseNameCounts.get(baseName) ?? 0) > 1 ? `${baseName} · ${item.metricName}` : baseName;
+    return {
+      platformId: item.platformId,
+      platformName,
+      accountAlias: item.accountAlias,
+      metricLabel: item.metricName,
+      color: ANALYTICS_COLORS[index % ANALYTICS_COLORS.length],
+      values: dates.map((date) => byBucket.get(date) ?? null),
+      title: item.title,
+    };
+  });
   return { dates, series };
 }
 

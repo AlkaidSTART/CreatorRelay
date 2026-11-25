@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { ExternalWork, PublishTask } from "../types/operations";
 import {
   analyticsToTrendDataset,
+  buildDemoAnalytics,
   filterExternalWorks,
   filterPublishTasks,
+  isTrafficMetric,
   primaryMetric,
   workStatus,
 } from "./operations";
@@ -141,5 +143,37 @@ describe("M6 operations filters", () => {
     });
     expect(dataset.dates).toEqual(["2026-11-23", "2026-11-24", "2026-11-25"]);
     expect(dataset.series[0].values).toEqual([10, null, 20]);
+    expect(dataset.series[0].platformName).toBe("掘金 · 作品 · 文章阅读量");
+    expect(dataset.series[1].platformName).toBe("掘金 · 作品 · 另一指标");
+  });
+
+  it("identifies traffic metrics and builds demo traffic analytics for browser preview", () => {
+    expect(isTrafficMetric("文章阅读（掘金口径）")).toBe(true);
+    expect(isTrafficMetric("视频播放（Bilibili 口径）")).toBe(true);
+    expect(isTrafficMetric("点赞数")).toBe(false);
+
+    const daily = buildDemoAnalytics({
+      range: "7d",
+      granularity: "day",
+      platformId: null,
+      accountId: null,
+      contentKind: null,
+      workId: null,
+    });
+    expect(daily.series).toHaveLength(4);
+    expect(daily.series.every((item) => isTrafficMetric(item.metricName))).toBe(true);
+    expect(daily.series[0].points).toHaveLength(7);
+
+    const filtered = buildDemoAnalytics({
+      range: "30d",
+      granularity: "week",
+      platformId: "bilibili",
+      accountId: "acc-bilibili-1",
+      contentKind: "video",
+      workId: null,
+    });
+    expect(filtered.series).toHaveLength(1);
+    expect(filtered.series[0].platformId).toBe("bilibili");
+    expect(filtered.series[0].points.length).toBeGreaterThanOrEqual(2);
   });
 });

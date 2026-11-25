@@ -288,11 +288,11 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-line p-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-xs font-semibold text-ink">平台适配目标</h3>
-            <p className="mt-0.5 text-[10.5px] leading-relaxed text-ink-muted">
+      <div className="border-b border-line px-4 py-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-[13px] font-semibold text-ink">平台适配目标</h3>
+            <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">
               仅列出账号声明与运行时探测结果；能力未知不会显示为支持。
             </p>
           </div>
@@ -300,17 +300,33 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
             type="button"
             onClick={handleGenerate}
             disabled={checkedTargets.length === 0 || creating}
-            className="shrink-0 rounded-lg bg-accent px-2.5 py-1.5 text-[10.5px] font-medium text-accent-on disabled:opacity-50"
+            className="mt-0.5 shrink-0 cursor-pointer whitespace-nowrap rounded-lg bg-accent px-3 py-1.5 text-[11px] font-medium text-accent-on shadow-xs transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
           >
-            {creating ? "生成中..." : `生成 ${checkedTargets.length || ""} 份`}
+            {creating
+              ? "生成中..."
+              : checkedTargets.length > 0
+                ? `生成 ${checkedTargets.length} 份`
+                : "生成平台稿"}
           </button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {targets.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-line bg-canvas p-4 text-center text-[11px] leading-relaxed text-ink-muted">
-            没有可用目标。请先在「平台管理」连接账号，或在「插件」中启用测试适配器。
-          </p>
+          <div className="rounded-2xl border border-dashed border-line-strong bg-surface/75 p-5 text-center">
+            <p className="text-xs font-medium text-ink-secondary">暂无可用适配目标</p>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-ink-muted">
+              请先在「平台管理」连接账号，或在插件设置中启用测试适配器。
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/platforms")}
+              className="mt-3.5 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-[11px] font-medium text-ink-secondary shadow-xs transition-colors hover:border-accent hover:text-accent-deep"
+            >
+              前往平台管理
+              <ArrowRight size={10} />
+            </button>
+          </div>
         ) : (
           <div className="space-y-2">
             {targets.map((target) => {
@@ -318,10 +334,10 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
               return (
                 <label
                   key={key}
-                  className={`flex cursor-pointer gap-2 rounded-xl border p-2.5 ${
+                  className={`flex cursor-pointer gap-2.5 rounded-xl border p-3 transition-all ${
                     target.selectable
-                      ? "border-line bg-surface hover:border-accent-border"
-                      : "cursor-not-allowed border-line bg-canvas opacity-70"
+                      ? "border-line bg-surface shadow-[0_1px_2px_rgba(51,43,41,0.03)] hover:border-accent-border"
+                      : "cursor-not-allowed border-line bg-canvas/70 opacity-65"
                   }`}
                 >
                   <input
@@ -335,26 +351,26 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <strong className="truncate text-[11.5px] font-medium text-ink">
+                      <strong className="truncate text-xs font-medium text-ink">
                         {target.platformName}
                       </strong>
                       <span
-                        className={`shrink-0 rounded px-1.5 py-0.5 text-[9.5px] font-medium ${
+                        className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
                           target.capability === "supported"
                             ? "bg-mint-bg text-mint-text"
                             : target.capability === "experimental" ||
                                 target.capability === "restricted"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-sidebar text-ink-muted"
+                              ? "bg-lemon-bg text-lemon-text"
+                              : "bg-subtle text-ink-muted"
                         }`}
                       >
                         {target.capability}
                       </span>
                     </div>
-                    <span className="mt-0.5 block truncate text-[10px] text-ink-muted">
+                    <span className="mt-0.5 block truncate text-[10.5px] text-ink-muted">
                       {target.source === "adapter" ? "Adapter 探测" : target.accountAlias}
                     </span>
-                    <p className="mt-1 text-[10px] leading-snug text-ink-secondary">
+                    <p className="mt-1 text-[10.5px] leading-snug text-ink-secondary">
                       {target.reason}
                     </p>
                   </div>
@@ -364,53 +380,56 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
           </div>
         )}
 
-        <div className="mt-5">
+        <div className="mt-6">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-semibold text-ink">已生成平台稿</h3>
-            <span className="text-[10px] text-ink-muted">{drafts.length} 份</span>
+            <h3 className="text-[13px] font-semibold text-ink">已生成平台稿</h3>
+            <span className="rounded-full bg-subtle px-2 py-0.5 text-[10.5px] font-medium text-ink-muted">
+              {drafts.length} 份
+            </span>
           </div>
-          <div className="mt-2 space-y-1.5">
+          <div className="mt-2.5 space-y-2">
             {drafts.length === 0 ? (
-              <p className="rounded-lg bg-canvas px-3 py-3 text-[10.5px] text-ink-muted">
-                暂无平台稿。选择兼容目标后生成独立副本。
-              </p>
+              <div className="rounded-xl border border-line/70 bg-canvas/70 px-3.5 py-4 text-center text-[11px] text-ink-muted">
+                暂无平台稿。选择兼容目标后即可生成独立副本。
+              </div>
             ) : (
               drafts.map((draft) => (
                 <button
                   key={draft.id}
                   type="button"
                   onClick={() => void openDraft(draft.id)}
-                  className={`flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left ${
+                  className={`flex w-full cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all ${
                     selectedDraftId === draft.id
-                      ? "border-accent bg-accent-soft/60"
-                      : "border-line bg-surface hover:border-accent-border"
+                      ? "border-accent bg-accent-soft/50 shadow-xs"
+                      : "border-line bg-surface shadow-[0_1px_2px_rgba(51,43,41,0.02)] hover:border-accent-border"
                   }`}
                 >
-                  <Sparkles size={11} className="shrink-0 text-accent" />
+                  <Sparkles size={12} className="shrink-0 text-accent" />
                   <div className="min-w-0 flex-1">
-                    <strong className="block truncate text-[11px] font-medium text-ink">
+                    <strong className="block truncate text-xs font-medium text-ink">
                       {draft.platformName}
                     </strong>
-                    <span className="block truncate text-[9.5px] text-ink-muted">
+                    <span className="mt-0.5 block truncate text-[10.5px] text-ink-muted">
                       {draft.title || "未命名"} · {draft.manuallyEdited ? "已手动修改" : "自动生成"}
                     </span>
                   </div>
-                  {draft.sourceChanged && <AlertTriangle size={11} className="text-amber-600" />}
-                  <ChevronRight size={10} className="text-ink-muted" />
+                  {draft.sourceChanged && <AlertTriangle size={12} className="text-amber-600" />}
+                  <ChevronRight size={11} className="text-ink-muted" />
                 </button>
               ))
             )}
           </div>
         </div>
       </div>
-      <div className="border-t border-line p-3">
+
+      <div className="border-t border-line px-4 py-3">
         <button
           type="button"
-          onClick={() => showToast("平台稿保存后可在发布中心继续发布准备")}
-          className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-line px-2 py-1.5 text-[10.5px] font-medium text-ink-secondary hover:border-accent"
+          onClick={() => navigate("/publishing")}
+          className="inline-flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-medium text-ink-secondary shadow-[0_1px_2px_rgba(51,43,41,0.03)] transition-all hover:border-accent hover:text-accent-deep"
         >
-          发布准备由 M6 接管
-          <ArrowRight size={10} />
+          前往发布中心
+          <ArrowRight size={11} />
         </button>
       </div>
     </div>

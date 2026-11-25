@@ -188,20 +188,22 @@ export function ContentChecksPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-line p-3">
-        <div className="flex items-center gap-1.5">
-          <Shield size={12} className="text-accent" />
-          <h3 className="text-xs font-semibold text-ink">平台内容检查</h3>
+      <div className="border-b border-line px-4 py-3.5">
+        <div className="flex items-center gap-2">
+          <Shield size={13} className="text-accent" />
+          <h3 className="text-[13px] font-semibold text-ink">平台内容检查</h3>
         </div>
-        <p className="mt-1 text-[10px] leading-relaxed text-ink-muted">
+        <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">
           硬性错误、警告和未验证规则分开显示，不把未知检查写成通过。
         </p>
-        <div className="mt-2 flex gap-1">
+        <div className="mt-3 flex gap-1 rounded-xl bg-subtle p-1 ring-1 ring-line/60">
           <button
             type="button"
             onClick={() => setMode("source")}
-            className={`flex-1 rounded-lg px-2 py-1 text-[10px] font-medium ${
-              mode === "source" ? "bg-accent text-accent-on" : "bg-sidebar text-ink-secondary"
+            className={`flex-1 cursor-pointer rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all ${
+              mode === "source"
+                ? "bg-surface text-ink shadow-[0_1px_2px_rgba(51,43,41,0.06)]"
+                : "text-ink-muted hover:text-ink"
             }`}
           >
             主稿
@@ -210,23 +212,25 @@ export function ContentChecksPanel() {
             type="button"
             disabled={!draftEditor}
             onClick={() => setMode("draft")}
-            className={`flex-1 rounded-lg px-2 py-1 text-[10px] font-medium disabled:opacity-40 ${
-              mode === "draft" ? "bg-accent text-accent-on" : "bg-sidebar text-ink-secondary"
+            className={`flex-1 cursor-pointer rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+              mode === "draft"
+                ? "bg-surface text-ink shadow-[0_1px_2px_rgba(51,43,41,0.06)]"
+                : "text-ink-muted hover:text-ink"
             }`}
           >
             当前平台稿
           </button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {mode === "source" ? (
           <>
-            <label className="block text-[10px] text-ink-muted">
+            <label className="block text-[11px] font-medium text-ink-muted">
               检查目标
               <select
                 value={targetKey}
                 onChange={(event) => setTargetKey(event.target.value)}
-                className="mt-1 w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-[11px] text-ink outline-none focus:border-accent"
+                className="mt-1.5 w-full rounded-xl border border-line bg-surface px-2.5 py-2 text-xs text-ink outline-none transition-colors focus:border-accent"
               >
                 {targets.map((item) => (
                   <option
@@ -238,22 +242,22 @@ export function ContentChecksPanel() {
                 ))}
               </select>
             </label>
-            <div className="mt-3">
+            <div className="mt-3.5">
               {sourceReport ? (
                 <ReportView report={sourceReport} />
               ) : (
-                <p className="rounded-lg bg-canvas p-3 text-[10.5px] text-ink-muted">
+                <div className="rounded-xl border border-dashed border-line-strong bg-surface/75 p-4 text-center text-[11px] leading-relaxed text-ink-muted">
                   没有可用检查目标。连接账号或启用测试适配器后可检查。
-                </p>
+                </div>
               )}
             </div>
           </>
         ) : draftReport && draftEditor ? (
           <ReportView report={draftReport} />
         ) : (
-          <p className="rounded-lg bg-canvas p-3 text-[10.5px] text-ink-muted">
+          <div className="rounded-xl border border-dashed border-line-strong bg-surface/75 p-4 text-center text-[11px] text-ink-muted">
             请先在平台稿面板打开一份平台稿。
-          </p>
+          </div>
         )}
       </div>
     </div>

@@ -147,20 +147,22 @@ export function AiAssistantPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-line p-3">
+      <div className="border-b border-line px-4 py-3.5">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h3 className="text-xs font-semibold text-ink">形态化 AI 辅助</h3>
-            <p className="mt-0.5 text-[10px] text-ink-muted">结果需预览并手动应用</p>
+            <h3 className="text-[13px] font-semibold text-ink">形态化 AI 辅助</h3>
+            <p className="mt-0.5 text-[11px] text-ink-muted">结果需预览并手动应用</p>
           </div>
-          <span className="rounded bg-mint-bg px-1.5 py-0.5 text-[9.5px] text-mint-text">BYOK</span>
+          <span className="rounded-md bg-mint-bg px-2 py-0.5 text-[10px] font-medium text-mint-text">
+            BYOK
+          </span>
         </div>
-        <label className="mt-2 block text-[10px] text-ink-muted">
-          模型
+        <label className="mt-3 block text-[11px] font-medium text-ink-muted">
+          当前模型
           <select
             value={providerId}
             onChange={(event) => setProviderId(event.target.value)}
-            className="mt-1 w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-[11px] text-ink outline-none focus:border-accent"
+            className="mt-1.5 w-full rounded-xl border border-line bg-surface px-2.5 py-2 text-xs text-ink outline-none transition-colors focus:border-accent"
           >
             {providers.map((item) => (
               <option key={item.id} value={item.id} disabled={!item.configured}>
@@ -170,24 +172,26 @@ export function AiAssistantPanel() {
             ))}
           </select>
         </label>
-        <p className="mt-1.5 truncate text-[9.5px] text-ink-faint">{provider.baseUrl}</p>
+        <p className="mt-1.5 truncate text-[10px] text-ink-faint">{provider.baseUrl}</p>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        <div className="grid gap-1.5">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="grid gap-2">
           {operations.map((operation) => (
             <button
               key={operation.operation}
               type="button"
               onClick={() => chooseOperation(operation.operation)}
-              className="flex items-start gap-2 rounded-xl border border-line bg-surface p-2.5 text-left hover:border-accent-border"
+              className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 text-left transition-all ${
+                pendingOperation === operation.operation
+                  ? "border-accent bg-accent-soft/45 shadow-xs"
+                  : "border-line bg-surface shadow-[0_1px_2px_rgba(51,43,41,0.02)] hover:border-accent-border"
+              }`}
             >
-              <Sparkles size={11} className="mt-0.5 shrink-0 text-accent" />
+              <Sparkles size={12} className="mt-0.5 shrink-0 text-accent" />
               <div className="min-w-0">
-                <strong className="block text-[11px] font-medium text-ink">
-                  {operation.label}
-                </strong>
-                <span className="block text-[9.5px] leading-snug text-ink-muted">
+                <strong className="block text-xs font-medium text-ink">{operation.label}</strong>
+                <span className="mt-0.5 block text-[10.5px] leading-snug text-ink-muted">
                   {operation.description}
                 </span>
               </div>
