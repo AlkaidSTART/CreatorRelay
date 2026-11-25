@@ -17,9 +17,29 @@
   --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Songti SC", Georgia, serif;
 }
 
-* { box-sizing: border-box; }
-html, body, #root { width: 100%; min-width: 980px; height: 100%; margin: 0; }
-body { overflow: hidden; }
-button, input, textarea { font: inherit; }
-button { color: inherit; }
-::selection { color: #263323; background: #dce4d4; }
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 980px;
+  height: 100%;
+  margin: 0;
+}
+body {
+  overflow: hidden;
+}
+button,
+input,
+textarea {
+  font: inherit;
+}
+button {
+  color: inherit;
+}
+::selection {
+  color: #263323;
+  background: #dce4d4;
+}

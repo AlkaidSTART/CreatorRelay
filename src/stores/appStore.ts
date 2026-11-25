@@ -20,9 +20,24 @@ export type SaveState = "saved" | "saving" | "unsaved" | "error";
 type ValueOrUpdater<T> = T | ((current: T) => T);
 
 export const starterRevisions: Revision[] = [
-  { id: 3, createdAt: "今天 09:41", label: "当前版本", preview: "当服务离用户更近，延迟自然会低一些。但真正的挑战并不是把容器搬到边缘……" },
-  { id: 2, createdAt: "今天 09:18", label: "自动保存", preview: "最近我把一个数据转换任务迁移到了 WebAssembly 运行时。它并没有让系统架构……" },
-  { id: 1, createdAt: "昨天 16:32", label: "初始版本", preview: "当服务离用户更近，延迟自然会低一些。真正的挑战是如何在有限资源里运行代码。" },
+  {
+    id: 3,
+    createdAt: "今天 09:41",
+    label: "当前版本",
+    preview: "当服务离用户更近，延迟自然会低一些。但真正的挑战并不是把容器搬到边缘……",
+  },
+  {
+    id: 2,
+    createdAt: "今天 09:18",
+    label: "自动保存",
+    preview: "最近我把一个数据转换任务迁移到了 WebAssembly 运行时。它并没有让系统架构……",
+  },
+  {
+    id: 1,
+    createdAt: "昨天 16:32",
+    label: "初始版本",
+    preview: "当服务离用户更近，延迟自然会低一些。真正的挑战是如何在有限资源里运行代码。",
+  },
 ];
 
 export type AppStore = {
@@ -94,15 +109,18 @@ const createAppStoreState: StateCreator<AppStore> = (set) => ({
   setQuery: (value) => set((state) => ({ query: resolveValue(value, state.query) })),
   setSaveState: (value) => set((state) => ({ saveState: resolveValue(value, state.saveState) })),
   setViewMode: (value) => set((state) => ({ viewMode: resolveValue(value, state.viewMode) })),
-  setShowHistory: (value) => set((state) => ({ showHistory: resolveValue(value, state.showHistory) })),
+  setShowHistory: (value) =>
+    set((state) => ({ showHistory: resolveValue(value, state.showHistory) })),
   setRevisions: (value) => set((state) => ({ revisions: resolveValue(value, state.revisions) })),
   setIsCreating: (value) => set((state) => ({ isCreating: resolveValue(value, state.isCreating) })),
   setNewTitle: (value) => set((state) => ({ newTitle: resolveValue(value, state.newTitle) })),
   setLoading: (value) => set((state) => ({ loading: resolveValue(value, state.loading) })),
   setError: (value) => set((state) => ({ error: resolveValue(value, state.error) })),
   setNotice: (value) => set((state) => ({ notice: resolveValue(value, state.notice) })),
-  setSidebarOpen: (value) => set((state) => ({ sidebarOpen: resolveValue(value, state.sidebarOpen) })),
-  setShowDemoBanner: (value) => set((state) => ({ showDemoBanner: resolveValue(value, state.showDemoBanner) })),
+  setSidebarOpen: (value) =>
+    set((state) => ({ sidebarOpen: resolveValue(value, state.sidebarOpen) })),
+  setShowDemoBanner: (value) =>
+    set((state) => ({ showDemoBanner: resolveValue(value, state.showDemoBanner) })),
 });
 
 export const useAppStore = create<AppStore>()(createAppStoreState);

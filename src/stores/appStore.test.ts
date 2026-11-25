@@ -31,7 +31,9 @@ describe("app store", () => {
     const { setDocuments } = store.getState();
 
     setDocuments([firstDocument]);
-    setDocuments((documents) => documents.map((document) => ({ ...document, title: "Updated title" })));
+    setDocuments((documents) =>
+      documents.map((document) => ({ ...document, title: "Updated title" })),
+    );
 
     expect(store.getState().documents).toEqual([{ ...firstDocument, title: "Updated title" }]);
   });

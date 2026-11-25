@@ -14,7 +14,9 @@ describe("markdown helpers", () => {
   });
 
   it("reads the title from frontmatter, then a Markdown heading, then the fallback", () => {
-    expect(titleFromMarkdown("---\ntitle: \"From metadata\"\n---\n# Body", "Fallback")).toBe("From metadata");
+    expect(titleFromMarkdown('---\ntitle: "From metadata"\n---\n# Body', "Fallback")).toBe(
+      "From metadata",
+    );
     expect(titleFromMarkdown("# From heading", "Fallback")).toBe("From heading");
     expect(titleFromMarkdown("Body without a heading", "Fallback")).toBe("Fallback");
   });
