@@ -286,9 +286,7 @@ export function ContentStudioPage() {
             {editor && (
               <>
                 <span className="text-ink-faint">·</span>
-                <span className="truncate font-mono text-[10px] text-ink-muted">
-                  {editor.path}
-                </span>
+                <span className="truncate font-mono text-[10px] text-ink-muted">{editor.path}</span>
               </>
             )}
           </div>
@@ -360,7 +358,9 @@ export function ContentStudioPage() {
               type="button"
               onClick={() => setRightTab("ai")}
               className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-medium ${
-                rightTab === "ai" ? "bg-accent-soft text-accent-deep" : "text-ink-secondary hover:bg-hover"
+                rightTab === "ai"
+                  ? "bg-accent-soft text-accent-deep"
+                  : "text-ink-secondary hover:bg-hover"
               }`}
             >
               <Sparkles size={10} /> AI
@@ -369,7 +369,9 @@ export function ContentStudioPage() {
               type="button"
               onClick={() => setRightTab("checks")}
               className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-medium ${
-                rightTab === "checks" ? "bg-accent-soft text-accent-deep" : "text-ink-secondary hover:bg-hover"
+                rightTab === "checks"
+                  ? "bg-accent-soft text-accent-deep"
+                  : "text-ink-secondary hover:bg-hover"
               }`}
             >
               <Check size={10} /> 检查
@@ -439,7 +441,11 @@ export function ContentStudioPage() {
               <Clock3 size={10} />
               {editor ? `内容版本 ${editor.contentVersion.slice(0, 8)}` : "无内容版本"}
             </span>
-            {editor && <span>{editor.media.length} 个媒体 · {editor.tags.length} 个标签</span>}
+            {editor && (
+              <span>
+                {editor.media.length} 个媒体 · {editor.tags.length} 个标签
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -497,7 +503,9 @@ export function ContentStudioPage() {
             </button>
           </div>
           <div className="min-h-0 flex-1">
-            {rightTab === "drafts" && <PlatformDraftPanel onShowChecks={() => setRightTab("checks")} />}
+            {rightTab === "drafts" && (
+              <PlatformDraftPanel onShowChecks={() => setRightTab("checks")} />
+            )}
             {rightTab === "ai" && <AiAssistantPanel />}
             {rightTab === "checks" && <ContentChecksPanel />}
           </div>

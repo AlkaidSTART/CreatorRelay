@@ -359,6 +359,43 @@ fn m6_ac_01_03_05_06_13_multi_target_confirmation_timeout_and_video_roundtrip() 
         resolved.external_id.as_deref(),
         Some("manually-checked-001")
     );
+    plugins::restart_plugin(
+        &mut fixture.conn,
+        &fixture.runtime,
+        "creatorrelay.official.publish-timeout-adapter",
+    )
+    .unwrap();
+
+    let failed_task = create_tasks(
+        &mut fixture,
+        PublishSourceType::Content,
+        &article.manifest.id,
+        vec![target(
+            "creatorrelay.official.publish-timeout-adapter",
+            "测试平台失败目标",
+            "adapter-failed-account",
+            "失败账号",
+            Some("creatorrelay.official.publish-timeout-adapter"),
+        )],
+    )
+    .remove(0);
+    let uncertain = prepare_and_confirm(&mut fixture, &failed_task.id);
+    assert_eq!(uncertain.error_code.as_deref(), Some("RESULT_UNCERTAIN"));
+    let failed = operations::resolve_uncertain_publish_task(
+        &mut fixture.conn,
+        &failed_task.id,
+        &ResolveUncertainInput {
+            outcome: UncertainOutcome::Failed,
+            external_id: None,
+            external_url: None,
+            note: Some("平台后台确认未发布".to_string()),
+        },
+    )
+    .unwrap();
+    assert_eq!(failed.status, PublishTaskStatus::Failed);
+    assert_eq!(failed.error_code.as_deref(), Some("VERIFIED_FAILED"));
+    assert_eq!(failed.content_version, article.content_version);
+    assert_eq!(failed.account_id, "adapter-failed-account");
 
     let video = create_video(&fixture);
     let video_task = create_tasks(
@@ -855,4 +892,105 @@ fn m6_ac_12_account_invalidation_pauses_unfinished_dependent_tasks() {
     assert_eq!(resumed.len(), 1);
     assert!(!resumed[0].paused);
     assert_eq!(resumed[0].status, PublishTaskStatus::Created);
+}
+
+#[test]
+fn m6_scheduled_publish_executes_once_after_confirmation() {
+    let mut fixture = fixture();
+    enable_adapter(&mut fixture, "creatorrelay.official.test-adapter");
+    let article = create_article(&fixture);
+    let scheduled_at = (chrono::Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
+    let task = operations::create_publish_tasks(
+        &mut fixture.conn,
+        &fixture.workspace,
+        &CreatePublishTasksInput {
+            source_type: PublishSourceType::Content,
+            source_id: article.manifest.id,
+            targets: vec![target(
+                "creatorrelay.official.test-adapter",
+                "定时测试平台",
+                "adapter-scheduled-account",
+                "定时账号",
+                Some("creatorrelay.official.test-adapter"),
+            )],
+            scheduled_at: Some(scheduled_at),
+        },
+    )
+    .unwrap()
+    .tasks
+    .remove(0);
+    let preview = operations::prepare_publish_task(
+        &mut fixture.conn,
+        &fixture.runtime,
+        &fixture.workspace,
+        &task.id,
+    )
+    .unwrap();
+    let confirmed = operations::confirm_publish_task(
+        &mut fixture.conn,
+        &fixture.runtime,
+        &fixture.workspace,
+        &task.id,
+        preview.confirmation_token.as_deref().unwrap(),
+    )
+    .unwrap();
+    assert_eq!(confirmed.status, PublishTaskStatus::Scheduled);
+    assert!(
+        operations::run_due_publish_tasks(&mut fixture.conn, &fixture.runtime, &fixture.workspace)
+            .unwrap()
+            .is_empty()
+    );
+    fixture
+        .conn
+        .execute(
+            "UPDATE publish_tasks SET scheduled_at=?1 WHERE id=?2",
+            rusqlite::params![
+                (chrono::Utc::now() - chrono::Duration::minutes(1)).to_rfc3339(),
+                task.id
+            ],
+        )
+        .unwrap();
+    let executed =
+        operations::run_due_publish_tasks(&mut fixture.conn, &fixture.runtime, &fixture.workspace)
+            .unwrap();
+    assert_eq!(executed.len(), 1);
+    assert_eq!(executed[0].status, PublishTaskStatus::Success);
+    assert!(
+        operations::run_due_publish_tasks(&mut fixture.conn, &fixture.runtime, &fixture.workspace)
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn m6_partial_sync_failure_is_visible_and_keeps_successful_works() {
+    let mut fixture = fixture();
+    enable_adapter(&mut fixture, "creatorrelay.official.sync-adapter");
+    insert_account(&mut fixture, "partial-account", "juejin", "部分失败账号");
+    let result = operations::sync_platform_works(
+        &mut fixture.conn,
+        &fixture.runtime,
+        &SyncPlatformWorksInput {
+            account_id: "partial-account".to_string(),
+            platform_id: "juejin".to_string(),
+            platform_name: "掘金".to_string(),
+            account_alias: "部分失败账号".to_string(),
+            adapter_id: "creatorrelay.official.sync-adapter".to_string(),
+            as_of: Some("2026-11-24T09:00:00Z".to_string()),
+        },
+    )
+    .unwrap();
+    assert_eq!(result.status, "PARTIAL");
+    assert_eq!(result.error_count, 1);
+    assert_eq!(result.imported_count, 4);
+    assert!(result.errors[0].contains("作品详情读取失败"));
+    let works = operations::list_external_works(
+        &fixture.conn,
+        &ExternalWorkFilter {
+            account_id: Some("partial-account".to_string()),
+            ..ExternalWorkFilter::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(works.len(), 4);
 }

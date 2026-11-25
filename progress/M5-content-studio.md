@@ -4,23 +4,27 @@
 
 **用户价值：** 用户不需要先把所有创作都写成 Markdown 文章；可以直接准备视频或图集，也可以编写图文文章或纯文章，再把同一份主内容适配到实际支持该形态的多个平台。
 
-**状态：** 需求拆分完成；实现状态待项目跟踪。
+**状态：** 已验收（accepted，2026-11-25）；验收报告见 [M5 验收报告](./M5-acceptance.md)。
 
 ## 阶段任务总结
 
-> 本节记录实施跟踪状态，不是验收报告，也不能作为验收通过的依据。
+> 本节记录实施跟踪状态；M5 已通过全部验收标准，验收依据见独立报告。验收结论不改变 M6/M7 的范围。
 
 - **总结日期：** 2026-11-25
-- **总结范围：** 截至当前工作区的 M5 需求拆分和可复核证据。
-- **实现状态：** 未核验；需求拆分已完成。
+- **总结范围：** M5 四类内容编辑、媒体顺序与封面、自动保存失败保护、BYOK 模型、形态化 AI、平台稿独立性/版本保护、平台检查和凭据脱敏。
+- **实现状态：** 已完成。
 - **已完成任务：**
-  - 完成四类内容创建与编辑、媒体顺序/封面、自动保存失败保护、BYOK 模型配置、形态化 AI 辅助、平台稿和多目标适配的需求拆分。
-  - 完成 M5-AC-01 至 M5-AC-13，并明确 AI 输入范围、未应用结果保护和凭据不泄露要求。
-- **验证记录：** [M5 验证记录](./verification/M5-verification-2026-11-25.md)（当前状态：`not verified`）。
-- **未完成与阻塞：** M2、M3、M4 尚未验收，四类内容包、媒体编辑、模型配置、平台稿生成/检查和版本差异保护均未完成验证。
-- **验收状态：** 未验收（`not verified`）。
-- **验收报告：** 未创建；只有 M5 全部 AC 通过后才创建 `progress/M5-acceptance.md`。
-- **下一步：** 待 M2–M4 验收通过后，先建立四类编辑器和保存失败路径，再接入模型与平台稿并执行 M5 AC。
+  - 四类内容包与统一 `content.json` 清单、图文文章/纯文章 `body.md` 权威正文、媒体导入/预览与跨形态派生：`src-tauri/src/content.rs`。
+  - 三栏内容工作室、视频/图文/图文文章/纯文章编辑器、自动保存、保存失败可重试、Slash Commands 和经典 Markdown 兼容入口：`src/pages/ContentStudioPage.tsx`、`src/components/studio/`、`src/stores/studioStore.ts`。
+  - 平台目标能力过滤、多平台独立平台稿、素材快照、源版本差异与保留/重新生成：`src/utils/contentTargets.ts`、`src/stores/studioStore.ts`、`src/components/studio/PlatformDraftPanel.tsx`。
+  - BYOK Provider、OpenAI Compatible 连接测试、默认模型、系统钥匙串凭据、显式输入范围确认、AI 结果预览/应用/撤销：`src-tauri/src/ai.rs`、`src/components/AiProviderSettings.tsx`、`src/components/studio/AiAssistantPanel.tsx`。
+  - 平台检查硬性错误/警告/未检查分级与未知规则保护：`src/utils/contentChecks.ts`。
+  - 工作区格式、AI 数据流和测试说明：`docs/content-studio.md`、`docs/local-workspace-format.md`。
+- **验证记录：** [M5 验证记录](./verification/M5-verification-2026-11-25.md)（当前状态：`pass`）。
+- **未完成与阻塞：** 无 M5 验收阻塞。真实第三方模型服务、真实 Tauri 视频/多图文件选择器人工流程、大型视频性能和平台真实上传执行列为残余风险，不属于 M5 AC。
+- **验收状态：** accepted。
+- **验收报告：** [progress/M5-acceptance.md](./M5-acceptance.md)。
+- **下一步：** M6 可在现有内容包与独立平台稿之上接入发布准备、真实平台执行和运营数据；M2 里程碑仍需单独完成索引、导入/导出和内容清单版本恢复等验收，M5 不代替 M2 阶段门。
 
 ## 前置条件
 

@@ -8,10 +8,12 @@ import {
   Plus,
   RefreshCw,
   ShieldAlert,
+  ShieldCheck,
   Trash2,
   X,
 } from "../components/Icons";
 import { PageHeader } from "../components/PageHeader";
+import { EcosystemPanel } from "../components/EcosystemPanel";
 import { PluginManager } from "../components/PluginManager";
 import { PlatformLogo } from "../components/PlatformLogo";
 import { PLATFORM_CATEGORIES } from "../data/demoData";
@@ -172,7 +174,9 @@ export function PlatformsPage() {
   const [manualPrompt, setManualPrompt] = useState<ManualPrompt | null>(null);
   const [deleteState, setDeleteState] = useState<DeleteState | null>(null);
   const [busyAccountId, setBusyAccountId] = useState("");
-  const [managementView, setManagementView] = useState<"accounts" | "adapters">("accounts");
+  const [managementView, setManagementView] = useState<"accounts" | "adapters" | "ecosystem">(
+    "accounts",
+  );
 
   useEffect(() => {
     void initialize();
@@ -378,7 +382,9 @@ export function PlatformsPage() {
         description={
           managementView === "accounts"
             ? "管理平台账号、真实会话校验、系统凭据与隔离会话容器；未验证身份不会显示为已连接。"
-            : "发现、安装并审查平台适配器；按内容形态探测真实能力，限制插件对账号、凭据和本地数据的访问。"
+            : managementView === "adapters"
+              ? "发现、安装并审查平台适配器；按内容形态探测真实能力，限制插件对账号、凭据和本地数据的访问。"
+              : "核对平台准入来源、账号级逐形态能力、Adapter 兼容性与第三方插件市场门禁。"
         }
         actions={
           managementView === "accounts" ? (
@@ -423,6 +429,20 @@ export function PlatformsPage() {
             }`}
           >
             适配器与插件
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={managementView === "ecosystem"}
+            onClick={() => setManagementView("ecosystem")}
+            className={`inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-t-xl border-b-2 px-3 text-xs font-medium transition-colors ${
+              managementView === "ecosystem"
+                ? "border-accent text-accent-deep"
+                : "border-transparent text-ink-muted hover:text-ink-secondary"
+            }`}
+          >
+            <ShieldCheck size={11} />
+            生态治理
           </button>
         </div>
       </div>
@@ -684,9 +704,13 @@ export function PlatformsPage() {
             </div>
           </section>
         </div>
-      ) : (
+      ) : managementView === "adapters" ? (
         <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
           <PluginManager />
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
+          <EcosystemPanel />
         </div>
       )}
 

@@ -111,6 +111,7 @@ export interface ExternalWork {
   title: string;
   contentKind: ContentKind | "unknown";
   originalContentType: string;
+  rawFields: Record<string, unknown>;
   url?: string | null;
   publishedAt: string;
   source: string;

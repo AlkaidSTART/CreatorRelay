@@ -120,10 +120,7 @@ export function AiProviderSettings() {
           </p>
         ) : (
           providers.map((provider) => (
-            <div
-              key={provider.id}
-              className="rounded-xl border border-line bg-canvas px-3.5 py-3"
-            >
+            <div key={provider.id} className="rounded-xl border border-line bg-canvas px-3.5 py-3">
               <div className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
@@ -212,7 +209,10 @@ export function AiProviderSettings() {
       )}
 
       {editing && (
-        <form onSubmit={(event) => void handleSubmit(event)} className="mt-4 rounded-xl border border-line bg-canvas p-3">
+        <form
+          onSubmit={(event) => void handleSubmit(event)}
+          className="mt-4 rounded-xl border border-line bg-canvas p-3"
+        >
           <div className="mb-2 flex flex-wrap gap-1">
             {PRESETS.map((preset) => (
               <button
@@ -237,7 +237,9 @@ export function AiProviderSettings() {
               名称
               <input
                 value={form.name}
-                onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, name: event.target.value }))
+                }
                 required
                 className="mt-1 w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-ink outline-none focus:border-accent"
               />
@@ -246,7 +248,9 @@ export function AiProviderSettings() {
               模型
               <input
                 value={form.model}
-                onChange={(event) => setForm((current) => ({ ...current, model: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, model: event.target.value }))
+                }
                 required
                 className="mt-1 w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-ink outline-none focus:border-accent"
               />
@@ -255,7 +259,9 @@ export function AiProviderSettings() {
               Base URL（OpenAI Compatible）
               <input
                 value={form.baseUrl}
-                onChange={(event) => setForm((current) => ({ ...current, baseUrl: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, baseUrl: event.target.value }))
+                }
                 required
                 className="mt-1 w-full rounded-lg border border-line bg-surface px-2 py-1.5 font-mono text-[11px] text-ink outline-none focus:border-accent"
               />
@@ -269,7 +275,9 @@ export function AiProviderSettings() {
                 type="password"
                 autoComplete="off"
                 value={form.apiKey}
-                onChange={(event) => setForm((current) => ({ ...current, apiKey: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, apiKey: event.target.value }))
+                }
                 placeholder={form.id ? "••••••••（保留现有）" : "sk-..."}
                 className="mt-1 w-full rounded-lg border border-line bg-surface px-2 py-1.5 font-mono text-[11px] text-ink outline-none focus:border-accent"
               />

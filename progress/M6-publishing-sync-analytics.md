@@ -4,23 +4,27 @@
 
 **用户价值：** 用户能按账号发布视频、图文、图文文章或纯文章，检查发布结果和失败原因，并在统一内容中心及数据视图中查看平台返回的作品与指标。
 
-**状态：** 需求拆分完成；实现状态待项目跟踪。
+**状态：** 功能实现与自动化验证完成；里程碑验收受 M2 前置门和真实平台验证范围阻塞，未标记 accepted。
 
 ## 阶段任务总结
 
 > 本节记录实施跟踪状态，不是验收报告，也不能作为验收通过的依据。
 
 - **总结日期：** 2026-11-25
-- **总结范围：** 截至当前工作区的 M6 需求拆分和可复核证据。
-- **实现状态：** 未核验；需求拆分已完成。
+- **总结范围：** M6 发布任务状态机、分形态能力、确认/人工发布、同步幂等、指标趋势、Dashboard/内容/分析页面及验证证据。
+- **实现状态：** 已完成；M6-AC-01～14 自动化验证通过。
 - **已完成任务：**
-  - 完成多目标发布任务、分形态能力、发布前确认、人工发布、超时不确定、结果持久化、作品同步和指标口径的需求拆分。
-  - 完成 M6-AC-01 至 M6-AC-14，覆盖视频、图文、图文文章/纯文章的发布载荷和运营数据场景。
-- **验证记录：** [M6 验证记录](./verification/M6-verification-2026-11-25.md)（当前状态：`not verified`）。
-- **未完成与阻塞：** M2–M5 尚未验收；发布任务状态机、Adapter 发布适配、人工发布包、同步服务、指标字典和看板均未完成验证。
-- **验收状态：** 未验收（`not verified`）。
-- **验收报告：** 未创建；只有 M6 全部 AC 通过后才创建 `progress/M6-acceptance.md`。
-- **下一步：** 先完成 M2–M5 的稳定接口，再以测试 Adapter 建立发布/同步端到端测试，最后逐项验证 M6 AC。
+  - 完成 schema v5 的发布任务、任务事件、外部作品、指标快照和同步运行记录，以及 `operations.rs` 服务。
+  - 完成确认令牌、自动/人工执行方式、定时任务、超时不确定、人工核对、账号失效暂停/恢复和结果追溯。
+  - 完成作品同步幂等、按 UTC 日采样、部分失败、原始指标定义与不可比较标记。
+  - 完成 Dashboard、发布中心、内容中心、数据分析页面及平台/账号/形态/时间过滤：[operationsStore.ts](../../src/stores/operationsStore.ts)、[PublishingPage.tsx](../../src/pages/PublishingPage.tsx)、[ContentPage.tsx](../../src/pages/ContentPage.tsx)、[AnalyticsPage.tsx](../../src/pages/AnalyticsPage.tsx)、[DashboardPage.tsx](../../src/pages/DashboardPage.tsx)。
+  - 完成视频、图文、同步和发布超时测试 Adapter，以及 5 项 M6 集成测试：[m6_operations.rs](../../src-tauri/tests/m6_operations.rs)。
+  - 完成实现说明：[m6-publishing-operations.md](../../docs/m6-publishing-operations.md)。
+- **验证记录：** [M6 验证记录](./verification/M6-verification-2026-11-25.md)（当前状态：M6-AC pass；里程碑 `blocked`）。
+- **未完成与阻塞：** M2 尚未验收；尚未用至少两个真实平台账号完成真实发布/读取/指标验证；真实平台调度器、平台政策差异和跨平台统一指标字典仍属后续工作。
+- **验收状态：** 未验收（`blocked`：M2 前置门未通过，真实平台能力补验未完成）。
+- **验收报告：** 未创建；只有 M2–M5 前置和 M6 全部 AC 与真实平台补验通过后才创建 `progress/M6-acceptance.md`。
+- **下一步：** 完成 M2 验收；接入并验证至少两个真实平台 Adapter 的发布/读取/指标能力；补齐真实平台人工证据后重新评估 M6 acceptance。
 
 ## 前置条件
 

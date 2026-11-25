@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { Check, Copy, LoaderCircle, RotateCcw, Shield, Sparkles, X } from "../Icons";
-import { useAiStore, aiOperationTarget, buildAiMetadata, operationsForKind } from "../../stores/aiStore";
+import {
+  useAiStore,
+  aiOperationTarget,
+  buildAiMetadata,
+  operationsForKind,
+} from "../../stores/aiStore";
 import { useStudioStore } from "../../stores/studioStore";
 import { useUiStore } from "../../stores/uiStore";
 import type { AiGenerateRequest, AiGenerateResult, AiOperation } from "../../types/ai";
@@ -45,10 +50,7 @@ export function AiAssistantPanel() {
     }
   }, [providers, providerId]);
 
-  const operations = useMemo(
-    () => (editor ? operationsForKind(editor.kind) : []),
-    [editor],
-  );
+  const operations = useMemo(() => (editor ? operationsForKind(editor.kind) : []), [editor]);
   const provider = providers.find((item) => item.id === providerId) ?? null;
 
   if (!editor) return null;
@@ -224,7 +226,8 @@ export function AiAssistantPanel() {
               value={result.content}
               className="mt-2 min-h-32 w-full resize-y rounded-lg border border-line bg-surface p-2 text-[11px] leading-relaxed text-ink"
             />
-            {aiOperationTarget(pendingOperation ?? "custom") !== "body" || pendingOperation === "contentCheck" ? null : (
+            {aiOperationTarget(pendingOperation ?? "custom") !== "body" ||
+            pendingOperation === "contentCheck" ? null : (
               <p className="mt-1 text-[9.5px] leading-relaxed text-ink-muted">
                 应用后会替换编辑区正文；未应用前主内容保持不变。
               </p>
@@ -308,7 +311,10 @@ export function AiAssistantPanel() {
                 ["包含正文", includeBody, setIncludeBody],
                 ["包含素材元数据", includeMedia, setIncludeMedia],
               ].map(([label, checked, setter]) => (
-                <label key={String(label)} className="flex items-center gap-1.5 rounded border border-line px-2 py-1.5">
+                <label
+                  key={String(label)}
+                  className="flex items-center gap-1.5 rounded border border-line px-2 py-1.5"
+                >
                   <input
                     type="checkbox"
                     checked={Boolean(checked)}
@@ -333,7 +339,9 @@ export function AiAssistantPanel() {
             )}
 
             <div className="mt-3">
-              <span className="text-[10.5px] font-medium text-ink">实际发送载荷（节选正文与素材元数据）</span>
+              <span className="text-[10.5px] font-medium text-ink">
+                实际发送载荷（节选正文与素材元数据）
+              </span>
               <pre className="mt-1 max-h-52 overflow-auto rounded-lg border border-line bg-canvas p-2 font-mono text-[9.5px] leading-relaxed text-ink-secondary">
                 {JSON.stringify(request, null, 2)}
               </pre>

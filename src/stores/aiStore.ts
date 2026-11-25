@@ -2,7 +2,15 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { create } from "zustand";
 import type { StateCreator } from "zustand";
 import { createStore } from "zustand/vanilla";
-import { AI_OPERATIONS, type AiGenerateRequest, type AiGenerateResult, type AiProvider, type AiProviderInput, type AiTestResult, type AiOperation } from "../types/ai";
+import {
+  AI_OPERATIONS,
+  type AiGenerateRequest,
+  type AiGenerateResult,
+  type AiProvider,
+  type AiProviderInput,
+  type AiTestResult,
+  type AiOperation,
+} from "../types/ai";
 import type { ContentKind } from "../types/plugin";
 import type { ContentAsset } from "../types/content";
 import { useUiStore } from "./uiStore";
@@ -42,10 +50,13 @@ function demoGenerate(request: AiGenerateRequest): AiGenerateResult {
   const excerpt = input.slice(0, 60) || "当前内容";
   let content = excerpt;
   if (request.operation === "title") content = `关于${excerpt.slice(0, 12)}的新视角`;
-  if (request.operation === "description") content = `本期视频围绕“${excerpt.slice(0, 20)}”展开，梳理关键背景与实践取舍。`;
+  if (request.operation === "description")
+    content = `本期视频围绕“${excerpt.slice(0, 20)}”展开，梳理关键背景与实践取舍。`;
   if (request.operation === "shortCopy") content = `今天分享：${excerpt.slice(0, 28)}。`;
-  if (request.operation === "summary") content = `本文围绕 ${excerpt.slice(0, 24)} 展开，总结核心观点与可执行建议。`;
-  if (request.operation === "contentCheck") content = "1. 标题与正文一致。\n2. 建议补充素材数量说明。";
+  if (request.operation === "summary")
+    content = `本文围绕 ${excerpt.slice(0, 24)} 展开，总结核心观点与可执行建议。`;
+  if (request.operation === "contentCheck")
+    content = "1. 标题与正文一致。\n2. 建议补充素材数量说明。";
   return {
     requestId: `demo-${crypto.randomUUID()}`,
     providerId: request.providerId,
@@ -166,7 +177,8 @@ const createAiStoreState: StateCreator<AiStore> = (set, get) => ({
     }
   },
 
-  defaultProvider: () => get().providers.find((provider) => provider.isDefault) ?? get().providers[0] ?? null,
+  defaultProvider: () =>
+    get().providers.find((provider) => provider.isDefault) ?? get().providers[0] ?? null,
 
   generate: async (request) => {
     set({ busyAction: "generate" });

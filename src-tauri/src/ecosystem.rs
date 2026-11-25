@@ -23,7 +23,7 @@ const EXPECTED_GATE_IDS: [&str; 6] = [
     "emergency_takedown",
 ];
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AdmissionRegistry {
     pub schema_version: u32,
@@ -33,7 +33,7 @@ pub struct AdmissionRegistry {
     pub platforms: Vec<PlatformAdmission>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StatusSemantics {
     pub supported: String,
@@ -131,7 +131,7 @@ pub struct PublishPolicy {
     pub reason: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MarketplacePolicy {
     pub schema_version: u32,
@@ -348,7 +348,11 @@ fn account_snapshot(
         .content_kinds
         .iter()
         .map(|capability| {
-            let read = effective_level(capability.read.level, &capability.read.evidence, account_usable);
+            let read = effective_level(
+                capability.read.level,
+                &capability.read.evidence,
+                account_usable,
+            );
             let publish = effective_level(
                 capability.publish.level,
                 &capability.publish.evidence,
@@ -456,14 +460,34 @@ pub fn publish_policy(
             reason: "发布任务的平台与账号所属平台不一致，自动发布已关闭".to_string(),
         });
     }
-    let admission = platform_admission(platform_id)?.ok_or_else(|| {
-        format!("平台 `{platform_id}` 没有准入记录，不能执行自动发布")
-    })?;
-    let capability = admission
+    let Some(admission) = platform_admission(platform_id)? else {
+        return Ok(PublishPolicy {
+            platform_id: platform_id.to_string(),
+            account_id: account_id.to_string(),
+            content_kind,
+            admission_status: "not_admitted".to_string(),
+            capability: CapabilityLevel::Unavailable,
+            auto_publish_allowed: false,
+            manual_publish_allowed: true,
+            reason: "平台没有可追溯的准入记录，自动发布关闭，只能人工发布".to_string(),
+        });
+    };
+    let Some(capability) = admission
         .content_kinds
         .iter()
         .find(|capability| capability.kind == content_kind)
-        .ok_or_else(|| format!("平台 `{platform_id}` 缺少该内容形态的准入记录"))?;
+    else {
+        return Ok(PublishPolicy {
+            platform_id: platform_id.to_string(),
+            account_id: account_id.to_string(),
+            content_kind,
+            admission_status: admission.admission_status,
+            capability: CapabilityLevel::Unavailable,
+            auto_publish_allowed: false,
+            manual_publish_allowed: true,
+            reason: "平台缺少该内容形态的准入记录，自动发布关闭，只能人工发布".to_string(),
+        });
+    };
     let account_usable = enabled && account_status == "ACTIVE";
     let effective = effective_level(
         capability.publish.level,
@@ -480,8 +504,7 @@ pub fn publish_policy(
     } else if !auto_allowed {
         format!(
             "{}；{}",
-            capability.publish.reason,
-            "平台准入未允许自动发布，保留人工发布路径"
+            capability.publish.reason, "平台准入未允许自动发布，保留人工发布路径"
         )
     } else {
         capability.publish.reason.clone()
@@ -637,9 +660,7 @@ fn validate_assessment(
             kind.as_str()
         ));
     }
-    if assessment.level == CapabilityLevel::Supported
-        && assessment.evidence != "runtime_verified"
-    {
+    if assessment.level == CapabilityLevel::Supported && assessment.evidence != "runtime_verified" {
         issues.push(format!(
             "平台 `{platform_id}` 的 `{}` {direction} 在无运行时证据时声明 supported",
             kind.as_str()
@@ -709,11 +730,11 @@ pub fn compatibility_report() -> CompatibilityReport {
     let invalid = validations
         .iter()
         .filter(|(_, validation)| !validation.valid)
-        .map(|(index, validation)| manifest_issue_summary(index, validation))
+        .map(|(index, validation)| manifest_issue_summary(*index, validation))
         .collect::<Vec<_>>();
     checks.push(CompatibilityCheck {
         id: "manifest_contract".to_string(),
-        label: "全部内嵌 Manifest 通过合约校验",
+        label: "全部内嵌 Manifest 通过合约校验".to_string(),
         passed: invalid.is_empty(),
         detail: if invalid.is_empty() {
             format!("{} 个 Manifest 全部通过字段和语义校验", validations.len())
@@ -732,7 +753,7 @@ pub fn compatibility_report() -> CompatibilityReport {
         .collect::<HashSet<_>>();
     checks.push(CompatibilityCheck {
         id: "unique_adapter_ids".to_string(),
-        label: "适配器身份唯一",
+        label: "适配器身份唯一".to_string(),
         passed: unique_ids.len() == manifests.len(),
         detail: format!(
             "{} 个有效 Manifest，{} 个唯一 adapter id",
@@ -741,12 +762,12 @@ pub fn compatibility_report() -> CompatibilityReport {
         ),
     });
 
-    let contract_ok = manifests.iter().all(|manifest| {
-        manifest.adapter_contract_version == SUPPORTED_ADAPTER_CONTRACT_VERSION
-    });
+    let contract_ok = manifests
+        .iter()
+        .all(|manifest| manifest.adapter_contract_version == SUPPORTED_ADAPTER_CONTRACT_VERSION);
     checks.push(CompatibilityCheck {
         id: "contract_version".to_string(),
-        label: "Adapter 合约版本兼容",
+        label: "Adapter 合约版本兼容".to_string(),
         passed: contract_ok,
         detail: format!(
             "当前支持合约 v{}，内嵌适配器必须使用同一版本",
@@ -767,7 +788,7 @@ pub fn compatibility_report() -> CompatibilityReport {
     });
     checks.push(CompatibilityCheck {
         id: "content_kind_matrix".to_string(),
-        label: "四类内容形态能力声明完整",
+        label: "四类内容形态能力声明完整".to_string(),
         passed: content_kinds_ok,
         detail: format!(
             "{} 个适配器均需声明 video/imageText/imageArticle/article",
@@ -779,7 +800,7 @@ pub fn compatibility_report() -> CompatibilityReport {
     let payload_ok = payload_checks.iter().all(|check| check.passed);
     checks.push(CompatibilityCheck {
         id: "shared_payload_contract".to_string(),
-        label: "共享发布载荷合约回归通过",
+        label: "共享发布载荷合约回归通过".to_string(),
         passed: payload_ok,
         detail: format!(
             "{}/{} 个载荷检查通过",
@@ -900,24 +921,23 @@ mod tests {
             .find(|snapshot| snapshot.account_id == "account-expired")
             .unwrap();
         assert!(snapshot.degraded);
-        assert!(snapshot
-            .degradation_reason
-            .as_deref()
-            .unwrap()
-            .contains("NEEDS_REAUTH"));
-        assert!(snapshot
-            .capabilities
-            .iter()
-            .all(|capability| capability.read == CapabilityLevel::Unavailable
-                && capability.publish == CapabilityLevel::Unavailable
-                && !capability.auto_publish_allowed));
-        let policy = publish_policy(
-            &conn,
-            "account-expired",
-            "bilibili",
-            ContentKind::Video,
-        )
-        .unwrap();
+        assert!(
+            snapshot
+                .degradation_reason
+                .as_deref()
+                .unwrap()
+                .contains("NEEDS_REAUTH")
+        );
+        assert!(
+            snapshot
+                .capabilities
+                .iter()
+                .all(|capability| capability.read == CapabilityLevel::Unavailable
+                    && capability.publish == CapabilityLevel::Unavailable
+                    && !capability.auto_publish_allowed)
+        );
+        let policy =
+            publish_policy(&conn, "account-expired", "bilibili", ContentKind::Video).unwrap();
         assert!(!policy.auto_publish_allowed);
         assert!(policy.manual_publish_allowed);
     }
@@ -955,7 +975,10 @@ mod tests {
     fn m8_compatibility_report_covers_all_embedded_adapters() {
         let report = compatibility_report();
         assert!(report.passed, "{:?}", report.checks);
-        assert_eq!(report.adapter_count, plugins::EMBEDDED_MANIFEST_SOURCES.len());
+        assert_eq!(
+            report.adapter_count,
+            plugins::EMBEDDED_MANIFEST_SOURCES.len()
+        );
         assert_eq!(report.contract_version, SUPPORTED_ADAPTER_CONTRACT_VERSION);
     }
 
@@ -969,9 +992,11 @@ mod tests {
         let snapshot = &snapshots[0];
         assert_eq!(snapshot.admission_status, "not_admitted");
         assert!(snapshot.degraded);
-        assert!(snapshot
-            .capabilities
-            .iter()
-            .all(|capability| capability.read == CapabilityLevel::Unavailable));
+        assert!(
+            snapshot
+                .capabilities
+                .iter()
+                .all(|capability| capability.read == CapabilityLevel::Unavailable)
+        );
     }
 }

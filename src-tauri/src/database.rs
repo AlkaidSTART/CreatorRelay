@@ -2,7 +2,7 @@ use chrono::Utc;
 use rusqlite::{Connection, params};
 use serde::Serialize;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 6;
+pub const CURRENT_SCHEMA_VERSION: i64 = 7;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -22,6 +22,16 @@ pub fn current_version(conn: &Connection) -> Result<i64, String> {
 }
 
 pub fn migrate(conn: &mut Connection) -> Result<MigrationReport, String> {
+    migrate_to_version(conn, CURRENT_SCHEMA_VERSION)
+}
+
+fn migrate_to_version(
+    conn: &mut Connection,
+    target_version: i64,
+) -> Result<MigrationReport, String> {
+    if target_version > CURRENT_SCHEMA_VERSION || target_version < 0 {
+        return Err(format!("不支持迁移到 schema v{target_version}"));
+    }
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
         .map_err(|_| "无法初始化数据库连接参数".to_string())?;
     conn.execute_batch(
@@ -33,14 +43,14 @@ pub fn migrate(conn: &mut Connection) -> Result<MigrationReport, String> {
     .map_err(|_| "无法创建 schema 迁移记录表".to_string())?;
 
     let from_version = current_version(conn)?;
-    if from_version > CURRENT_SCHEMA_VERSION {
+    if from_version > target_version {
         return Err(format!(
-            "数据库 schema 版本 {from_version} 高于当前应用支持的版本 {CURRENT_SCHEMA_VERSION}"
+            "数据库 schema 版本 {from_version} 高于本次迁移目标 {target_version}"
         ));
     }
 
     let mut applied_versions = Vec::new();
-    for version in (from_version + 1)..=CURRENT_SCHEMA_VERSION {
+    for version in (from_version + 1)..=target_version {
         let tx = conn
             .transaction()
             .map_err(|_| format!("无法开始 schema v{version} 迁移事务"))?;
@@ -57,9 +67,9 @@ pub fn migrate(conn: &mut Connection) -> Result<MigrationReport, String> {
     }
 
     let to_version = current_version(conn)?;
-    if to_version != CURRENT_SCHEMA_VERSION {
+    if to_version != target_version {
         return Err(format!(
-            "数据库迁移结束版本异常：期望 {CURRENT_SCHEMA_VERSION}，实际 {to_version}"
+            "数据库迁移结束版本异常：期望 {target_version}，实际 {to_version}"
         ));
     }
     Ok(MigrationReport {
@@ -384,6 +394,8 @@ fn migration_sql(version: i64) -> Result<&'static str, String> {
                 id, read_enabled, write_policy, external_policy, auto_restart,
                 max_restarts, default_context_scope, updated_at
             ) VALUES(1, 1, 'confirm', 'confirm_each_time', 1, 3, 'title_summary_media', '2026-11-25T00:00:00Z');"),
+        7 => Ok("ALTER TABLE external_works
+                ADD COLUMN raw_fields_json TEXT NOT NULL DEFAULT '{}';"),
         _ => Err(format!("没有定义 schema v{version} 的迁移脚本")),
     }
 }
@@ -415,7 +427,7 @@ mod tests {
         let report = migrate(&mut conn).unwrap();
         assert_eq!(report.from_version, 0);
         assert_eq!(report.to_version, CURRENT_SCHEMA_VERSION);
-        assert_eq!(report.applied_versions, vec![1, 2, 3, 4, 5, 6]);
+        assert_eq!(report.applied_versions, vec![1, 2, 3, 4, 5, 6, 7]);
         assert_eq!(current_version(&conn).unwrap(), CURRENT_SCHEMA_VERSION);
     }
 
@@ -426,7 +438,7 @@ mod tests {
         let report = migrate(&mut conn).unwrap();
         assert_eq!(report.from_version, 1);
         assert_eq!(report.to_version, CURRENT_SCHEMA_VERSION);
-        assert_eq!(report.applied_versions, vec![2, 3, 4, 5, 6]);
+        assert_eq!(report.applied_versions, vec![2, 3, 4, 5, 6, 7]);
         let workspace: String = conn
             .query_row(
                 "SELECT value FROM app_settings WHERE key='workspace_path'",
@@ -474,7 +486,7 @@ mod tests {
         let report = migrate(&mut conn).unwrap();
         assert_eq!(report.from_version, 2);
         assert_eq!(report.to_version, CURRENT_SCHEMA_VERSION);
-        assert_eq!(report.applied_versions, vec![3, 4, 5, 6]);
+        assert_eq!(report.applied_versions, vec![3, 4, 5, 6, 7]);
         let alias: String = conn
             .query_row(
                 "SELECT alias FROM platform_accounts WHERE id='account-m3'",

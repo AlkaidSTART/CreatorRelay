@@ -80,12 +80,10 @@ describe("content targets and checks", () => {
 
   it("only offers active platform accounts that declare the content kind", () => {
     const targets = buildDraftTargets("video", demoPlatformAccounts, []);
-    expect(
-      targets.find((target) => target.platformId === "juejin")?.selectable,
-    ).toBe(false);
-    expect(
-      targets.some((target) => target.platformId === "bilibili" && target.selectable),
-    ).toBe(true);
+    expect(targets.find((target) => target.platformId === "juejin")?.selectable).toBe(false);
+    expect(targets.some((target) => target.platformId === "bilibili" && target.selectable)).toBe(
+      true,
+    );
   });
 
   it("reports hard errors, warnings and unknown checks separately", () => {

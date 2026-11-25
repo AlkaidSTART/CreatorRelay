@@ -355,6 +355,7 @@ fn handle_request(
                   "externalId": format!("{safe_account}-video-001"),
                   "title": "测试视频作品",
                   "contentType": "video",
+                  "rawFields": { "aid": "fixture-video-aid", "bvid": "BV1M8Fixture", "coverUrl": "https://example.invalid/cover/fixture-video.jpg" },
                   "contentKind": "video",
                   "url": "https://example.invalid/video/test-video-001",
                   "publishedAt": "2026-11-20T08:00:00Z",
@@ -368,6 +369,7 @@ fn handle_request(
                   "externalId": format!("{safe_account}-image-text-001"),
                   "title": "测试图文作品",
                   "contentType": "笔记",
+                  "rawFields": { "noteId": "fixture-note-id", "imageCount": 3, "visibility": "public" },
                   "contentKind": "imageText",
                   "url": "https://example.invalid/note/test-image-text-001",
                   "publishedAt": "2026-11-21T08:00:00Z",
@@ -381,6 +383,7 @@ fn handle_request(
                   "externalId": format!("{safe_account}-image-article-001"),
                   "title": "测试图文文章",
                   "contentType": "图文文章",
+                  "rawFields": { "articleId": "fixture-image-article-id", "column": "技术" },
                   "contentKind": "imageArticle",
                   "url": "https://example.invalid/article/test-image-article-001",
                   "publishedAt": "2026-11-22T08:00:00Z",
@@ -393,6 +396,7 @@ fn handle_request(
                   "externalId": format!("{safe_account}-article-001"),
                   "title": "测试纯文章",
                   "contentType": "文章",
+                  "rawFields": { "articleId": "fixture-article-id", "draftId": "fixture-draft-id" },
                   "contentKind": "article",
                   "url": "https://example.invalid/article/test-article-001",
                   "publishedAt": "2026-11-23T08:00:00Z",
@@ -402,12 +406,18 @@ fn handle_request(
                   ]
                 }),
             ];
+            let errors = if account_ref.contains("partial") {
+                vec!["测试平台有一条作品详情读取失败；其余作品已保留".to_string()]
+            } else {
+                Vec::new()
+            };
             (
                 true,
                 json!({
                   "accountRef": account_ref,
                   "works": works,
-                  "partialFailure": false
+                  "errors": errors,
+                  "partialFailure": !errors.is_empty()
                 }),
                 Value::Null,
             )

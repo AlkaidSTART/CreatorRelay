@@ -5,6 +5,7 @@ import { PageHeader } from "../components/PageHeader";
 import { PlatformLogo } from "../components/PlatformLogo";
 import { useOperationsStore, usePlatformStore, usePluginStore, useUiStore } from "../stores";
 import type { ContentKind } from "../types/content";
+import type { SyncRunResult } from "../types/operations";
 import {
   contentKindText,
   filterExternalWorks,
@@ -48,6 +49,7 @@ export function ContentPage() {
   const [syncAccountId, setSyncAccountId] = useState("");
   const [syncAdapterId, setSyncAdapterId] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState<SyncRunResult | null>(null);
 
   useEffect(() => {
     void initializeAccounts();
@@ -108,7 +110,9 @@ export function ContentPage() {
         asOf: null,
       });
       if (result) {
+        setLastSync(result);
         showToast(result.accountInvalid ? "账号已失效，请重新授权后恢复任务" : result.message);
+        if (result.accountInvalid) await initializeAccounts(true);
         await initializeOperations(true);
       }
     } finally {
@@ -174,6 +178,18 @@ export function ContentPage() {
               {syncing ? "同步中" : "同步作品与指标"}
             </button>
           </div>
+          {lastSync && (
+            <div
+              className={`mt-3 rounded-xl border px-3 py-2 text-[11px] leading-relaxed ${
+                lastSync.status === "SUCCESS"
+                  ? "border-mint-border bg-mint-bg text-mint-text"
+                  : "border-lemon-border bg-lemon-bg text-lemon-text"
+              }`}
+            >
+              <strong>{lastSync.status}</strong> · {lastSync.message}
+              {lastSync.errors.length > 0 && <span> · {lastSync.errors.join("；")}</span>}
+            </div>
+          )}
         </section>
 
         <div className="flex flex-wrap items-center gap-2">

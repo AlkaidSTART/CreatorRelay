@@ -6,3 +6,5 @@ export * from "./pluginStore";
 export * from "./studioStore";
 export * from "./operationsStore";
 export * from "./aiStore";
+export * from "./mcpStore";
+export * from "./ecosystemStore";

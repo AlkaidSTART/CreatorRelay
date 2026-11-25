@@ -47,7 +47,9 @@ function ReportView({ report }: { report: CheckReport }) {
           {report.verified && (
             <span
               className={`ml-auto rounded px-1.5 py-0.5 text-[9px] font-medium ${
-                report.errorCount === 0 ? "bg-white/60 text-mint-text" : "bg-white/60 text-coral-text"
+                report.errorCount === 0
+                  ? "bg-white/60 text-mint-text"
+                  : "bg-white/60 text-coral-text"
               }`}
             >
               {report.errorCount === 0 ? "检查通过" : "检查失败"}
@@ -66,9 +68,15 @@ function ReportView({ report }: { report: CheckReport }) {
           <h4 className="mb-1 text-[10.5px] font-medium text-coral-text">硬性错误</h4>
           <div className="space-y-1">
             {errors.map((item) => (
-              <div key={`${item.id}-error`} className="flex gap-1.5 rounded-lg bg-coral-bg p-2 text-[10px] text-coral-text">
+              <div
+                key={`${item.id}-error`}
+                className="flex gap-1.5 rounded-lg bg-coral-bg p-2 text-[10px] text-coral-text"
+              >
                 <AlertTriangle size={10} className="mt-0.5 shrink-0" />
-                <span><strong>{item.label}：</strong>{item.message}</span>
+                <span>
+                  <strong>{item.label}：</strong>
+                  {item.message}
+                </span>
               </div>
             ))}
           </div>
@@ -79,9 +87,15 @@ function ReportView({ report }: { report: CheckReport }) {
           <h4 className="mb-1 text-[10.5px] font-medium text-amber-800">警告</h4>
           <div className="space-y-1">
             {warnings.map((item) => (
-              <div key={`${item.id}-warning`} className="flex gap-1.5 rounded-lg bg-amber-50 p-2 text-[10px] text-amber-900">
+              <div
+                key={`${item.id}-warning`}
+                className="flex gap-1.5 rounded-lg bg-amber-50 p-2 text-[10px] text-amber-900"
+              >
                 <AlertTriangle size={10} className="mt-0.5 shrink-0" />
-                <span><strong>{item.label}：</strong>{item.message}</span>
+                <span>
+                  <strong>{item.label}：</strong>
+                  {item.message}
+                </span>
               </div>
             ))}
           </div>
@@ -92,9 +106,15 @@ function ReportView({ report }: { report: CheckReport }) {
           <h4 className="mb-1 text-[10.5px] font-medium text-ink-muted">未检查</h4>
           <div className="space-y-1">
             {unchecked.map((item) => (
-              <div key={`${item.id}-unchecked`} className="flex gap-1.5 rounded-lg bg-canvas p-2 text-[10px] text-ink-muted">
+              <div
+                key={`${item.id}-unchecked`}
+                className="flex gap-1.5 rounded-lg bg-canvas p-2 text-[10px] text-ink-muted"
+              >
                 <Info size={10} className="mt-0.5 shrink-0" />
-                <span><strong>{item.label}：</strong>{item.message}</span>
+                <span>
+                  <strong>{item.label}：</strong>
+                  {item.message}
+                </span>
               </div>
             ))}
           </div>
@@ -130,9 +150,7 @@ export function ContentChecksPanel() {
     }
   }, [targets, targetKey]);
 
-  const target = targets.find(
-    (item) => `${item.platformId}:${item.accountId}` === targetKey,
-  );
+  const target = targets.find((item) => `${item.platformId}:${item.accountId}` === targetKey);
 
   if (!editor) return null;
 
@@ -211,7 +229,10 @@ export function ContentChecksPanel() {
                 className="mt-1 w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-[11px] text-ink outline-none focus:border-accent"
               >
                 {targets.map((item) => (
-                  <option key={`${item.platformId}:${item.accountId}`} value={`${item.platformId}:${item.accountId}`}>
+                  <option
+                    key={`${item.platformId}:${item.accountId}`}
+                    value={`${item.platformId}:${item.accountId}`}
+                  >
                     {item.platformName} · {item.capability}
                   </option>
                 ))}

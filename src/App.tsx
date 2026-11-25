@@ -1,10 +1,10 @@
 import { HashRouter, Navigate, Route, Routes } from "react-router";
 import { AppLayout } from "./layouts/AppLayout";
-import { ModulePlaceholder } from "./components/ModulePlaceholder";
 import { PlatformsPage } from "./pages/PlatformsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { StudioPage } from "./pages/StudioPage";
 import { ContentStudioPage } from "./pages/ContentStudioPage";
+import { AssistantPage } from "./pages/AssistantPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { PublishingPage } from "./pages/PublishingPage";
 import { ContentPage } from "./pages/ContentPage";
@@ -22,7 +22,7 @@ function App() {
           <Route path="/publishing" element={<PublishingPage />} />
           <Route path="/content" element={<ContentPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
-          <Route path="/assistant" element={<ModulePlaceholder routeId="assistant" />} />
+          <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/platforms" element={<PlatformsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/studio" replace />} />

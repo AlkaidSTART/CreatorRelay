@@ -45,6 +45,7 @@ const work = (patch: Partial<ExternalWork>): ExternalWork => ({
   originalContentType: "文章",
   publishedAt: new Date().toISOString(),
   source: "sync",
+  rawFields: {},
   syncedAt: new Date().toISOString(),
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),

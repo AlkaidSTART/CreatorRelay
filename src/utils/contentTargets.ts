@@ -100,7 +100,8 @@ export function buildDraftTargets(
       adapterId: plugin.id,
       source: "adapter",
       capability: effective,
-      selectable: effective === "supported" || effective === "restricted" || effective === "experimental",
+      selectable:
+        effective === "supported" || effective === "restricted" || effective === "experimental",
       reason: capabilityReason(effective, plugin.name, kind, "adapter"),
     });
   }

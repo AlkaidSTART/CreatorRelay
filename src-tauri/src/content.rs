@@ -1169,6 +1169,20 @@ mod tests {
             video_bytes(),
         )
         .unwrap();
+        save_content_package(
+            temp.path(),
+            &package.manifest.id,
+            ContentSaveInput {
+                title: "预览".to_string(),
+                summary: String::new(),
+                tags: vec![],
+                cover: None,
+                media: vec![video.clone()],
+                body: String::new(),
+                base_hash: Some(package.content_hash),
+            },
+        )
+        .unwrap();
         let content = read_content_asset(temp.path(), &package.manifest.id, &video.id).unwrap();
         assert_eq!(content.mime_type, "video/mp4");
         assert_eq!(content.bytes, video_bytes());

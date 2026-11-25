@@ -60,6 +60,7 @@ export function PublishingPage() {
   const confirmTask = useOperationsStore((state) => state.confirmTask);
   const cancelTask = useOperationsStore((state) => state.cancelTask);
   const retryTask = useOperationsStore((state) => state.retryTask);
+  const updateTaskSchedule = useOperationsStore((state) => state.updateTaskSchedule);
   const runDueTasks = useOperationsStore((state) => state.runDueTasks);
   const exportManualPackage = useOperationsStore((state) => state.exportManualPackage);
   const completeManualTask = useOperationsStore((state) => state.completeManualTask);
@@ -69,6 +70,8 @@ export function PublishingPage() {
   const [filter, setFilter] = useState<"ALL" | PublishTaskStatus>("ALL");
   const [manualTask, setManualTask] = useState<PublishTask | null>(null);
   const [resolveTask, setResolveTask] = useState<PublishTask | null>(null);
+  const [scheduleTask, setScheduleTask] = useState<PublishTask | null>(null);
+  const [scheduleValue, setScheduleValue] = useState("");
   const [externalId, setExternalId] = useState("");
   const [externalUrl, setExternalUrl] = useState("");
   const [working, setWorking] = useState(false);
@@ -285,13 +288,24 @@ export function PublishingPage() {
 
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
                     {task.status === "CREATED" && (
-                      <button
-                        className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-on hover:bg-accent-hover"
-                        disabled={working}
-                        onClick={() => void handlePreview(task)}
-                      >
-                        <ExternalLink size={12} /> 预览并确认
-                      </button>
+                      <>
+                        <button
+                          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-on hover:bg-accent-hover"
+                          disabled={working}
+                          onClick={() => void handlePreview(task)}
+                        >
+                          <ExternalLink size={12} /> 预览并确认
+                        </button>
+                        <button
+                          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-medium text-ink-secondary hover:bg-subtle"
+                          onClick={() => {
+                            setScheduleTask(task);
+                            setScheduleValue("");
+                          }}
+                        >
+                          <Clock3 size={12} /> 定时
+                        </button>
+                      </>
                     )}
                     {task.status === "SCHEDULED" && (
                       <span className="inline-flex items-center gap-1.5 text-xs text-sky-text">
@@ -638,6 +652,54 @@ export function PublishingPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {scheduleTask && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-ink/35 p-5 backdrop-blur-sm">
+          <form
+            className="w-full max-w-md rounded-2xl border border-line bg-surface p-6 shadow-2xl"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              if (!scheduleValue) return;
+              const scheduledAt = new Date(scheduleValue).toISOString();
+              const updated = await updateTaskSchedule(scheduleTask.id, scheduledAt);
+              if (updated) {
+                showToast("计划时间已保存；确认最终内容包后才会进入定时队列");
+                setScheduleTask(null);
+                await handlePreview(updated);
+              }
+            }}
+          >
+            <h2 className="text-base font-semibold text-ink">设置计划发布时间</h2>
+            <p className="mt-1 text-xs leading-relaxed text-ink-secondary">
+              只有账号与形态支持自动发布时才会在确认后进入定时队列；不支持时仍走人工发布包。
+            </p>
+            <label className="mt-4 block text-xs text-ink-secondary">
+              本地时间
+              <input
+                type="datetime-local"
+                value={scheduleValue}
+                onChange={(event) => setScheduleValue(event.target.value)}
+                className="mt-1 h-9 w-full rounded-xl border border-line bg-canvas px-3 text-xs text-ink outline-none focus:border-accent"
+              />
+            </label>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                className="h-8 cursor-pointer rounded-xl border border-line px-3 text-xs text-ink-secondary"
+                onClick={() => setScheduleTask(null)}
+              >
+                取消
+              </button>
+              <button
+                disabled={!scheduleValue}
+                className="h-8 cursor-pointer rounded-xl bg-accent px-3 text-xs font-medium text-accent-on disabled:opacity-50"
+              >
+                保存并预览
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </main>

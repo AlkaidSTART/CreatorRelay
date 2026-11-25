@@ -564,7 +564,9 @@ export function AppLayout() {
                         : "border-line bg-canvas hover:border-line-strong"
                     }`}
                   >
-                    <strong className="block text-[11.5px] font-medium text-ink">{item.label}</strong>
+                    <strong className="block text-[11.5px] font-medium text-ink">
+                      {item.label}
+                    </strong>
                     <small className="mt-0.5 block text-[10px] leading-snug text-ink-muted">
                       {item.description}
                     </small>

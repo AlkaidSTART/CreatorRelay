@@ -2,7 +2,7 @@ use creatorrelay_lib::{
     ai::{self, AiProviderInput},
     content::{self, ContentAsset, ContentKind, ContentSaveInput},
     database, mcp, operations,
-    plugins::PluginRuntime,
+    plugins::{self, PluginPermissionDecision, PluginRuntime, PluginStatus},
 };
 use rusqlite::Connection;
 use serde_json::{Value, json};
@@ -154,6 +154,94 @@ fn media_ref(source_content_id: &str, asset: &ContentAsset) -> Value {
     })
 }
 
+fn cover_ref(source_content_id: &str, asset: &ContentAsset) -> Value {
+    json!({
+        "sourceContentId": source_content_id,
+        "assetId": asset.id
+    })
+}
+
+fn enable_adapter(fixture: &mut Fixture, plugin_id: &str) {
+    plugins::install_official_plugin(&mut fixture.conn, &fixture.runtime, plugin_id).unwrap();
+    let summary = plugins::list_plugins(&fixture.conn, &fixture.runtime)
+        .unwrap()
+        .into_iter()
+        .find(|plugin| plugin.id == plugin_id)
+        .unwrap();
+    let decisions = summary
+        .permissions
+        .iter()
+        .map(|permission| PluginPermissionDecision {
+            id: permission.id.clone(),
+            granted: permission.required,
+        })
+        .collect::<Vec<_>>();
+    plugins::set_plugin_permissions(&mut fixture.conn, &fixture.runtime, plugin_id, &decisions)
+        .unwrap();
+    let enabled = plugins::enable_plugin(&mut fixture.conn, &fixture.runtime, plugin_id).unwrap();
+    assert_eq!(enabled.status, PluginStatus::Enabled, "{plugin_id}");
+}
+
+fn insert_active_account(fixture: &mut Fixture, id: &str, platform_id: &str, alias: &str) {
+    fixture
+        .conn
+        .execute(
+            "INSERT INTO platform_accounts(
+                id, platform_id, alias, nickname, uid, status, enabled, is_default,
+                profile_id, credential_ref, last_checked_at, last_error, created_at, updated_at
+             ) VALUES(?1, ?2, ?3, ?3, 'fixture-uid', 'ACTIVE', 1, 0, ?4, ?5,
+                      '2026-11-25T08:00:00Z', NULL, '2026-11-25T08:00:00Z',
+                      '2026-11-25T08:00:00Z')",
+            rusqlite::params![
+                id,
+                platform_id,
+                alias,
+                format!("profile-{id}"),
+                format!("credential-{id}")
+            ],
+        )
+        .unwrap();
+}
+
+fn create_image_text_with_cover(fixture: &Fixture) -> String {
+    let package =
+        content::create_content_package(&fixture.workspace, ContentKind::ImageText, "批量图文")
+            .unwrap();
+    let media = content::import_content_asset(
+        &fixture.workspace,
+        &package.manifest.id,
+        "media",
+        "batch-image.png",
+        "image/png",
+        b"\x89PNG\r\n\x1a\nbatch-image",
+    )
+    .unwrap();
+    let cover = content::import_content_asset(
+        &fixture.workspace,
+        &package.manifest.id,
+        "cover",
+        "batch-cover.png",
+        "image/png",
+        b"\x89PNG\r\n\x1a\nbatch-cover",
+    )
+    .unwrap();
+    content::save_content_package(
+        &fixture.workspace,
+        &package.manifest.id,
+        ContentSaveInput {
+            title: "批量图文".to_string(),
+            summary: "批量发布图文".to_string(),
+            tags: Vec::new(),
+            cover: Some(cover),
+            media: vec![media],
+            body: String::new(),
+            base_hash: Some(package.content_hash),
+        },
+    )
+    .unwrap();
+    package.manifest.id
+}
+
 #[test]
 fn m7_host_lifecycle_discovery_schema_and_crash_restart_are_observable() {
     let mut fixture = fixture();
@@ -277,7 +365,8 @@ fn m7_four_content_kinds_create_update_and_restore_with_field_level_rejection() 
                 "contentKind": "video",
                 "title": "工具视频草稿",
                 "summary": "视频简介",
-                "media": [media_ref(&video_source, &video_asset)]
+                "media": [media_ref(&video_source, &video_asset)],
+                "cover": cover_ref(&image_source, &image_asset)
             }),
         ),
         (
@@ -286,7 +375,8 @@ fn m7_four_content_kinds_create_update_and_restore_with_field_level_rejection() 
                 "contentKind": "imageText",
                 "title": "工具图文草稿",
                 "summary": "图集说明",
-                "media": [media_ref(&image_source, &image_asset)]
+                "media": [media_ref(&image_source, &image_asset)],
+                "cover": cover_ref(&image_source, &image_asset)
             }),
         ),
         (
@@ -294,7 +384,9 @@ fn m7_four_content_kinds_create_update_and_restore_with_field_level_rejection() 
             json!({
                 "contentKind": "imageArticle",
                 "title": "工具图文文章草稿",
-                "body": "# 图文文章\n\n正文与素材位置"
+                "body": "# 图文文章\n\n正文与素材位置",
+                "media": [media_ref(&image_source, &image_asset)],
+                "cover": cover_ref(&image_source, &image_asset)
             }),
         ),
         (
@@ -598,7 +690,7 @@ fn fixture_server() -> (String, thread::JoinHandle<String>) {
 
 #[test]
 fn m7_assistant_history_privacy_and_model_payload_exclude_unselected_body() {
-    let mut fixture = fixture();
+    let fixture = fixture();
     let package =
         content::create_content_package(&fixture.workspace, ContentKind::Article, "隐私测试标题")
             .unwrap();
@@ -693,11 +785,20 @@ fn m7_assistant_history_privacy_and_model_payload_exclude_unselected_body() {
         Some("success")
     );
     let request = server.join().unwrap();
-    assert!(request.contains("隐私测试标题"));
-    assert!(request.contains("可发送摘要"));
-    assert!(!request.contains("SENSITIVE_BODY"));
-    assert!(!request.contains("model-secret-value"));
-    assert!(!request.contains("api-key-must-not-leak"));
+    let request_body = request
+        .split_once("\r\n\r\n")
+        .map(|(_, body)| body)
+        .unwrap_or_default();
+    assert!(
+        request
+            .to_ascii_lowercase()
+            .contains("authorization: bearer api-key-must-not-leak")
+    );
+    assert!(request_body.contains("隐私测试标题"));
+    assert!(request_body.contains("可发送摘要"));
+    assert!(!request_body.contains("SENSITIVE_BODY"));
+    assert!(!request_body.contains("model-secret-value"));
+    assert!(!request_body.contains("api-key-must-not-leak"));
     assert!(!ai::audit_database_for_secret(&fixture.conn, "api-key-must-not-leak").unwrap());
     assert!(
         mcp::list_audit(&fixture.conn, 50)
@@ -794,4 +895,147 @@ fn m7_publish_preview_and_authorization_preserve_task_on_rejection() {
     assert_eq!(after.status, before.status);
     assert_eq!(after.updated_at, before.updated_at);
     assert_eq!(after.attempt_count, before.attempt_count);
+}
+
+#[test]
+fn m7_batch_publish_previews_every_target_and_reports_independent_partial_result() {
+    let mut fixture = fixture();
+    enable_adapter(&mut fixture, "creatorrelay.official.test-adapter");
+    enable_adapter(
+        &mut fixture,
+        "creatorrelay.official.publish-timeout-adapter",
+    );
+    insert_active_account(
+        &mut fixture,
+        "adapter-success-account",
+        "juejin",
+        "成功账号",
+    );
+    insert_active_account(&mut fixture, "adapter-timeout-account", "csdn", "超时账号");
+
+    let article =
+        content::create_content_package(&fixture.workspace, ContentKind::Article, "批量文章")
+            .unwrap();
+    let article = content::save_content_package(
+        &fixture.workspace,
+        &article.manifest.id,
+        ContentSaveInput {
+            title: "批量文章".to_string(),
+            summary: String::new(),
+            tags: Vec::new(),
+            cover: None,
+            media: Vec::new(),
+            body: "# 批量文章\n\n成功目标正文".to_string(),
+            base_hash: Some(article.content_hash),
+        },
+    )
+    .unwrap();
+    let image_text_id = create_image_text_with_cover(&fixture);
+
+    let create_task = |fixture: &mut Fixture,
+                       source_id: &str,
+                       platform_id: &str,
+                       platform_name: &str,
+                       account_id: &str,
+                       account_alias: &str,
+                       adapter_id: &str| {
+        operations::create_publish_tasks(
+            &mut fixture.conn,
+            &fixture.workspace,
+            &operations::CreatePublishTasksInput {
+                source_type: operations::PublishSourceType::Content,
+                source_id: source_id.to_string(),
+                targets: vec![operations::PublishTargetInput {
+                    platform_id: platform_id.to_string(),
+                    platform_name: platform_name.to_string(),
+                    account_id: account_id.to_string(),
+                    account_alias: account_alias.to_string(),
+                    adapter_id: Some(adapter_id.to_string()),
+                }],
+                scheduled_at: None,
+            },
+        )
+        .unwrap()
+        .tasks
+        .remove(0)
+        .id
+    };
+    let success_task = create_task(
+        &mut fixture,
+        &article.manifest.id,
+        "juejin",
+        "测试成功平台",
+        "adapter-success-account",
+        "成功账号",
+        "creatorrelay.official.test-adapter",
+    );
+    let timeout_task = create_task(
+        &mut fixture,
+        &image_text_id,
+        "csdn",
+        "测试超时平台",
+        "adapter-timeout-account",
+        "超时账号",
+        "creatorrelay.official.publish-timeout-adapter",
+    );
+    let arguments = json!({ "taskIds": [success_task, timeout_task] });
+    let preview = mcp::preview_tool_call(
+        &fixture.conn,
+        &fixture.workspace,
+        mcp::McpPreviewRequest {
+            tool_name: "publishing_publish_task".to_string(),
+            arguments: arguments.clone(),
+            thread_id: None,
+        },
+    )
+    .unwrap();
+    assert!(
+        preview.field_errors.is_empty(),
+        "{:?}",
+        preview.field_errors
+    );
+    let targets = preview.details["targets"].as_array().unwrap();
+    assert_eq!(targets.len(), 2);
+    assert!(targets.iter().any(|target| {
+        target["accountAlias"] == "成功账号"
+            && target["contentKind"] == "article"
+            && target["bodyPreview"]
+                .as_str()
+                .is_some_and(|body| body.contains("成功目标正文"))
+    }));
+    assert!(targets.iter().any(|target| {
+        target["accountAlias"] == "超时账号"
+            && target["contentKind"] == "imageText"
+            && target["media"]
+                .as_array()
+                .is_some_and(|media| media.len() == 1)
+    }));
+
+    let result = call(
+        &mut fixture,
+        "publishing_publish_task",
+        arguments,
+        preview.authorization_token,
+    );
+    assert_eq!(result.status, "partial", "{result:?}");
+    let payload = result.result.unwrap();
+    assert_eq!(payload["successCount"], 1);
+    assert_eq!(payload["failureCount"], 1);
+    let results = payload["targets"].as_array().unwrap();
+    assert!(
+        results
+            .iter()
+            .any(|target| { target["status"] == "SUCCESS" && target["published"] == true })
+    );
+    assert!(results.iter().any(|target| {
+        target["published"] == false
+            && target["status"] != "SUCCESS"
+            && target["errorCode"].as_str().is_some()
+    }));
+
+    let first = operations::publish_task(&fixture.conn, &success_task).unwrap();
+    let second = operations::publish_task(&fixture.conn, &timeout_task).unwrap();
+    assert_eq!(first.status, operations::PublishTaskStatus::Success);
+    assert_ne!(second.status, operations::PublishTaskStatus::Success);
+    assert_ne!(second.status, operations::PublishTaskStatus::Cancelled);
 }

@@ -223,7 +223,12 @@ function structuralChecks(input: ContentCheckInput, rule: TargetRule): ContentCh
     });
   }
   if (rule.requiresCover && !input.cover) {
-    items.push({ id: "cover-required", level: "error", label: "封面", message: "该平台要求设置封面" });
+    items.push({
+      id: "cover-required",
+      level: "error",
+      label: "封面",
+      message: "该平台要求设置封面",
+    });
   }
   if (input.media.some((asset) => rule.mediaMaxBytes && asset.byteSize > rule.mediaMaxBytes)) {
     items.push({

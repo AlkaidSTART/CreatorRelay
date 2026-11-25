@@ -82,6 +82,7 @@ const initialDemoWorks: ExternalWork[] = demoPublishedContents.map((item) => ({
   contentKind:
     item.contentType === "视频" ? "video" : item.contentType === "图文" ? "imageText" : "article",
   originalContentType: item.contentType,
+  rawFields: {},
   url: null,
   publishedAt: new Date(item.publishedAt).toISOString(),
   source: "publish",
@@ -149,6 +150,7 @@ export interface OperationsStore {
   confirmTask: (taskId: string, confirmationToken: string) => Promise<PublishTask | null>;
   cancelTask: (taskId: string, reason?: string) => Promise<PublishTask | null>;
   retryTask: (taskId: string) => Promise<PublishTask | null>;
+  updateTaskSchedule: (taskId: string, scheduledAt: string | null) => Promise<PublishTask | null>;
   runDueTasks: () => Promise<PublishTask[]>;
   exportManualPackage: (taskId: string) => Promise<ManualPublishPackage | null>;
   completeManualTask: (taskId: string, input: ManualCompletionInput) => Promise<PublishTask | null>;
@@ -415,6 +417,26 @@ const createOperationsStoreState: StateCreator<OperationsStore> = (set, get) => 
             return { ...existing, status: "CREATED" as const, errorMessage: null };
           })();
       set((state) => ({ tasks: upsertTask(state.tasks, task) }));
+      return task;
+    } catch (cause) {
+      useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));
+      return null;
+    }
+  },
+
+  updateTaskSchedule: async (taskId, scheduledAt) => {
+    try {
+      const task = isTauri()
+        ? await invoke<PublishTask>("update_publish_task_schedule", {
+            taskId,
+            scheduledAt,
+          })
+        : (() => {
+            const existing = get().tasks.find((item) => item.id === taskId);
+            if (!existing) throw new Error("未找到发布任务");
+            return { ...existing, scheduledAt };
+          })();
+      set((state) => ({ tasks: upsertTask(state.tasks, task), preview: null }));
       return task;
     } catch (cause) {
       useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));

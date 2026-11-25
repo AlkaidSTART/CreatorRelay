@@ -271,6 +271,7 @@ pub struct AdapterSyncWork {
     pub title: String,
     pub content_type: String,
     pub content_kind: Option<ContentKind>,
+    pub raw_fields: Value,
     pub url: Option<String>,
     pub published_at: String,
     pub captured_at: Option<String>,
@@ -1457,6 +1458,10 @@ fn parse_adapter_sync_output(value: &Value) -> Result<AdapterSyncOutput, String>
             .get("contentKind")
             .and_then(Value::as_str)
             .and_then(ContentKind::parse);
+        let raw_fields = work.get("rawFields").cloned().unwrap_or_else(|| json!({}));
+        if !raw_fields.is_object() {
+            return Err(format!("works[{index}].rawFields 必须是 JSON 对象"));
+        }
         let published_at = work
             .get("publishedAt")
             .and_then(Value::as_str)
@@ -1495,6 +1500,7 @@ fn parse_adapter_sync_output(value: &Value) -> Result<AdapterSyncOutput, String>
             title,
             content_type,
             content_kind,
+            raw_fields,
             url: work.get("url").and_then(Value::as_str).map(str::to_string),
             published_at,
             captured_at: work

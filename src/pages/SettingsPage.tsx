@@ -16,7 +16,6 @@ import { AiProviderSettings } from "../components/AiProviderSettings";
 import { useUiStore, useWorkspaceStore } from "../stores";
 import { THEMES } from "../utils/themes";
 
-
 type RuntimeDiagnostics = {
   appVersion: string;
   dataDir: string;

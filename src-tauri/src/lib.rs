@@ -18,6 +18,7 @@ pub mod ai;
 pub mod content;
 pub mod database;
 mod diagnostics;
+pub mod ecosystem;
 mod logging;
 pub mod mcp;
 pub mod operations;
@@ -828,11 +829,10 @@ fn save_mcp_settings(
 ) -> Result<mcp::McpSettings, String> {
     let conn = state.db.lock().map_err(|error| error.to_string())?;
     let settings = mcp::save_settings(&conn, input)?;
-    let mut status = state.mcp_host.status()?;
-    status.config = mcp::McpHostConfig {
+    state.mcp_host.configure(mcp::McpHostConfig {
         auto_restart: settings.auto_restart,
         max_restarts: settings.max_restarts,
-    };
+    })?;
     Ok(settings)
 }
 
@@ -941,6 +941,14 @@ fn assistant_generate_reply(
     let conn = state.db.lock().map_err(|error| error.to_string())?;
     let workspace = active_workspace(&conn)?.ok_or_else(|| "请先选择工作区".to_string())?;
     mcp::generate_assistant_reply(&conn, &workspace, request, &ai::keyring_vault())
+}
+
+#[tauri::command]
+fn get_ecosystem_overview(
+    state: State<'_, AppState>,
+) -> Result<ecosystem::EcosystemOverview, String> {
+    let conn = state.db.lock().map_err(|error| error.to_string())?;
+    ecosystem::ecosystem_overview(&conn)
 }
 
 fn active_workspace(conn: &Connection) -> Result<Option<PathBuf>, String> {
@@ -2544,6 +2552,19 @@ fn retry_publish_task(
 }
 
 #[tauri::command]
+fn update_publish_task_schedule(
+    task_id: String,
+    scheduled_at: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<operations::PublishTask, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    operations::update_publish_task_schedule(&conn, &task_id, scheduled_at.as_deref())
+}
+
+#[tauri::command]
 fn resolve_uncertain_publish_task(
     task_id: String,
     input: operations::ResolveUncertainInput,
@@ -2882,6 +2903,7 @@ pub fn run() {
             confirm_publish_task,
             cancel_publish_task,
             retry_publish_task,
+            update_publish_task_schedule,
             resolve_uncertain_publish_task,
             export_manual_publish_package,
             complete_manual_publish_task,
@@ -2896,6 +2918,7 @@ pub fn run() {
             list_publish_task_events,
             get_runtime_diagnostics,
             run_diagnostic_probe,
+            get_ecosystem_overview,
             get_mcp_host_status,
             start_mcp_server,
             stop_mcp_server,

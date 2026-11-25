@@ -1,15 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import {
-  ArrowDown,
-  ArrowUp,
-  Image,
-  Plus,
-  Star,
-  Trash2,
-  Video,
-  X,
-} from "../Icons";
+import { ArrowDown, ArrowUp, Image, Plus, Star, Trash2, Video, X } from "../Icons";
 import type { ContentAsset } from "../../types/content";
 import { useStudioStore } from "../../stores/studioStore";
 import { useUiStore } from "../../stores/uiStore";
@@ -187,7 +178,9 @@ export function ContentEditor({ preview }: { preview: boolean }) {
           {busy === "video" ? "导入中..." : video ? "替换视频" : "导入视频"}
         </button>
       )}
-      {(editor.kind === "imageText" || editor.kind === "imageArticle" || editor.kind === "article") && (
+      {(editor.kind === "imageText" ||
+        editor.kind === "imageArticle" ||
+        editor.kind === "article") && (
         <button
           type="button"
           onClick={() => imageInput.current?.click()}
@@ -266,7 +259,9 @@ export function ContentEditor({ preview }: { preview: boolean }) {
     <div className="mx-auto flex w-full max-w-[900px] flex-col gap-5">
       {titleField}
       {tagsField}
-      <div className="flex flex-wrap items-center gap-2 border-b border-line pb-4">{mediaToolbar}</div>
+      <div className="flex flex-wrap items-center gap-2 border-b border-line pb-4">
+        {mediaToolbar}
+      </div>
       {fileInputs}
 
       {editor.kind === "video" && (
@@ -354,9 +349,7 @@ export function ContentEditor({ preview }: { preview: boolean }) {
                       </div>
                       <input
                         value={asset.caption}
-                        onChange={(event) =>
-                          updateMedia(asset.id, { caption: event.target.value })
-                        }
+                        onChange={(event) => updateMedia(asset.id, { caption: event.target.value })}
                         placeholder="逐图说明"
                         className="mt-2 w-full rounded-lg border border-line bg-canvas px-2 py-1.5 text-[11px] text-ink outline-none focus:border-accent"
                       />

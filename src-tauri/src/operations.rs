@@ -1,6 +1,7 @@
 use chrono::{DateTime, Datelike, Duration, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -11,7 +12,7 @@ use uuid::Uuid;
 
 use crate::{
     content::{self, ContentAsset, ContentKind},
-    platforms,
+    ecosystem, platforms,
     plugins::{
         self, CapabilityLevel, PluginRuntime, PublishInput, PublishMediaRef,
         PublishValidationResult, validate_publish_payload,
@@ -787,6 +788,21 @@ fn capability_for_task(
         &task.account_id,
         plugin_content_kind(task.content_kind),
     )?;
+    if Uuid::parse_str(&task.account_id).is_ok() {
+        let policy = ecosystem::publish_policy(
+            conn,
+            &task.account_id,
+            &task.platform_id,
+            plugin_content_kind(task.content_kind),
+        )?;
+        if !policy.auto_publish_allowed {
+            let reason = status
+                .reason
+                .map(|adapter_reason| format!("{}；{}", policy.reason, adapter_reason))
+                .unwrap_or(policy.reason);
+            return Ok((CapabilityLevel::Restricted, Some(reason)));
+        }
+    }
     Ok((status.level, status.reason))
 }
 
@@ -1452,6 +1468,39 @@ pub fn retry_publish_task(conn: &Connection, task_id: &str) -> Result<PublishTas
     publish_task(conn, task_id)
 }
 
+pub fn update_publish_task_schedule(
+    conn: &Connection,
+    task_id: &str,
+    scheduled_at: Option<&str>,
+) -> Result<PublishTask, String> {
+    let task = task_record(conn, task_id)?;
+    if task.status != PublishTaskStatus::Created {
+        return Err("只有尚未确认的发布任务可以调整计划时间".to_string());
+    }
+    if let Some(value) = scheduled_at {
+        let scheduled = DateTime::parse_from_rfc3339(value)
+            .map_err(|_| "计划发布时间必须是 RFC3339 时间".to_string())?;
+        if scheduled <= Utc::now() {
+            return Err("计划发布时间必须晚于当前时间".to_string());
+        }
+    }
+    conn.execute(
+        "UPDATE publish_tasks
+         SET scheduled_at=?1, confirmation_token=NULL, confirmation_hash=NULL,
+             confirmation_expires_at=NULL, next_action='review_and_confirm', updated_at=?2
+         WHERE id=?3",
+        params![scheduled_at, Utc::now().to_rfc3339(), task_id],
+    )
+    .map_err(|error| format!("发布计划时间保存失败：{error}"))?;
+    insert_task_event(
+        conn,
+        task_id,
+        "SCHEDULE_UPDATED",
+        scheduled_at.unwrap_or("立即发布"),
+    )?;
+    publish_task(conn, task_id)
+}
+
 pub fn resolve_uncertain_publish_task(
     conn: &mut Connection,
     task_id: &str,
@@ -1651,6 +1700,7 @@ pub struct ExternalWork {
     pub title: String,
     pub content_kind: String,
     pub original_content_type: String,
+    pub raw_fields: Value,
     pub url: Option<String>,
     pub published_at: String,
     pub source: String,
@@ -1751,6 +1801,7 @@ type ExternalWorkRow = (
     String,
     String,
     String,
+    String,
     Option<String>,
     String,
     String,
@@ -1774,6 +1825,7 @@ fn external_work_from_values(
         title,
         content_kind,
         original_content_type,
+        raw_fields_json,
         url,
         published_at,
         source,
@@ -1793,6 +1845,8 @@ fn external_work_from_values(
         title,
         content_kind,
         original_content_type,
+        raw_fields: serde_json::from_str(&raw_fields_json)
+            .map_err(|error| format!("外部作品原始字段解析失败：{error}"))?,
         url,
         published_at,
         source,
@@ -1825,8 +1879,8 @@ pub fn list_external_works(
     let mut statement = conn
         .prepare(
             "SELECT id, source_key, account_id, platform_id, platform_name, account_alias,
-                    external_id, title, content_kind, original_content_type, url, published_at,
-                    source, synced_at, created_at, updated_at
+                    external_id, title, content_kind, original_content_type, raw_fields_json,
+                    url, published_at, source, synced_at, created_at, updated_at
              FROM external_works ORDER BY published_at DESC, updated_at DESC",
         )
         .map_err(|error| format!("作品列表准备失败：{error}"))?;
@@ -1843,12 +1897,13 @@ pub fn list_external_works(
                 row.get::<_, String>(7)?,
                 row.get::<_, String>(8)?,
                 row.get::<_, String>(9)?,
-                row.get::<_, Option<String>>(10)?,
-                row.get::<_, String>(11)?,
+                row.get::<_, String>(10)?,
+                row.get::<_, Option<String>>(11)?,
                 row.get::<_, String>(12)?,
                 row.get::<_, String>(13)?,
                 row.get::<_, String>(14)?,
                 row.get::<_, String>(15)?,
+                row.get::<_, String>(16)?,
             ))
         })
         .map_err(|error| format!("作品列表读取失败：{error}"))?;
@@ -1861,7 +1916,7 @@ pub fn list_external_works(
         let title = &row.7;
         let content_kind = &row.8;
         let content_type = &row.9;
-        let published_at = &row.11;
+        let published_at = &row.12;
         if filter
             .platform_id
             .as_deref()
@@ -1910,8 +1965,8 @@ pub fn external_work(conn: &Connection, work_id: &str) -> Result<ExternalWork, S
     let row = conn
         .query_row(
             "SELECT id, source_key, account_id, platform_id, platform_name, account_alias,
-                    external_id, title, content_kind, original_content_type, url, published_at,
-                    source, synced_at, created_at, updated_at
+                    external_id, title, content_kind, original_content_type, raw_fields_json,
+                    url, published_at, source, synced_at, created_at, updated_at
              FROM external_works WHERE id=?1",
             [work_id],
             |row| {
@@ -1926,12 +1981,13 @@ pub fn external_work(conn: &Connection, work_id: &str) -> Result<ExternalWork, S
                     row.get::<_, String>(7)?,
                     row.get::<_, String>(8)?,
                     row.get::<_, String>(9)?,
-                    row.get::<_, Option<String>>(10)?,
-                    row.get::<_, String>(11)?,
+                    row.get::<_, String>(10)?,
+                    row.get::<_, Option<String>>(11)?,
                     row.get::<_, String>(12)?,
                     row.get::<_, String>(13)?,
                     row.get::<_, String>(14)?,
                     row.get::<_, String>(15)?,
+                    row.get::<_, String>(16)?,
                 ))
             },
         )
@@ -1972,15 +2028,17 @@ fn upsert_external_work(
     {
         conn.execute(
             "UPDATE external_works
-             SET title=?1, content_kind=?2, original_content_type=?3, url=?4,
-                 published_at=?5, source='sync', synced_at=?6, updated_at=?6
-             WHERE id=?7",
+             SET title=?1, content_kind=?2, original_content_type=?3, raw_fields_json=?4,
+                 url=?5, published_at=?6, source='sync', synced_at=?7, updated_at=?7
+             WHERE id=?8",
             params![
                 work.title,
                 work.content_kind
                     .map(|kind| kind.as_str())
                     .unwrap_or("unknown"),
                 work.content_type,
+                serde_json::to_string(&work.raw_fields)
+                    .map_err(|error| format!("平台原始字段编码失败：{error}"))?,
                 work.url,
                 work.published_at,
                 synced_at,
@@ -1994,9 +2052,9 @@ fn upsert_external_work(
     conn.execute(
         "INSERT INTO external_works(
             id, source_key, account_id, platform_id, platform_name, account_alias,
-            external_id, title, content_kind, original_content_type, url, published_at,
-            source, synced_at, created_at, updated_at
-         ) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'sync', ?13, ?13, ?13)",
+            external_id, title, content_kind, original_content_type, raw_fields_json,
+            url, published_at, source, synced_at, created_at, updated_at
+         ) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 'sync', ?14, ?14, ?14)",
         params![
             id,
             source_key,
@@ -2010,6 +2068,8 @@ fn upsert_external_work(
                 .map(|kind| kind.as_str())
                 .unwrap_or("unknown"),
             work.content_type,
+            serde_json::to_string(&work.raw_fields)
+                .map_err(|error| format!("平台原始字段编码失败：{error}"))?,
             work.url,
             work.published_at,
             synced_at
@@ -2273,6 +2333,7 @@ pub fn export_manual_publish_package(
     ) {
         return Err("当前任务状态不能导出人工发布包".to_string());
     }
+    validate_source_unchanged(workspace, &task)?;
     let safe_id = task
         .id
         .chars()

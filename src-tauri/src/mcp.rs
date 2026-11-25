@@ -370,7 +370,6 @@ struct ServerProcess {
     child: Child,
     stdin: ChildStdin,
     responses: Arc<Mutex<mpsc::Receiver<Value>>>,
-    started_at: Instant,
 }
 
 impl ServerProcess {
@@ -488,7 +487,6 @@ impl McpHost {
             child,
             stdin,
             responses: Arc::new(Mutex::new(receiver)),
-            started_at: Instant::now(),
         });
         *self
             .inner
@@ -689,6 +687,15 @@ impl McpHost {
             .lock()
             .map_err(|error| error.to_string())? = Some(Utc::now().to_rfc3339());
         self.status()
+    }
+
+    pub fn configure(&self, config: McpHostConfig) -> Result<(), String> {
+        *self
+            .inner
+            .config
+            .lock()
+            .map_err(|error| error.to_string())? = config;
+        Ok(())
     }
 
     fn write_message(&self, value: &Value) -> Result<(), String> {
@@ -1943,6 +1950,11 @@ fn validate_content_payload(payload: &PreparedContent) -> Vec<McpFieldError> {
     let has_image = media
         .iter()
         .any(|asset| asset.kind == content::AssetKind::Image);
+    let cover = payload
+        .cover_ref
+        .as_ref()
+        .map(|reference| &reference.asset)
+        .or(payload.existing_cover.as_ref());
     match payload.kind {
         ContentKind::Video => {
             if !has_video {
@@ -1960,6 +1972,9 @@ fn validate_content_payload(payload: &PreparedContent) -> Vec<McpFieldError> {
                     "视频内容不使用 Markdown 正文，请写入 summary",
                 ));
             }
+            if cover.is_none() {
+                errors.push(field_error("cover", "视频内容必须提供封面图片"));
+            }
         }
         ContentKind::ImageText => {
             if media.is_empty() {
@@ -1974,10 +1989,22 @@ fn validate_content_payload(payload: &PreparedContent) -> Vec<McpFieldError> {
                     "图文内容不使用 Markdown 正文，请写入 summary 和逐图说明",
                 ));
             }
+            if cover.is_none() {
+                errors.push(field_error("cover", "图文内容必须明确封面图片"));
+            }
         }
         ContentKind::ImageArticle => {
             if payload.body.trim().is_empty() {
                 errors.push(field_error("body", "图文文章正文不能为空"));
+            }
+            if media.is_empty() {
+                errors.push(field_error("media", "图文文章至少需要一张图片"));
+            }
+            if !has_image || has_video {
+                errors.push(field_error("media", "图文文章媒体顺序只能包含图片"));
+            }
+            if cover.is_none() {
+                errors.push(field_error("cover", "图文文章必须明确封面图片"));
             }
         }
         ContentKind::Article => {
@@ -1986,12 +2013,7 @@ fn validate_content_payload(payload: &PreparedContent) -> Vec<McpFieldError> {
             }
         }
     }
-    if let Some(cover) = payload.cover_ref.as_ref()
-        && cover.asset.kind != content::AssetKind::Image
-    {
-        errors.push(field_error("cover", "封面必须是图片素材"));
-    }
-    if let Some(cover) = payload.existing_cover.as_ref()
+    if let Some(cover) = cover
         && cover.kind != content::AssetKind::Image
     {
         errors.push(field_error("cover", "封面必须是图片素材"));
@@ -2202,6 +2224,7 @@ fn content_preview_details(payload: &PreparedContent) -> Value {
         "contentKind": payload.kind.as_str(),
         "title": payload.title,
         "summary": payload.summary,
+        "body": payload.body,
         "bodyPreview": payload.body.chars().take(600).collect::<String>(),
         "bodyTruncated": payload.body.chars().count() > 600,
         "media": prepared_media_summary(payload),
@@ -2480,6 +2503,7 @@ fn publish_preview_details(conn: &Connection, arguments: &Value) -> Result<Value
                 "contentVersion": task.content_version,
                 "contentKind": task.content_kind.as_str(),
                 "title": task.title,
+                "body": task.body,
                 "bodyPreview": task.body.chars().take(600).collect::<String>(),
                 "bodyTruncated": task.body.chars().count() > 600,
                 "platformId": task.platform_id,
@@ -2802,9 +2826,15 @@ fn execute_core_tool(
                         .ok_or_else(|| "缺少发布确认令牌".to_string())?;
                     let task =
                         operations::confirm_publish_task(conn, runtime, workspace, task_id, token)?;
+                    let published = matches!(
+                        task.status,
+                        operations::PublishTaskStatus::Success
+                            | operations::PublishTaskStatus::Scheduled
+                    );
                     Ok::<_, String>(json!({
                         "taskId": task.id,
                         "status": format!("{:?}", task.status).to_ascii_uppercase(),
+                        "published": published,
                         "externalId": task.external_id,
                         "externalUrl": task.external_url,
                         "errorCode": task.error_code,
@@ -2813,7 +2843,11 @@ fn execute_core_tool(
                 })();
                 match outcome {
                     Ok(value) => {
-                        success_count += 1;
+                        if value.get("published").and_then(Value::as_bool) == Some(true) {
+                            success_count += 1;
+                        } else {
+                            failure_count += 1;
+                        }
                         targets.push(value);
                     }
                     Err(message) => {
@@ -2913,6 +2947,7 @@ fn preview_details(
                             "contentId": package.manifest.id,
                             "contentKind": package.manifest.kind.as_str(),
                             "title": package.manifest.title,
+                            "body": package.body,
                             "bodyPreview": package.body.chars().take(600).collect::<String>(),
                             "media": package.manifest.media,
                             "cover": package.manifest.cover,
@@ -3908,6 +3943,13 @@ pub fn generate_assistant_reply(
         preview.character_count = preview.context.chars().count();
     }
     let Some(provider) = provider else {
+        conn.execute(
+            "UPDATE assistant_threads
+             SET provider_id=NULL, provider_name='本地编排器', model='deterministic-v1', updated_at=?1
+             WHERE id=?2",
+            params![Utc::now().to_rfc3339(), thread.id],
+        )
+        .map_err(|error| error.to_string())?;
         let assistant = append_assistant_message(
             conn,
             &thread.id,
@@ -3923,6 +3965,19 @@ pub fn generate_assistant_reply(
             context_preview: preview,
         });
     };
+    conn.execute(
+        "UPDATE assistant_threads
+         SET provider_id=?1, provider_name=?2, model=?3, updated_at=?4
+         WHERE id=?5",
+        params![
+            provider.id,
+            provider.name,
+            provider.model,
+            Utc::now().to_rfc3339(),
+            thread.id
+        ],
+    )
+    .map_err(|error| error.to_string())?;
     let package_kind = request
         .content_id
         .as_deref()

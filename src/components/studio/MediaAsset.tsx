@@ -4,8 +4,7 @@ import { Image as ImageIcon, Video } from "../Icons";
 import type { ContentAsset } from "../../types/content";
 
 export type AssetSource =
-  | { kind: "content"; packageId: string }
-  | { kind: "draft"; draftId: string };
+  { kind: "content"; packageId: string } | { kind: "draft"; draftId: string };
 
 export function useAssetObjectUrl(source: AssetSource | null, asset: ContentAsset | null) {
   const [url, setUrl] = useState("");
@@ -75,7 +74,19 @@ export function MediaThumb({
     );
   }
   if (asset.kind === "video") {
-    return <video src={url} controls={controls} className={`rounded-lg bg-black object-cover ${className}`} />;
+    return (
+      <video
+        src={url}
+        controls={controls}
+        className={`rounded-lg bg-black object-cover ${className}`}
+      />
+    );
   }
-  return <img src={url} alt={asset.caption || asset.originalName} className={`rounded-lg object-cover ${className}`} />;
+  return (
+    <img
+      src={url}
+      alt={asset.caption || asset.originalName}
+      className={`rounded-lg object-cover ${className}`}
+    />
+  );
 }

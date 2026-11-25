@@ -281,7 +281,9 @@ const createStudioStoreState: StateCreator<StudioStore> = (set, get) => {
       try {
         const packages = isTauri()
           ? await invoke<ContentPackageSummary[]>("list_content_packages")
-          : readLocal<ContentPackage>(STORAGE_PACKAGES).map((item) => summaryFromEditor(packageToEditor(item)));
+          : readLocal<ContentPackage>(STORAGE_PACKAGES).map((item) =>
+              summaryFromEditor(packageToEditor(item)),
+            );
         set({ packages });
         return packages;
       } catch (cause) {
@@ -324,7 +326,9 @@ const createStudioStoreState: StateCreator<StudioStore> = (set, get) => {
           draftEditor: null,
         });
         savedFingerprint = editorFingerprint(packageToEditor(packageData));
-        ui.showToast(`已创建${kind === "video" ? "视频" : kind === "imageText" ? "图文" : kind === "imageArticle" ? "图文文章" : "纯文章"}主稿`);
+        ui.showToast(
+          `已创建${kind === "video" ? "视频" : kind === "imageText" ? "图文" : kind === "imageArticle" ? "图文文章" : "纯文章"}主稿`,
+        );
         return packageData;
       } catch (cause) {
         ui.setError(cause instanceof Error ? cause.message : String(cause));
@@ -438,8 +442,7 @@ const createStudioStoreState: StateCreator<StudioStore> = (set, get) => {
       const media = editor.media.map((asset) =>
         asset.id === assetId ? { ...asset, ...patch } : asset,
       );
-      const cover =
-        editor.cover?.id === assetId ? { ...editor.cover, ...patch } : editor.cover;
+      const cover = editor.cover?.id === assetId ? { ...editor.cover, ...patch } : editor.cover;
       set({ editor: { ...editor, media, cover }, saveState: "unsaved" });
       scheduleAutoSave();
     },
@@ -646,8 +649,8 @@ const createStudioStoreState: StateCreator<StudioStore> = (set, get) => {
               summary: state.editor?.summary ?? state.current!.summary,
               body:
                 state.current!.kind === "video" || state.current!.kind === "imageText"
-                  ? state.editor?.summary ?? ""
-                  : state.editor?.body ?? state.current!.body,
+                  ? (state.editor?.summary ?? "")
+                  : (state.editor?.body ?? state.current!.body),
               tags: state.editor?.tags ?? [],
               cover: state.editor?.cover ?? null,
               media: state.editor?.media ?? [],
