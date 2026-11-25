@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::{
     io::{BufRead, BufReader, Read, Write},
     net::{Shutdown, TcpStream},
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::{Child, Command, Stdio},
     sync::{Arc, Mutex},
     thread,
@@ -55,6 +55,7 @@ struct CdpTarget {
     websocket_url: String,
 }
 
+#[derive(Debug)]
 struct BrowserState {
     child: Option<Child>,
     profile_directory: PathBuf,
@@ -65,7 +66,7 @@ struct BrowserState {
     last_error: Option<String>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct BrowserBridge {
     state: Arc<Mutex<BrowserState>>,
     data_directory: PathBuf,
@@ -381,9 +382,8 @@ fn open_or_reuse_tab(configured: &Url, destination: &str) -> Result<CdpTarget, S
         "http://127.0.0.1:{DEFAULT_PORT}/json/new?{}",
         percent_encode(destination)
     );
-    let response = ureq::put(&url)
+    let response = ureq::get(&url)
         .call()
-        .or_else(|_| ureq::get(&url).call())
         .map_err(|error| format!("无法创建平台标签页：{error}"))?;
     let mut bytes = Vec::new();
     response
@@ -493,7 +493,7 @@ fn cdp_command(websocket_url: &str, method: &str, params: Value) -> Result<Value
             ));
         }
     }
-    let mut id = 1;
+    let id = 1;
     let request = serde_json::json!({"id":id,"method":method,"params":params}).to_string();
     send_ws_text(reader.get_mut(), request.as_bytes())?;
     loop {

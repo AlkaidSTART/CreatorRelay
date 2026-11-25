@@ -316,14 +316,14 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
           <div className="rounded-2xl border border-dashed border-line-strong bg-surface/75 p-5 text-center">
             <p className="text-xs font-medium text-ink-secondary">暂无可用适配目标</p>
             <p className="mt-1.5 text-[11px] leading-relaxed text-ink-muted">
-              请先在「平台管理」连接账号，或在插件设置中启用测试适配器。
+              请先在「平台账号」连接账号，或在「适配器与插件」中启用测试适配器。
             </p>
             <button
               type="button"
               onClick={() => navigate("/platforms")}
               className="mt-3.5 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-[11px] font-medium text-ink-secondary shadow-xs transition-colors hover:border-accent hover:text-accent-deep"
             >
-              前往平台管理
+              前往平台账号
               <ArrowRight size={10} />
             </button>
           </div>

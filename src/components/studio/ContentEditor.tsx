@@ -137,67 +137,29 @@ export function ContentEditor({ preview }: { preview: boolean }) {
     else if (slashOpen) setSlashOpen(false);
   }
 
-  const titleField = (
-    <input
-      value={editor.title}
-      onChange={(event) => updateEditor({ title: event.target.value })}
-      aria-label="内容标题"
-      placeholder="输入内容标题..."
-      className="w-full border-0 bg-transparent text-[26px] leading-snug font-semibold tracking-tight text-ink placeholder:text-ink-faint focus:outline-none"
-    />
-  );
-
-  const tagsField = (
-    <div className="flex flex-wrap items-center gap-2.5">
-      <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 shadow-[0_1px_2px_rgba(51,43,41,0.03)] transition-all focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15">
-        <Tags size={12} className="shrink-0 text-ink-muted" />
-        <span className="shrink-0 text-[11px] font-medium text-ink-muted">标签</span>
-        <span className="h-3 w-px bg-line" />
-        <input
-          value={editor.tags.join(", ")}
-          onChange={(event) =>
-            updateEditor({
-              tags: event.target.value
-                .split(",")
-                .map((tag) => tag.trim())
-                .filter(Boolean),
-            })
-          }
-          placeholder="用逗号分隔，例如：Rust, 本地优先"
-          className="min-w-0 flex-1 bg-transparent text-xs text-ink placeholder:text-ink-muted focus:outline-none"
-        />
-      </div>
-      {editor.source && (
-        <span className="inline-flex items-center rounded-xl border border-sky-border bg-sky-bg px-2.5 py-2 text-[11px] font-medium text-sky-text">
-          派生自 {editor.source.contentId.slice(0, 8)}
-        </span>
-      )}
-    </div>
-  );
+  const isArticleKind = editor.kind === "imageArticle" || editor.kind === "article";
 
   const mediaToolbar = (
-    <div className="flex flex-wrap items-center gap-2">
-      {(editor.kind === "video" || editor.kind === "imageArticle" || editor.kind === "article") && (
+    <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+      {(editor.kind === "video" || isArticleKind) && (
         <button
           type="button"
           onClick={() => videoInput.current?.click()}
           disabled={Boolean(busy) || (editor.kind === "video" && Boolean(video))}
-          className="inline-flex h-8.5 cursor-pointer items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-medium text-ink-secondary shadow-[0_1px_2px_rgba(51,43,41,0.03)] transition-all hover:border-accent hover:text-accent-deep disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-7.5 cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[11px] font-medium text-ink-secondary transition-all hover:border-accent hover:text-accent-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Video size={12} />
+          <Video size={11} />
           {busy === "video" ? "导入中..." : video ? "已导入视频" : "导入视频"}
         </button>
       )}
-      {(editor.kind === "imageText" ||
-        editor.kind === "imageArticle" ||
-        editor.kind === "article") && (
+      {(editor.kind === "imageText" || isArticleKind) && (
         <button
           type="button"
           onClick={() => imageInput.current?.click()}
           disabled={Boolean(busy)}
-          className="inline-flex h-8.5 cursor-pointer items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-medium text-ink-secondary shadow-[0_1px_2px_rgba(51,43,41,0.03)] transition-all hover:border-accent hover:text-accent-deep disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-7.5 cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[11px] font-medium text-ink-secondary transition-all hover:border-accent hover:text-accent-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Image size={12} />
+          <Image size={11} />
           {busy === "image" ? "导入中..." : "添加图片"}
         </button>
       )}
@@ -205,18 +167,20 @@ export function ContentEditor({ preview }: { preview: boolean }) {
         type="button"
         onClick={() => coverInput.current?.click()}
         disabled={Boolean(busy)}
-        className="inline-flex h-8.5 cursor-pointer items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-medium text-ink-secondary shadow-[0_1px_2px_rgba(51,43,41,0.03)] transition-all hover:border-accent hover:text-accent-deep disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex h-7.5 cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[11px] font-medium text-ink-secondary transition-all hover:border-accent hover:text-accent-deep disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <Star size={12} />
-        {busy === "cover" ? "导入中..." : editor.cover ? "更换封面" : "设置封面"}
+        <Star size={11} />
+        {busy === "cover" ? "导入中..." : editor.cover ? "更换封面" : "封面"}
       </button>
       {editor.cover && (
         <button
           type="button"
           onClick={() => updateEditor({ cover: null })}
-          className="inline-flex h-8.5 cursor-pointer items-center gap-1 rounded-xl border border-transparent px-2.5 text-xs text-ink-muted transition-colors hover:border-coral-border hover:bg-coral-bg hover:text-coral-text"
+          title="清除封面"
+          aria-label="清除封面"
+          className="grid h-7.5 w-7.5 cursor-pointer place-items-center rounded-lg border border-transparent text-ink-muted transition-colors hover:border-coral-border hover:bg-coral-bg hover:text-coral-text"
         >
-          <X size={11} /> 清除封面
+          <X size={11} />
         </button>
       )}
     </div>
@@ -250,10 +214,10 @@ export function ContentEditor({ preview }: { preview: boolean }) {
   );
 
   const coverCard = (
-    <div className="h-fit rounded-2xl border border-line bg-surface p-4 shadow-[0_1px_4px_rgba(51,43,41,0.04)]">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-ink">封面预览</span>
-        <span className="truncate text-[10.5px] text-ink-muted">
+    <div className="shrink-0 rounded-2xl border border-line bg-surface p-3 shadow-[0_1px_4px_rgba(51,43,41,0.04)]">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-[11.5px] font-semibold text-ink">封面预览</span>
+        <span className="truncate text-[10px] text-ink-muted">
           {editor.cover ? editor.cover.originalName : "未设置"}
         </span>
       </div>
@@ -262,12 +226,12 @@ export function ContentEditor({ preview }: { preview: boolean }) {
           <MediaThumb
             source={{ kind: "content", packageId: editor.id }}
             asset={editor.cover}
-            className="aspect-[16/10] w-full"
+            className="aspect-[16/9] max-h-[144px] w-full"
           />
           <button
             type="button"
             onClick={() => coverInput.current?.click()}
-            className="absolute right-2 bottom-2 cursor-pointer rounded-lg bg-black/60 px-2.5 py-1 text-[10.5px] font-medium text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100"
+            className="absolute right-2 bottom-2 cursor-pointer rounded-lg bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100"
           >
             更换封面
           </button>
@@ -277,253 +241,304 @@ export function ContentEditor({ preview }: { preview: boolean }) {
           type="button"
           onClick={() => coverInput.current?.click()}
           disabled={Boolean(busy)}
-          className="flex aspect-[16/10] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong bg-canvas/70 px-4 text-center transition-all hover:border-accent hover:bg-accent-soft/25 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex aspect-[16/9] max-h-[144px] w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-line-strong bg-canvas/70 px-3 text-center transition-all hover:border-accent hover:bg-accent-soft/25 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <span className="grid h-8 w-8 place-items-center rounded-xl bg-surface text-ink-muted shadow-xs ring-1 ring-line">
-            <Star size={13} />
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-surface text-ink-muted shadow-xs ring-1 ring-line">
+            <Star size={12} />
           </span>
-          <span className="text-[11px] font-medium text-ink-secondary">点击上传封面</span>
+          <span className="text-[10.5px] font-medium text-ink-secondary">点击上传封面</span>
         </button>
       )}
     </div>
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-[840px] flex-col gap-6">
-      {/* Document Header */}
-      <div className="space-y-4 border-b border-line pb-5">
-        {titleField}
-        {tagsField}
-        {mediaToolbar}
-      </div>
-      {fileInputs}
-
-      {/* Video Mode */}
-      {editor.kind === "video" && (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_240px]">
-          <div className="min-w-0 space-y-5">
-            <div className="rounded-2xl border border-line bg-surface p-4 shadow-[0_1px_4px_rgba(51,43,41,0.04)]">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-ink">主视频</span>
-                {video ? (
-                  <span className="truncate text-[11px] text-ink-muted">
-                    {video.originalName}
-                    {video.byteSize ? ` · ${formatByteSize(video.byteSize)}` : ""}
-                  </span>
-                ) : (
-                  <span className="text-[11px] text-ink-muted">未导入</span>
-                )}
-              </div>
-              {video ? (
-                <div className="space-y-2.5">
-                  <MediaThumb
-                    source={{ kind: "content", packageId: editor.id }}
-                    asset={video}
-                    controls
-                    className="aspect-video w-full bg-black"
-                  />
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => removeMedia(video.id)}
-                      className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-ink-muted transition-colors hover:bg-coral-bg hover:text-coral-text"
-                    >
-                      <Trash2 size={11} /> 移除视频
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => videoInput.current?.click()}
-                  disabled={Boolean(busy)}
-                  className="flex aspect-video w-full cursor-pointer flex-col items-center justify-center gap-2.5 rounded-xl border border-dashed border-line-strong bg-canvas/70 px-6 text-center transition-all hover:border-accent hover:bg-accent-soft/25 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <span className="grid h-11 w-11 place-items-center rounded-2xl bg-surface text-accent shadow-xs ring-1 ring-line">
-                    <Video size={17} />
-                  </span>
-                  <div>
-                    <strong className="block text-xs font-medium text-ink">点击导入主视频</strong>
-                    <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">
-                      支持 MP4 / MOV / WebM · 视频主稿不要求 Markdown 正文
-                    </p>
-                  </div>
-                </button>
-              )}
-            </div>
-
-            <div className="rounded-2xl border border-line bg-surface p-4 shadow-[0_1px_4px_rgba(51,43,41,0.04)] transition-all focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15">
-              <div className="mb-2 flex items-center justify-between">
-                <label htmlFor="video-summary" className="text-xs font-semibold text-ink">
-                  视频简介
-                </label>
-                <span className="text-[10.5px] text-ink-muted">{editor.summary.length} 字</span>
-              </div>
-              <textarea
-                id="video-summary"
-                value={editor.summary}
-                onChange={(event) => updateEditor({ summary: event.target.value })}
-                placeholder="填写视频简介、章节时间轴或发布说明..."
-                className="min-h-36 w-full resize-y bg-transparent text-[13.5px] leading-relaxed text-ink placeholder:text-ink-muted focus:outline-none"
-              />
-            </div>
-          </div>
-          {coverCard}
+    <div className="flex h-full w-full flex-col gap-3 overflow-hidden">
+      {/* Compact Metadata Header Bar */}
+      <div className="shrink-0 space-y-2 rounded-2xl border border-line bg-surface px-4 py-3 shadow-[0_1px_4px_rgba(51,43,41,0.03)]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <input
+            value={editor.title}
+            onChange={(event) => updateEditor({ title: event.target.value })}
+            aria-label="内容标题"
+            placeholder="输入内容标题..."
+            className="min-w-[200px] flex-1 border-0 bg-transparent text-[19px] leading-snug font-semibold tracking-tight text-ink placeholder:text-ink-faint focus:outline-none"
+          />
+          {mediaToolbar}
         </div>
-      )}
 
-      {/* ImageText Mode */}
-      {editor.kind === "imageText" && (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_240px]">
-          <div className="min-w-0 space-y-5">
-            <div className="rounded-2xl border border-line bg-surface p-4 shadow-[0_1px_4px_rgba(51,43,41,0.04)] transition-all focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15">
-              <div className="mb-2 flex items-center justify-between">
-                <label htmlFor="imagetext-summary" className="text-xs font-semibold text-ink">
-                  短文案
-                </label>
-                <span className="text-[10.5px] text-ink-muted">{editor.summary.length} 字</span>
-              </div>
-              <textarea
-                id="imagetext-summary"
-                value={editor.summary}
-                onChange={(event) => updateEditor({ summary: event.target.value })}
-                placeholder="输入图文短文案；逐图说明可在下方图片卡片中维护..."
-                className="min-h-28 w-full resize-y bg-transparent text-[13.5px] leading-relaxed text-ink placeholder:text-ink-muted focus:outline-none"
-              />
-            </div>
-
-            <div className="rounded-2xl border border-line bg-surface p-4 shadow-[0_1px_4px_rgba(51,43,41,0.04)]">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-xs font-semibold text-ink">图片顺序与说明</span>
-                <span className="text-[11px] text-ink-muted">
-                  {images.length} 张 · 拖拽或使用箭头排序
-                </span>
-              </div>
-              {images.length === 0 ? (
-                <button
-                  type="button"
-                  onClick={() => imageInput.current?.click()}
-                  disabled={Boolean(busy)}
-                  className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong bg-canvas/70 px-6 py-10 text-center transition-all hover:border-accent hover:bg-accent-soft/25"
-                >
-                  <span className="grid h-10 w-10 place-items-center rounded-2xl bg-surface text-accent shadow-xs ring-1 ring-line">
-                    <Image size={16} />
-                  </span>
-                  <strong className="text-xs font-medium text-ink">点击添加图集图片</strong>
-                  <span className="text-[11px] text-ink-muted">
-                    支持多选导入 PNG / JPG / WebP，支持拖拽调整展示顺序
-                  </span>
-                </button>
-              ) : (
-                <div className="grid gap-3.5 sm:grid-cols-2">
-                  {images.map((asset, index) => (
-                    <div
-                      key={asset.id}
-                      draggable
-                      onDragStart={() => {
-                        dragAssetId.current = asset.id;
-                      }}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={() => {
-                        if (dragAssetId.current) reorderMedia(dragAssetId.current, asset.id);
-                        dragAssetId.current = "";
-                      }}
-                      className={`rounded-xl border bg-canvas/50 p-3 transition-all ${
-                        editor.cover?.id === asset.id
-                          ? "border-accent ring-1 ring-accent/20"
-                          : "border-line hover:border-line-strong"
-                      }`}
-                    >
-                      <div className="relative">
-                        <MediaThumb
-                          source={{ kind: "content", packageId: editor.id }}
-                          asset={asset}
-                          className="h-36 w-full"
-                        />
-                        <span className="absolute top-2 left-2 rounded-md bg-black/65 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-xs">
-                          {index + 1}
-                        </span>
-                        {editor.cover?.id === asset.id && (
-                          <span className="absolute top-2 right-2 rounded-md bg-accent px-1.5 py-0.5 text-[10px] font-medium text-accent-on">
-                            封面
-                          </span>
-                        )}
-                      </div>
-                      <input
-                        value={asset.caption}
-                        onChange={(event) => updateMedia(asset.id, { caption: event.target.value })}
-                        placeholder="添加图片说明..."
-                        className="mt-2.5 w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs text-ink outline-none focus:border-accent"
-                      />
-                      <div className="mt-2 flex items-center justify-between">
-                        <div className="flex gap-1">
-                          <button
-                            type="button"
-                            aria-label="上移图片"
-                            disabled={index === 0}
-                            onClick={() => moveMedia(asset.id, -1)}
-                            className="grid h-6.5 w-6.5 cursor-pointer place-items-center rounded-lg border border-line bg-surface text-ink-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
-                          >
-                            <ArrowUp size={10} />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label="下移图片"
-                            disabled={index === images.length - 1}
-                            onClick={() => moveMedia(asset.id, 1)}
-                            className="grid h-6.5 w-6.5 cursor-pointer place-items-center rounded-lg border border-line bg-surface text-ink-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
-                          >
-                            <ArrowDown size={10} />
-                          </button>
-                        </div>
-                        <div className="flex gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setCover(asset)}
-                            className="cursor-pointer rounded-lg border border-line bg-surface px-2 py-1 text-[10.5px] font-medium text-ink-secondary transition-colors hover:border-accent hover:text-accent-deep"
-                          >
-                            设为封面
-                          </button>
-                          <button
-                            type="button"
-                            aria-label="删除图片"
-                            onClick={() => removeMedia(asset.id)}
-                            className="grid h-6.5 w-6.5 cursor-pointer place-items-center rounded-lg border border-line bg-surface text-ink-muted transition-colors hover:border-coral-border hover:bg-coral-bg hover:text-coral-text"
-                          >
-                            <Trash2 size={10} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+        <div className="flex flex-wrap items-center gap-2 border-t border-line/70 pt-2">
+          <div className="flex min-w-[200px] flex-1 items-center gap-2 rounded-lg border border-line bg-canvas/70 px-2.5 py-1.5 transition-all focus-within:border-accent focus-within:bg-surface">
+            <Tags size={11} className="shrink-0 text-ink-muted" />
+            <span className="shrink-0 text-[10.5px] font-medium text-ink-muted">标签</span>
+            <span className="h-3 w-px bg-line" />
+            <input
+              value={editor.tags.join(", ")}
+              onChange={(event) =>
+                updateEditor({
+                  tags: event.target.value
+                    .split(",")
+                    .map((tag) => tag.trim())
+                    .filter(Boolean),
+                })
+              }
+              placeholder="逗号分隔，例如：Rust, 本地优先"
+              className="min-w-0 flex-1 bg-transparent text-[11.5px] text-ink placeholder:text-ink-muted focus:outline-none"
+            />
           </div>
-          {coverCard}
-        </div>
-      )}
 
-      {/* Article / ImageArticle Mode */}
-      {(editor.kind === "imageArticle" || editor.kind === "article") && (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_240px]">
-          <div className="min-w-0 space-y-5">
-            <div className="rounded-2xl border border-line bg-surface px-4 py-3 shadow-[0_1px_4px_rgba(51,43,41,0.04)] transition-all focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15">
-              <label htmlFor="article-summary" className="block text-[11px] font-semibold text-ink-muted">
+          {isArticleKind && (
+            <div className="flex min-w-[240px] flex-[1.3] items-center gap-2 rounded-lg border border-line bg-canvas/70 px-2.5 py-1.5 transition-all focus-within:border-accent focus-within:bg-surface">
+              <label
+                htmlFor="article-summary"
+                className="shrink-0 text-[10.5px] font-medium text-ink-muted"
+              >
                 摘要
               </label>
+              <span className="h-3 w-px bg-line" />
               <input
                 id="article-summary"
                 value={editor.summary}
                 onChange={(event) => updateEditor({ summary: event.target.value })}
                 placeholder="用于平台稿与列表预览的一句话摘要..."
-                className="mt-1 w-full bg-transparent text-[13px] text-ink placeholder:text-ink-muted focus:outline-none"
+                className="min-w-0 flex-1 bg-transparent text-[11.5px] text-ink placeholder:text-ink-muted focus:outline-none"
               />
             </div>
+          )}
 
-            <div className="relative">
+          {editor.source && (
+            <span className="inline-flex shrink-0 items-center rounded-lg border border-sky-border bg-sky-bg px-2 py-1 text-[10.5px] font-medium text-sky-text">
+              派生自 {editor.source.contentId.slice(0, 8)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {fileInputs}
+
+      {/* Main Single-Screen Body Stage */}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {/* Video Mode */}
+        {editor.kind === "video" && (
+          <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[minmax(0,1.25fr)_minmax(230px,0.85fr)]">
+            <div className="flex h-full min-h-0 flex-col rounded-2xl border border-line bg-surface p-3.5 shadow-[0_1px_4px_rgba(51,43,41,0.04)]">
+              <div className="mb-2.5 flex shrink-0 items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-ink">主视频</span>
+                <div className="flex items-center gap-2">
+                  {video ? (
+                    <>
+                      <span className="truncate text-[10.5px] text-ink-muted">
+                        {video.originalName}
+                        {video.byteSize ? ` · ${formatByteSize(video.byteSize)}` : ""}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeMedia(video.id)}
+                        className="inline-flex cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] text-ink-muted transition-colors hover:bg-coral-bg hover:text-coral-text"
+                      >
+                        <Trash2 size={10} /> 移除
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-[10.5px] text-ink-muted">未导入</span>
+                  )}
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-hidden">
+                {video ? (
+                  <MediaThumb
+                    source={{ kind: "content", packageId: editor.id }}
+                    asset={video}
+                    controls
+                    className="h-full w-full rounded-xl bg-black"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => videoInput.current?.click()}
+                    disabled={Boolean(busy)}
+                    className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2.5 rounded-xl border border-dashed border-line-strong bg-canvas/70 px-6 text-center transition-all hover:border-accent hover:bg-accent-soft/25 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className="grid h-10 w-10 place-items-center rounded-2xl bg-surface text-accent shadow-xs ring-1 ring-line">
+                      <Video size={16} />
+                    </span>
+                    <div>
+                      <strong className="block text-xs font-medium text-ink">点击导入主视频</strong>
+                      <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">
+                        支持 MP4 / MOV / WebM · 视频主稿不要求 Markdown 正文
+                      </p>
+                    </div>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex h-full min-h-0 flex-col gap-3">
+              {coverCard}
+              <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-line bg-surface p-3.5 shadow-[0_1px_4px_rgba(51,43,41,0.04)] transition-all focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15">
+                <div className="mb-2 flex shrink-0 items-center justify-between">
+                  <label htmlFor="video-summary" className="text-[11.5px] font-semibold text-ink">
+                    视频简介
+                  </label>
+                  <span className="text-[10px] text-ink-muted">{editor.summary.length} 字</span>
+                </div>
+                <textarea
+                  id="video-summary"
+                  value={editor.summary}
+                  onChange={(event) => updateEditor({ summary: event.target.value })}
+                  placeholder="填写视频简介、章节时间轴或发布说明..."
+                  className="min-h-0 w-full flex-1 resize-none bg-transparent text-[12.5px] leading-relaxed text-ink placeholder:text-ink-muted focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ImageText Mode */}
+        {editor.kind === "imageText" && (
+          <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(230px,0.85fr)]">
+            <div className="flex h-full min-h-0 flex-col rounded-2xl border border-line bg-surface p-3.5 shadow-[0_1px_4px_rgba(51,43,41,0.04)]">
+              <div className="mb-2.5 flex shrink-0 items-center justify-between">
+                <span className="text-xs font-semibold text-ink">图片顺序与说明</span>
+                <span className="text-[10.5px] text-ink-muted">
+                  {images.length} 张 · 拖拽或使用箭头排序
+                </span>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
+                {images.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => imageInput.current?.click()}
+                    disabled={Boolean(busy)}
+                    className="flex h-full min-h-[200px] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong bg-canvas/70 px-6 text-center transition-all hover:border-accent hover:bg-accent-soft/25"
+                  >
+                    <span className="grid h-10 w-10 place-items-center rounded-2xl bg-surface text-accent shadow-xs ring-1 ring-line">
+                      <Image size={16} />
+                    </span>
+                    <strong className="text-xs font-medium text-ink">点击添加图集图片</strong>
+                    <span className="text-[11px] text-ink-muted">
+                      支持多选导入 PNG / JPG / WebP，支持拖拽调整顺序
+                    </span>
+                  </button>
+                ) : (
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    {images.map((asset, index) => (
+                      <div
+                        key={asset.id}
+                        draggable
+                        onDragStart={() => {
+                          dragAssetId.current = asset.id;
+                        }}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={() => {
+                          if (dragAssetId.current) reorderMedia(dragAssetId.current, asset.id);
+                          dragAssetId.current = "";
+                        }}
+                        className={`rounded-xl border bg-canvas/50 p-2.5 transition-all ${
+                          editor.cover?.id === asset.id
+                            ? "border-accent ring-1 ring-accent/20"
+                            : "border-line hover:border-line-strong"
+                        }`}
+                      >
+                        <div className="relative">
+                          <MediaThumb
+                            source={{ kind: "content", packageId: editor.id }}
+                            asset={asset}
+                            className="h-28 w-full"
+                          />
+                          <span className="absolute top-1.5 left-1.5 rounded-md bg-black/65 px-1.5 py-0.5 text-[9.5px] font-medium text-white backdrop-blur-xs">
+                            {index + 1}
+                          </span>
+                          {editor.cover?.id === asset.id && (
+                            <span className="absolute top-1.5 right-1.5 rounded-md bg-accent px-1.5 py-0.5 text-[9.5px] font-medium text-accent-on">
+                              封面
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          value={asset.caption}
+                          onChange={(event) =>
+                            updateMedia(asset.id, { caption: event.target.value })
+                          }
+                          placeholder="添加图片说明..."
+                          className="mt-2 w-full rounded-lg border border-line bg-surface px-2 py-1 text-[11px] text-ink outline-none focus:border-accent"
+                        />
+                        <div className="mt-1.5 flex items-center justify-between">
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              aria-label="上移图片"
+                              disabled={index === 0}
+                              onClick={() => moveMedia(asset.id, -1)}
+                              className="grid h-6 w-6 cursor-pointer place-items-center rounded-md border border-line bg-surface text-ink-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
+                            >
+                              <ArrowUp size={9} />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="下移图片"
+                              disabled={index === images.length - 1}
+                              onClick={() => moveMedia(asset.id, 1)}
+                              className="grid h-6 w-6 cursor-pointer place-items-center rounded-md border border-line bg-surface text-ink-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
+                            >
+                              <ArrowDown size={9} />
+                            </button>
+                          </div>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setCover(asset)}
+                              className="cursor-pointer rounded-md border border-line bg-surface px-1.5 py-0.5 text-[10px] font-medium text-ink-secondary transition-colors hover:border-accent hover:text-accent-deep"
+                            >
+                              设为封面
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="删除图片"
+                              onClick={() => removeMedia(asset.id)}
+                              className="grid h-6 w-6 cursor-pointer place-items-center rounded-md border border-line bg-surface text-ink-muted transition-colors hover:border-coral-border hover:bg-coral-bg hover:text-coral-text"
+                            >
+                              <Trash2 size={9} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex h-full min-h-0 flex-col gap-3">
+              {coverCard}
+              <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-line bg-surface p-3.5 shadow-[0_1px_4px_rgba(51,43,41,0.04)] transition-all focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15">
+                <div className="mb-2 flex shrink-0 items-center justify-between">
+                  <label
+                    htmlFor="imagetext-summary"
+                    className="text-[11.5px] font-semibold text-ink"
+                  >
+                    短文案
+                  </label>
+                  <span className="text-[10px] text-ink-muted">{editor.summary.length} 字</span>
+                </div>
+                <textarea
+                  id="imagetext-summary"
+                  value={editor.summary}
+                  onChange={(event) => updateEditor({ summary: event.target.value })}
+                  placeholder="输入图文短文案；逐图说明可在左侧图片卡片中维护..."
+                  className="min-h-0 w-full flex-1 resize-none bg-transparent text-[12.5px] leading-relaxed text-ink placeholder:text-ink-muted focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Article / ImageArticle Mode */}
+        {isArticleKind && (
+          <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[minmax(0,1fr)_224px]">
+            <div className="relative h-full min-h-0">
               {preview ? (
-                <div className="rounded-2xl border border-line bg-surface p-6 shadow-[0_1px_4px_rgba(51,43,41,0.04)]">
+                <div className="h-full overflow-y-auto rounded-2xl border border-line bg-surface p-5 shadow-[0_1px_4px_rgba(51,43,41,0.04)]">
                   <MarkdownPreview
                     markdown={editor.body}
                     source={{ kind: "content", packageId: editor.id }}
@@ -540,12 +555,12 @@ export function ContentEditor({ preview }: { preview: boolean }) {
                   aria-label="Markdown 正文"
                   spellCheck={false}
                   placeholder="开始写作 Markdown 正文；输入 / 可唤起块级命令..."
-                  className="min-h-[calc(100vh-380px)] w-full resize-none rounded-2xl border border-line bg-surface p-6 font-mono text-[13.5px] leading-[1.85] text-ink shadow-[0_1px_4px_rgba(51,43,41,0.04)] outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/15"
+                  className="h-full w-full resize-none rounded-2xl border border-line bg-surface p-5 font-mono text-[13px] leading-[1.8] text-ink shadow-[0_1px_4px_rgba(51,43,41,0.04)] outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/15"
                 />
               )}
               {slashOpen && !preview && (
-                <div className="absolute top-12 right-5 z-20 w-56 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-[0_12px_32px_rgba(51,43,41,0.12)]">
-                  <div className="px-2.5 py-1.5 text-[10.5px] font-medium text-ink-muted">
+                <div className="absolute top-10 right-4 z-20 w-52 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-[0_12px_32px_rgba(51,43,41,0.12)]">
+                  <div className="px-2.5 py-1.5 text-[10px] font-medium text-ink-muted">
                     快捷块级命令
                   </div>
                   {[
@@ -558,7 +573,7 @@ export function ContentEditor({ preview }: { preview: boolean }) {
                       key={label}
                       type="button"
                       onClick={() => insertSlash(snippet)}
-                      className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs text-ink-secondary transition-colors hover:bg-hover hover:text-ink"
+                      className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs text-ink-secondary transition-colors hover:bg-hover hover:text-ink"
                     >
                       {label}
                       <Plus size={10} />
@@ -568,54 +583,57 @@ export function ContentEditor({ preview }: { preview: boolean }) {
               )}
             </div>
 
-            {editor.kind === "imageArticle" && (
-              <div className="rounded-2xl border border-line bg-surface p-4 shadow-[0_1px_4px_rgba(51,43,41,0.04)]">
-                <div className="mb-3 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-ink">内联媒体</span>
-                  <span className="text-[11px] text-ink-muted">{images.length} 张图片</span>
-                </div>
-                {images.length === 0 ? (
-                  <p className="rounded-xl bg-canvas px-4 py-4 text-xs text-ink-muted">
-                    点击上方「添加图片」导入后可插入正文，图片说明保存在{" "}
-                    <code className="rounded bg-subtle px-1 py-0.5 text-[11px]">
-                      ![说明](asset:...)
-                    </code>{" "}
-                    中。
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {images.map((asset) => (
-                      <div key={asset.id} className="rounded-xl border border-line bg-canvas/50 p-2">
-                        <MediaThumb
-                          source={{ kind: "content", packageId: editor.id }}
-                          asset={asset}
-                          className="h-24 w-full"
-                        />
-                        <input
-                          value={asset.caption}
-                          onChange={(event) =>
-                            updateMedia(asset.id, { caption: event.target.value })
-                          }
-                          placeholder="图片说明"
-                          className="mt-2 w-full rounded-lg border border-line bg-surface px-2 py-1 text-[11px] text-ink outline-none focus:border-accent"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => insertMediaReference(asset)}
-                          className="mt-1.5 w-full cursor-pointer rounded-lg bg-surface py-1.5 text-[11px] font-medium text-ink-secondary ring-1 ring-line transition-colors hover:bg-accent-soft hover:text-accent-deep hover:ring-accent-border"
-                        >
-                          插入到光标
-                        </button>
-                      </div>
-                    ))}
+            <div className="flex h-full min-h-0 flex-col gap-3">
+              {coverCard}
+              {editor.kind === "imageArticle" && (
+                <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-line bg-surface p-3 shadow-[0_1px_4px_rgba(51,43,41,0.04)]">
+                  <div className="mb-2 flex shrink-0 items-center justify-between">
+                    <span className="text-[11.5px] font-semibold text-ink">内联媒体</span>
+                    <span className="text-[10px] text-ink-muted">{images.length} 张</span>
                   </div>
-                )}
-              </div>
-            )}
+                  <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
+                    {images.length === 0 ? (
+                      <p className="rounded-xl bg-canvas px-3 py-3 text-[11px] leading-relaxed text-ink-muted">
+                        点击上方「添加图片」导入后可一键插入正文光标位置。
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {images.map((asset) => (
+                          <div
+                            key={asset.id}
+                            className="rounded-xl border border-line bg-canvas/50 p-2"
+                          >
+                            <MediaThumb
+                              source={{ kind: "content", packageId: editor.id }}
+                              asset={asset}
+                              className="h-20 w-full"
+                            />
+                            <input
+                              value={asset.caption}
+                              onChange={(event) =>
+                                updateMedia(asset.id, { caption: event.target.value })
+                              }
+                              placeholder="图片说明"
+                              className="mt-1.5 w-full rounded-md border border-line bg-surface px-2 py-1 text-[10.5px] text-ink outline-none focus:border-accent"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => insertMediaReference(asset)}
+                              className="mt-1.5 w-full cursor-pointer rounded-md bg-surface py-1 text-[10.5px] font-medium text-ink-secondary ring-1 ring-line transition-colors hover:bg-accent-soft hover:text-accent-deep hover:ring-accent-border"
+                            >
+                              插入到光标
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-          {coverCard}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
