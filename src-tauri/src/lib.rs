@@ -19,6 +19,7 @@ pub mod content;
 pub mod database;
 mod diagnostics;
 mod logging;
+pub mod operations;
 mod platforms;
 pub mod plugins;
 
@@ -2282,6 +2283,271 @@ fn validate_plugin_publish_input(
 }
 
 #[tauri::command]
+fn create_publish_tasks(
+    input: operations::CreatePublishTasksInput,
+    state: State<'_, AppState>,
+) -> Result<operations::CreatePublishTasksResult, String> {
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区后再创建发布任务")?;
+    let result = operations::create_publish_tasks(&mut conn, &workspace, &input);
+    log_command_outcome(
+        &state,
+        "publishing.create_tasks",
+        &format!(
+            "source={}:{} targets={}",
+            input.source_type as u8,
+            input.source_id,
+            input.targets.len()
+        ),
+        &result,
+    );
+    result
+}
+
+#[tauri::command]
+fn list_publish_tasks(state: State<'_, AppState>) -> Result<Vec<operations::PublishTask>, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    operations::list_publish_tasks(&conn)
+}
+
+#[tauri::command]
+fn prepare_publish_task(
+    task_id: String,
+    state: State<'_, AppState>,
+) -> Result<operations::PublishPreview, String> {
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+    let result = operations::prepare_publish_task(
+        &mut conn,
+        &state.plugin_runtime,
+        &workspace,
+        &task_id,
+    );
+    log_command_outcome(
+        &state,
+        "publishing.prepare",
+        &format!("task={task_id}"),
+        &result,
+    );
+    result
+}
+
+#[tauri::command]
+fn confirm_publish_task(
+    task_id: String,
+    confirmation_token: String,
+    state: State<'_, AppState>,
+) -> Result<operations::PublishTask, String> {
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+    let result = operations::confirm_publish_task(
+        &mut conn,
+        &state.plugin_runtime,
+        &workspace,
+        &task_id,
+        &confirmation_token,
+    );
+    log_command_outcome(
+        &state,
+        "publishing.confirm",
+        &format!("task={task_id}"),
+        &result,
+    );
+    result
+}
+
+#[tauri::command]
+fn cancel_publish_task(
+    task_id: String,
+    reason: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<operations::PublishTask, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    operations::cancel_publish_task(&conn, &task_id, reason.as_deref())
+}
+
+#[tauri::command]
+fn retry_publish_task(
+    task_id: String,
+    state: State<'_, AppState>,
+) -> Result<operations::PublishTask, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    operations::retry_publish_task(&conn, &task_id)
+}
+
+#[tauri::command]
+fn resolve_uncertain_publish_task(
+    task_id: String,
+    input: operations::ResolveUncertainInput,
+    state: State<'_, AppState>,
+) -> Result<operations::PublishTask, String> {
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    operations::resolve_uncertain_publish_task(&mut conn, &task_id, &input)
+}
+
+#[tauri::command]
+fn export_manual_publish_package(
+    task_id: String,
+    state: State<'_, AppState>,
+) -> Result<operations::ManualPublishPackage, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+    operations::export_manual_publish_package(&conn, &workspace, &task_id)
+}
+
+#[tauri::command]
+fn complete_manual_publish_task(
+    task_id: String,
+    input: operations::ManualCompletionInput,
+    state: State<'_, AppState>,
+) -> Result<operations::PublishTask, String> {
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    operations::complete_manual_publish_task(&mut conn, &task_id, &input)
+}
+
+#[tauri::command]
+fn resume_account_publish_tasks(
+    account_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<operations::PublishTask>, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    operations::resume_account_tasks(&conn, &account_id)
+}
+
+#[tauri::command]
+fn run_due_publish_tasks(
+    state: State<'_, AppState>,
+) -> Result<Vec<operations::PublishTask>, String> {
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+    operations::run_due_publish_tasks(&mut conn, &state.plugin_runtime, &workspace)
+}
+
+#[tauri::command]
+fn sync_platform_works(
+    input: operations::SyncPlatformWorksInput,
+    state: State<'_, AppState>,
+) -> Result<operations::SyncRunResult, String> {
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    let result = operations::sync_platform_works(&mut conn, &state.plugin_runtime, &input);
+    log_command_outcome(
+        &state,
+        "operations.sync",
+        &format!("account={} adapter={}", input.account_id, input.adapter_id),
+        &result,
+    );
+    result
+}
+
+#[tauri::command]
+fn list_external_works(
+    filter: Option<operations::ExternalWorkFilter>,
+    state: State<'_, AppState>,
+) -> Result<Vec<operations::ExternalWork>, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    operations::list_external_works(&conn, &filter.unwrap_or_default())
+}
+
+#[tauri::command]
+fn get_external_work_detail(
+    work_id: String,
+    state: State<'_, AppState>,
+) -> Result<operations::ExternalWork, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    operations::external_work(&conn, &work_id)
+}
+
+#[tauri::command]
+fn get_analytics_trend(
+    query: operations::AnalyticsQuery,
+    state: State<'_, AppState>,
+) -> Result<operations::AnalyticsResult, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    operations::analytics_trend(&conn, &query)
+}
+
+#[tauri::command]
+fn get_operations_dashboard(
+    filter: Option<operations::DashboardFilter>,
+    state: State<'_, AppState>,
+) -> Result<operations::OperationsDashboard, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    operations::operations_dashboard(&conn, &filter.unwrap_or_default())
+}
+
+#[tauri::command]
+fn list_sync_runs(
+    limit: Option<usize>,
+    state: State<'_, AppState>,
+) -> Result<Vec<operations::SyncRunResult>, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    operations::list_sync_runs(&conn, limit.unwrap_or(20).min(200))
+}
+
+#[tauri::command]
+fn list_publish_task_events(
+    task_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<operations::PublishTaskEvent>, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    operations::list_publish_task_events(&conn, &task_id)
+}
+
+#[tauri::command]
 fn get_runtime_diagnostics(
     state: State<'_, AppState>,
 ) -> Result<diagnostics::RuntimeDiagnostics, String> {
@@ -2443,6 +2709,24 @@ pub fn run() {
             run_plugin_security_self_test,
             run_publish_payload_self_check,
             validate_plugin_publish_input,
+            create_publish_tasks,
+            list_publish_tasks,
+            prepare_publish_task,
+            confirm_publish_task,
+            cancel_publish_task,
+            retry_publish_task,
+            resolve_uncertain_publish_task,
+            export_manual_publish_package,
+            complete_manual_publish_task,
+            resume_account_publish_tasks,
+            run_due_publish_tasks,
+            sync_platform_works,
+            list_external_works,
+            get_external_work_detail,
+            get_analytics_trend,
+            get_operations_dashboard,
+            list_sync_runs,
+            list_publish_task_events,
             get_runtime_diagnostics,
             run_diagnostic_probe
         ])

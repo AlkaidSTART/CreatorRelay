@@ -21,10 +21,11 @@ use super::{
     runtime::{HostAccessObservation, IsolationSummary, PluginRuntime, SecuritySelfTestResult},
 };
 
-pub const EMBEDDED_MANIFEST_SOURCES: [&str; 5] = [
+pub const EMBEDDED_MANIFEST_SOURCES: [&str; 6] = [
     include_str!("../../resources/plugins/test-adapter/manifest.json"),
     include_str!("../../resources/plugins/video-adapter/manifest.json"),
     include_str!("../../resources/plugins/sync-adapter/manifest.json"),
+    include_str!("../../resources/plugins/timeout-adapter/manifest.json"),
     include_str!("../../resources/plugins/fault-adapter/manifest.json"),
     include_str!("../../resources/plugins/probe-failure-adapter/manifest.json"),
 ];
@@ -1301,14 +1302,17 @@ pub fn execute_plugin_publish(
             active_workspace(conn),
             Some(account_ref.to_string()),
         )
-        .map_err(|message| AdapterOperationError {
-            code: if message.contains("超时") {
-                "RESULT_UNCERTAIN".to_string()
-            } else {
-                "ADAPTER_PUBLISH_FAILED".to_string()
-            },
-            message,
-            uncertain: message.contains("超时"),
+        .map_err(|message| {
+            let uncertain = message.contains("超时");
+            AdapterOperationError {
+                code: if uncertain {
+                    "RESULT_UNCERTAIN".to_string()
+                } else {
+                    "ADAPTER_PUBLISH_FAILED".to_string()
+                },
+                message,
+                uncertain,
+            }
         })?;
     parse_adapter_publish_output(&value, input.content_kind).map_err(|message| {
         AdapterOperationError {
@@ -1408,14 +1412,20 @@ pub fn execute_plugin_sync(
             active_workspace(conn),
             Some(account_ref.to_string()),
         )
-        .map_err(|message| AdapterOperationError {
-            code: if message.contains("超时") {
-                "SYNC_UNCERTAIN".to_string()
-            } else {
-                "ADAPTER_SYNC_FAILED".to_string()
-            },
-            message,
-            uncertain: message.contains("超时"),
+        .map_err(|message| {
+            let uncertain = message.contains("超时");
+            let account_invalid = message.starts_with("AUTH_EXPIRED");
+            AdapterOperationError {
+                code: if uncertain {
+                    "SYNC_UNCERTAIN".to_string()
+                } else if account_invalid {
+                    "AUTH_EXPIRED".to_string()
+                } else {
+                    "ADAPTER_SYNC_FAILED".to_string()
+                },
+                message,
+                uncertain,
+            }
         })?;
     parse_adapter_sync_output(&value).map_err(|message| AdapterOperationError {
         code: "INVALID_ADAPTER_RESPONSE".to_string(),

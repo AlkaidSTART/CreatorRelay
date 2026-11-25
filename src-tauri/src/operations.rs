@@ -1,4 +1,4 @@
-use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, Duration, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -185,6 +185,7 @@ pub struct PreviewAction {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PublishPreview {
+    pub task: PublishTask,
     pub task_id: String,
     pub confirmation_token: Option<String>,
     pub confirmation_expires_at: Option<String>,
@@ -371,7 +372,22 @@ fn digest(value: &str) -> String {
 }
 
 fn parse_content_kind(value: &str) -> Result<ContentKind, String> {
-    ContentKind::parse(value).ok_or_else(|| format!("未知内容形态：{value}"))
+    match value {
+        "video" => Ok(ContentKind::Video),
+        "imageText" => Ok(ContentKind::ImageText),
+        "imageArticle" => Ok(ContentKind::ImageArticle),
+        "article" => Ok(ContentKind::Article),
+        _ => Err(format!("未知内容形态：{value}")),
+    }
+}
+
+fn plugin_content_kind(kind: ContentKind) -> plugins::ContentKind {
+    match kind {
+        ContentKind::Video => plugins::ContentKind::Video,
+        ContentKind::ImageText => plugins::ContentKind::ImageText,
+        ContentKind::ImageArticle => plugins::ContentKind::ImageArticle,
+        ContentKind::Article => plugins::ContentKind::Article,
+    }
 }
 
 fn task_select() -> &'static str {
@@ -471,8 +487,8 @@ fn source_snapshot(
             let package = content::read_content_package(workspace, source_id)?;
             Ok(SourceSnapshot {
                 source_type,
-                source_id: package.id.clone(),
-                content_id: package.id.clone(),
+                source_id: package.manifest.id.clone(),
+                content_id: package.manifest.id.clone(),
                 content_version: package.content_version,
                 content_kind: package.manifest.kind,
                 title: package.manifest.title,
@@ -493,7 +509,8 @@ fn validate_source_unchanged(
     if snapshot.content_version != task.content_version {
         return Err("源内容版本已经变化，请重新创建发布任务以核对最新内容".to_string());
     }
-    if snapshot.title != task.title
+    if snapshot.content_kind != task.content_kind
+        || snapshot.title != task.title
         || snapshot.body != task.body
         || snapshot.media != task.media()?
         || snapshot.cover != task.cover()?
@@ -530,7 +547,7 @@ fn publish_input_from_task(task: &TaskRow) -> Result<PublishInput, String> {
             role: Some("cover".to_string()),
         });
     Ok(PublishInput {
-        content_kind: task.content_kind,
+        content_kind: plugin_content_kind(task.content_kind),
         title: task.title.clone(),
         body: if task.body.trim().is_empty() {
             None
@@ -571,7 +588,7 @@ pub fn create_publish_tasks(
     }
     let snapshot = source_snapshot(workspace, input.source_type, &input.source_id)?;
     let payload = PublishInput {
-        content_kind: snapshot.content_kind,
+        content_kind: plugin_content_kind(snapshot.content_kind),
         title: snapshot.title.clone(),
         body: if snapshot.body.trim().is_empty() {
             None
@@ -779,7 +796,7 @@ fn capability_for_task(
         runtime,
         adapter_id,
         &task.account_id,
-        task.content_kind,
+        plugin_content_kind(task.content_kind),
     )?;
     Ok((status.level, status.reason))
 }
@@ -848,11 +865,12 @@ pub fn prepare_publish_task(
     let now = Utc::now().to_rfc3339();
     conn.execute(
         "UPDATE publish_tasks
-         SET execution_mode=?1, confirmation_token=?2, confirmation_hash=?3,
-             confirmation_expires_at=?4, error_code=?5, error_message=?6,
-             next_action=?7, updated_at=?8
-         WHERE id=?9",
+         SET status=?1, execution_mode=?2, confirmation_token=?3, confirmation_hash=?4,
+             confirmation_expires_at=?5, error_code=?6, error_message=?7,
+             next_action=?8, updated_at=?9
+         WHERE id=?10",
         params![
+            PublishTaskStatus::Created.as_str(),
             execution_mode.as_str(),
             token,
             token.as_ref().map(|_| confirmation_hash),
@@ -874,11 +892,12 @@ pub fn prepare_publish_task(
         &task.id,
         "PREVIEWED",
         &format!(
-            "形态={} 执行方式={} 能力={} 校验={}",
+            "形态={} 执行方式={} 能力={} 校验={} idempotency={}",
             task.content_kind.as_str(),
             execution_mode.as_str(),
             capability.as_str(),
-            if validation.ok { "pass" } else { "blocked" }
+            if validation.ok { "pass" } else { "blocked" },
+            task.idempotency_key
         ),
     )?;
     let actions = vec![
@@ -908,6 +927,7 @@ pub fn prepare_publish_task(
         },
     ];
     Ok(PublishPreview {
+        task: task_record(conn, &task.id)?.to_view()?,
         task_id: task.id,
         confirmation_token: token,
         confirmation_expires_at: expires_at,
@@ -1041,7 +1061,7 @@ fn insert_or_update_task_work(
             id, source_key, account_id, platform_id, platform_name, account_alias,
             external_id, title, content_kind, original_content_type, url, published_at,
             source, synced_at, created_at, updated_at
-         ) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?12, ?12, ?12)",
+         ) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?10, ?12, ?12, ?12)",
         params![
             work_id,
             source_key,
@@ -1074,6 +1094,9 @@ pub fn confirm_publish_task(
     }
     if task.confirmation_token.as_deref() != Some(confirmation_token) {
         return Err("发布确认令牌无效或已被使用".to_string());
+    }
+    if task.confirmation_hash.as_deref().is_none_or(|value| value.len() != 64) {
+        return Err("发布确认摘要缺失，请重新预览最终内容包".to_string());
     }
     let expires_at = task
         .confirmation_expires_at
@@ -1297,7 +1320,6 @@ fn execute_auto_publish(
         }
         Err(error) => {
             if error.uncertain {
-                mark_account_invalid(conn, &task.account_id).ok();
                 update_task_failure(
                     conn,
                     &task.id,
@@ -1322,6 +1344,48 @@ fn execute_auto_publish(
         }
     }
     publish_task(conn, &task.id)
+}
+
+pub fn run_due_publish_tasks(
+    conn: &mut Connection,
+    runtime: &PluginRuntime,
+    workspace: &Path,
+) -> Result<Vec<PublishTask>, String> {
+    let now = Utc::now();
+    let mut statement = conn
+        .prepare(
+            "SELECT id, scheduled_at FROM publish_tasks
+             WHERE status='SCHEDULED' AND is_paused=0 AND scheduled_at IS NOT NULL
+             ORDER BY scheduled_at ASC",
+        )
+        .map_err(|error| format!("待执行定时任务准备失败：{error}"))?;
+    let candidates = statement
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|error| format!("待执行定时任务读取失败：{error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("待执行定时任务解析失败：{error}"))?;
+    drop(statement);
+    let mut executed = Vec::new();
+    for (task_id, scheduled_at) in candidates {
+        let Some(scheduled) = parse_datetime(&scheduled_at) else {
+            update_task_failure(
+                conn,
+                &task_id,
+                PublishTaskStatus::Failed,
+                "INVALID_SCHEDULE",
+                "定时发布时间无效，无法执行",
+                "fix_and_retry",
+            )?;
+            continue;
+        };
+        if scheduled > now {
+            continue;
+        }
+        executed.push(execute_auto_publish(conn, runtime, workspace, &task_id)?);
+    }
+    Ok(executed)
 }
 
 pub fn cancel_publish_task(
@@ -1542,4 +1606,1157 @@ pub fn resume_account_tasks(
         .map(|row| row.to_view())
         .collect()
 }
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetricSnapshot {
+    pub id: String,
+    pub work_id: String,
+    pub metric_name: String,
+    pub metric_definition: String,
+    pub unit: String,
+    pub value: f64,
+    pub captured_at: String,
+    pub snapshot_day: String,
+    pub source: String,
+    pub canonical_key: Option<String>,
+    pub comparable: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalWork {
+    pub id: String,
+    pub source_key: String,
+    pub account_id: Option<String>,
+    pub platform_id: String,
+    pub platform_name: String,
+    pub account_alias: String,
+    pub external_id: String,
+    pub title: String,
+    pub content_kind: String,
+    pub original_content_type: String,
+    pub url: Option<String>,
+    pub published_at: String,
+    pub source: String,
+    pub synced_at: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub metrics: Vec<MetricSnapshot>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ExternalWorkFilter {
+    #[serde(default)]
+    pub keyword: Option<String>,
+    #[serde(default)]
+    pub platform_id: Option<String>,
+    #[serde(default)]
+    pub account_id: Option<String>,
+    #[serde(default)]
+    pub content_kind: Option<String>,
+    #[serde(default)]
+    pub published_from: Option<String>,
+    #[serde(default)]
+    pub published_to: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SyncPlatformWorksInput {
+    pub account_id: String,
+    pub platform_id: String,
+    pub platform_name: String,
+    pub account_alias: String,
+    pub adapter_id: String,
+    #[serde(default)]
+    pub as_of: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncRunResult {
+    pub id: String,
+    pub account_id: String,
+    pub platform_id: String,
+    pub adapter_id: String,
+    pub status: String,
+    pub message: String,
+    pub imported_count: u32,
+    pub updated_count: u32,
+    pub skipped_count: u32,
+    pub error_count: u32,
+    pub account_invalid: bool,
+    pub errors: Vec<String>,
+    pub started_at: String,
+    pub completed_at: String,
+}
+
+fn metric_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<MetricSnapshot> {
+    Ok(MetricSnapshot {
+        id: row.get(0)?,
+        work_id: row.get(1)?,
+        metric_name: row.get(2)?,
+        metric_definition: row.get(3)?,
+        unit: row.get(4)?,
+        value: row.get(5)?,
+        captured_at: row.get(6)?,
+        snapshot_day: row.get(7)?,
+        source: row.get(8)?,
+        canonical_key: row.get(9)?,
+        comparable: row.get::<_, i64>(10)? != 0,
+    })
+}
+
+fn metrics_for_work(conn: &Connection, work_id: &str) -> Result<Vec<MetricSnapshot>, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT id, work_id, metric_name, metric_definition, unit, value, captured_at,
+                    snapshot_day, source, canonical_key, comparable
+             FROM metric_snapshots WHERE work_id=?1
+             ORDER BY captured_at ASC, metric_name ASC",
+        )
+        .map_err(|error| format!("指标快照准备失败：{error}"))?;
+    let rows = statement
+        .query_map([work_id], metric_from_row)
+        .map_err(|error| format!("指标快照读取失败：{error}"))?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("指标快照解析失败：{error}"))
+}
+
+type ExternalWorkRow = (
+    String,
+    String,
+    Option<String>,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    Option<String>,
+    String,
+    String,
+    String,
+    String,
+    String,
+);
+
+fn external_work_from_values(
+    conn: &Connection,
+    row: ExternalWorkRow,
+) -> Result<ExternalWork, String> {
+    let (
+        id,
+        source_key,
+        account_id,
+        platform_id,
+        platform_name,
+        account_alias,
+        external_id,
+        title,
+        content_kind,
+        original_content_type,
+        url,
+        published_at,
+        source,
+        synced_at,
+        created_at,
+        updated_at,
+    ) = row;
+    Ok(ExternalWork {
+        metrics: metrics_for_work(conn, &id)?,
+        id,
+        source_key,
+        account_id,
+        platform_id,
+        platform_name,
+        account_alias,
+        external_id,
+        title,
+        content_kind,
+        original_content_type,
+        url,
+        published_at,
+        source,
+        synced_at,
+        created_at,
+        updated_at,
+    })
+}
+
+pub fn list_external_works(
+    conn: &Connection,
+    filter: &ExternalWorkFilter,
+) -> Result<Vec<ExternalWork>, String> {
+    let keyword = filter
+        .keyword
+        .as_deref()
+        .unwrap_or_default()
+        .trim()
+        .to_lowercase();
+    let from = filter
+        .published_from
+        .as_deref()
+        .and_then(parse_datetime)
+        .map(|value| value.date_naive());
+    let to = filter
+        .published_to
+        .as_deref()
+        .and_then(parse_datetime)
+        .map(|value| value.date_naive());
+    let mut statement = conn
+        .prepare(
+            "SELECT id, source_key, account_id, platform_id, platform_name, account_alias,
+                    external_id, title, content_kind, original_content_type, url, published_at,
+                    source, synced_at, created_at, updated_at
+             FROM external_works ORDER BY published_at DESC, updated_at DESC",
+        )
+        .map_err(|error| format!("作品列表准备失败：{error}"))?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, String>(6)?,
+                row.get::<_, String>(7)?,
+                row.get::<_, String>(8)?,
+                row.get::<_, String>(9)?,
+                row.get::<_, Option<String>>(10)?,
+                row.get::<_, String>(11)?,
+                row.get::<_, String>(12)?,
+                row.get::<_, String>(13)?,
+                row.get::<_, String>(14)?,
+                row.get::<_, String>(15)?,
+            ))
+        })
+        .map_err(|error| format!("作品列表读取失败：{error}"))?;
+    let mut filtered = Vec::new();
+    for row in rows {
+        let row = row.map_err(|error| format!("作品列表解析失败：{error}"))?;
+        let account_id = &row.2;
+        let platform_id = &row.3;
+        let external_id = &row.6;
+        let title = &row.7;
+        let content_kind = &row.8;
+        let content_type = &row.9;
+        let published_at = &row.11;
+        if filter
+            .platform_id
+            .as_deref()
+            .is_some_and(|value| value != platform_id)
+        {
+            continue;
+        }
+        if filter
+            .account_id
+            .as_deref()
+            .is_some_and(|value| account_id.as_deref() != Some(value))
+        {
+            continue;
+        }
+        if filter
+            .content_kind
+            .as_deref()
+            .is_some_and(|value| value != content_kind)
+        {
+            continue;
+        }
+        let published_date = parse_datetime(&published_at).map(|value| value.date_naive());
+        if from.is_some_and(|from| published_date.is_none_or(|date| date < from)) {
+            continue;
+        }
+        if to.is_some_and(|to| published_date.is_none_or(|date| date > to)) {
+            continue;
+        }
+        if !keyword.is_empty()
+            && !format!("{title} {external_id} {platform_id} {content_type}")
+                .to_lowercase()
+                .contains(&keyword)
+        {
+            continue;
+        }
+        filtered.push(row);
+    }
+    let mut works = Vec::new();
+    for row in filtered {
+        works.push(external_work_from_values(conn, row)?);
+    }
+    Ok(works)
+}
+
+pub fn external_work(
+    conn: &Connection,
+    work_id: &str,
+) -> Result<ExternalWork, String> {
+    let row = conn
+        .query_row(
+            "SELECT id, source_key, account_id, platform_id, platform_name, account_alias,
+                    external_id, title, content_kind, original_content_type, url, published_at,
+                    source, synced_at, created_at, updated_at
+             FROM external_works WHERE id=?1",
+            [work_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                    row.get::<_, String>(8)?,
+                    row.get::<_, String>(9)?,
+                    row.get::<_, Option<String>>(10)?,
+                    row.get::<_, String>(11)?,
+                    row.get::<_, String>(12)?,
+                    row.get::<_, String>(13)?,
+                    row.get::<_, String>(14)?,
+                    row.get::<_, String>(15)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|error| format!("作品详情读取失败：{error}"))?
+        .ok_or_else(|| "未找到外部作品".to_string())?;
+    external_work_from_values(conn, row)
+}
+
+fn parse_datetime(value: &str) -> Option<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(value)
+        .ok()
+        .map(|value| value.with_timezone(&Utc))
+}
+
+fn day_bucket(value: DateTime<Utc>) -> String {
+    value.format("%Y-%m-%d").to_string()
+}
+
+fn upsert_external_work(
+    conn: &Connection,
+    input: &SyncPlatformWorksInput,
+    work: &plugins::AdapterSyncWork,
+    synced_at: &str,
+) -> Result<(String, bool), String> {
+    let source_key = format!(
+        "sync:{}:{}:{}",
+        input.platform_id, input.account_id, work.external_id
+    );
+    if let Some(existing) = conn
+        .query_row(
+            "SELECT id FROM external_works WHERE source_key=?1",
+            [&source_key],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| format!("同步作品去重查询失败：{error}"))?
+    {
+        conn.execute(
+            "UPDATE external_works
+             SET title=?1, content_kind=?2, original_content_type=?3, url=?4,
+                 published_at=?5, source='sync', synced_at=?6, updated_at=?6
+             WHERE id=?7",
+            params![
+                work.title,
+                work.content_kind
+                    .map(|kind| kind.as_str())
+                    .unwrap_or("unknown"),
+                work.content_type,
+                work.url,
+                work.published_at,
+                synced_at,
+                existing
+            ],
+        )
+        .map_err(|error| format!("同步作品更新失败：{error}"))?;
+        return Ok((existing, false));
+    }
+    let id = Uuid::new_v4().to_string();
+    conn.execute(
+        "INSERT INTO external_works(
+            id, source_key, account_id, platform_id, platform_name, account_alias,
+            external_id, title, content_kind, original_content_type, url, published_at,
+            source, synced_at, created_at, updated_at
+         ) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'sync', ?13, ?13, ?13)",
+        params![
+            id,
+            source_key,
+            input.account_id,
+            input.platform_id,
+            input.platform_name,
+            input.account_alias,
+            work.external_id,
+            work.title,
+            work.content_kind
+                .map(|kind| kind.as_str())
+                .unwrap_or("unknown"),
+            work.content_type,
+            work.url,
+            work.published_at,
+            synced_at
+        ],
+    )
+    .map_err(|error| format!("同步作品保存失败：{error}"))?;
+    Ok((id, true))
+}
+
+fn record_metric_snapshots(
+    conn: &Connection,
+    work_id: &str,
+    metrics: &[plugins::AdapterSyncMetric],
+    captured_at: DateTime<Utc>,
+    source: &str,
+) -> Result<u32, String> {
+    let mut recorded = 0;
+    let day = day_bucket(captured_at);
+    for metric in metrics {
+        conn.execute(
+            "INSERT INTO metric_snapshots(
+                id, work_id, metric_name, metric_definition, unit, value, captured_at,
+                snapshot_day, source, canonical_key, comparable
+             ) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL, 0)
+             ON CONFLICT(work_id, metric_name, snapshot_day) DO UPDATE SET
+                metric_definition=excluded.metric_definition,
+                unit=excluded.unit,
+                value=excluded.value,
+                captured_at=excluded.captured_at,
+                source=excluded.source",
+            params![
+                Uuid::new_v4().to_string(),
+                work_id,
+                metric.name,
+                metric.definition,
+                metric.unit,
+                metric.value,
+                captured_at.to_rfc3339(),
+                day,
+                source
+            ],
+        )
+        .map_err(|error| format!("指标快照保存失败：{error}"))?;
+        recorded += 1;
+    }
+    Ok(recorded)
+}
+
+pub fn sync_platform_works(
+    conn: &mut Connection,
+    runtime: &PluginRuntime,
+    input: &SyncPlatformWorksInput,
+) -> Result<SyncRunResult, String> {
+    let started_at = Utc::now();
+    let as_of = input
+        .as_of
+        .as_deref()
+        .and_then(parse_datetime)
+        .unwrap_or(started_at);
+    let adapter_result = plugins::execute_plugin_sync(
+        conn,
+        runtime,
+        &input.adapter_id,
+        &input.account_id,
+        Some(&as_of.to_rfc3339()),
+    );
+    let run_id = Uuid::new_v4().to_string();
+    match adapter_result {
+        Ok(output) => {
+            let tx = conn
+                .transaction()
+                .map_err(|error| format!("无法开始同步事务：{error}"))?;
+            let mut imported_count = 0;
+            let mut updated_count = 0;
+            let mut skipped_count = 0;
+            let mut errors = output.errors;
+            for work in &output.works {
+                let (work_id, inserted) = upsert_external_work(
+                    &tx,
+                    input,
+                    work,
+                    &started_at.to_rfc3339(),
+                )?;
+                if inserted {
+                    imported_count += 1;
+                } else {
+                    updated_count += 1;
+                }
+                let captured_at = work
+                    .captured_at
+                    .as_deref()
+                    .and_then(parse_datetime)
+                    .unwrap_or(as_of);
+                let recorded = record_metric_snapshots(
+                    &tx,
+                    &work_id,
+                    &work.metrics,
+                    captured_at,
+                    &format!("adapter:{}", input.adapter_id),
+                )?;
+                if recorded == 0 {
+                    skipped_count += 1;
+                }
+            }
+            let error_count = errors.len() as u32;
+            let status = if error_count > 0 { "PARTIAL" } else { "SUCCESS" };
+            let message = if error_count > 0 {
+                format!(
+                    "同步完成但有 {error_count} 项失败；已导入 {imported_count} 个、更新 {updated_count} 个作品"
+                )
+            } else {
+                format!(
+                    "同步完成：导入 {imported_count} 个，更新 {updated_count} 个作品；指标按 UTC 日采样"
+                )
+            };
+            let completed_at = Utc::now().to_rfc3339();
+            tx.execute(
+                "INSERT INTO sync_runs(
+                    id, account_id, platform_id, adapter_id, status, message,
+                    imported_count, updated_count, skipped_count, error_count,
+                    started_at, completed_at
+                 ) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                params![
+                    run_id,
+                    input.account_id,
+                    input.platform_id,
+                    input.adapter_id,
+                    status,
+                    message,
+                    imported_count,
+                    updated_count,
+                    skipped_count,
+                    error_count,
+                    started_at.to_rfc3339(),
+                    completed_at
+                ],
+            )
+            .map_err(|error| format!("同步运行记录保存失败：{error}"))?;
+            tx.commit()
+                .map_err(|error| format!("同步事务提交失败：{error}"))?;
+            Ok(SyncRunResult {
+                id: run_id,
+                account_id: input.account_id.clone(),
+                platform_id: input.platform_id.clone(),
+                adapter_id: input.adapter_id.clone(),
+                status: status.to_string(),
+                message,
+                imported_count,
+                updated_count,
+                skipped_count,
+                error_count,
+                account_invalid: false,
+                errors: std::mem::take(&mut errors),
+                started_at: started_at.to_rfc3339(),
+                completed_at: Utc::now().to_rfc3339(),
+            })
+        }
+        Err(error) => {
+            let account_invalid = error.code == "AUTH_EXPIRED" || error.message.contains("AUTH_EXPIRED");
+            if account_invalid {
+                mark_account_invalid(conn, &input.account_id)?;
+            }
+            let completed_at = Utc::now().to_rfc3339();
+            let message = if account_invalid {
+                "账号已失效，依赖该账号的发布任务已暂停；请重新授权后显式恢复".to_string()
+            } else {
+                format!("同步失败：{}", error.message)
+            };
+            conn.execute(
+                "INSERT INTO sync_runs(
+                    id, account_id, platform_id, adapter_id, status, message,
+                    imported_count, updated_count, skipped_count, error_count,
+                    started_at, completed_at
+                 ) VALUES(?1, ?2, ?3, ?4, ?5, ?6, 0, 0, 0, 1, ?7, ?8)",
+                params![
+                    run_id,
+                    input.account_id,
+                    input.platform_id,
+                    input.adapter_id,
+                    if account_invalid { "ACCOUNT_INVALID" } else { "FAILED" },
+                    message,
+                    started_at.to_rfc3339(),
+                    completed_at
+                ],
+            )
+            .map_err(|db_error| format!("同步失败记录保存失败：{db_error}"))?;
+            Ok(SyncRunResult {
+                id: run_id,
+                account_id: input.account_id.clone(),
+                platform_id: input.platform_id.clone(),
+                adapter_id: input.adapter_id.clone(),
+                status: if account_invalid {
+                    "ACCOUNT_INVALID".to_string()
+                } else {
+                    "FAILED".to_string()
+                },
+                message,
+                imported_count: 0,
+                updated_count: 0,
+                skipped_count: 0,
+                error_count: 1,
+                account_invalid,
+                errors: vec![error.message],
+                started_at: started_at.to_rfc3339(),
+                completed_at,
+            })
+        }
+    }
+}
+
+pub fn list_sync_runs(conn: &Connection, limit: usize) -> Result<Vec<SyncRunResult>, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT id, account_id, platform_id, adapter_id, status, message,
+                    imported_count, updated_count, skipped_count, error_count,
+                    started_at, completed_at
+             FROM sync_runs ORDER BY completed_at DESC LIMIT ?1",
+        )
+        .map_err(|error| format!("同步记录准备失败：{error}"))?;
+    let rows = statement
+        .query_map([limit as i64], |row| {
+            Ok(SyncRunResult {
+                id: row.get(0)?,
+                account_id: row.get(1)?,
+                platform_id: row.get(2)?,
+                adapter_id: row.get(3)?,
+                status: row.get(4)?,
+                message: row.get(5)?,
+                imported_count: u32::try_from(row.get::<_, i64>(6)?).unwrap_or(0),
+                updated_count: u32::try_from(row.get::<_, i64>(7)?).unwrap_or(0),
+                skipped_count: u32::try_from(row.get::<_, i64>(8)?).unwrap_or(0),
+                error_count: u32::try_from(row.get::<_, i64>(9)?).unwrap_or(0),
+                account_invalid: row.get::<_, String>(4)? == "ACCOUNT_INVALID",
+                errors: Vec::new(),
+                started_at: row.get(10)?,
+                completed_at: row.get(11)?,
+            })
+        })
+        .map_err(|error| format!("同步记录读取失败：{error}"))?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("同步记录解析失败：{error}"))
+}
+
+pub fn export_manual_publish_package(
+    conn: &Connection,
+    workspace: &Path,
+    task_id: &str,
+) -> Result<ManualPublishPackage, String> {
+    let task = task_record(conn, task_id)?;
+    let view = task.to_view()?;
+    if !matches!(
+        task.status,
+        PublishTaskStatus::Created | PublishTaskStatus::NeedsManualAction | PublishTaskStatus::Failed
+    ) {
+        return Err("当前任务状态不能导出人工发布包".to_string());
+    }
+    let safe_id = task
+        .id
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric() || *character == '-')
+        .collect::<String>();
+    let directory = workspace
+        .join("exports")
+        .join(format!("manual-{safe_id}-{}", Utc::now().format("%Y%m%d%H%M%S")));
+    fs::create_dir_all(directory.join("assets"))
+        .map_err(|error| format!("无法创建人工发布包目录：{error}"))?;
+    let mut assets = Vec::new();
+    let cover_id = task.cover()?.map(|cover| cover.id);
+    for (index, asset) in task.media()?.into_iter().enumerate() {
+        let role = if cover_id.as_deref() == Some(asset.id.as_str()) {
+            "cover-and-media"
+        } else {
+            "media"
+        };
+        assets.push(copy_manual_asset(&directory, &task, asset, role, index + 1)?);
+    }
+    if let Some(cover) = task.cover()? {
+        if !task.media()?.iter().any(|asset| asset.id == cover.id) {
+            assets.push(copy_manual_asset(&directory, &task, cover, "cover", 0)?);
+        }
+    }
+    let body_path = directory.join("body.md");
+    fs::write(&body_path, task.body.as_bytes())
+        .map_err(|error| format!("无法写入人工发布正文：{error}"))?;
+    let generated_at = Utc::now().to_rfc3339();
+    let manifest = serde_json::json!({
+        "schemaVersion": 1,
+        "generatedAt": generated_at,
+        "taskId": task.id,
+        "contentId": task.content_id,
+        "contentVersion": task.content_version,
+        "contentKind": task.content_kind.as_str(),
+        "platformId": task.platform_id,
+        "platformName": task.platform_name,
+        "accountId": task.account_id,
+        "accountAlias": task.account_alias,
+        "title": task.title,
+        "bodyFile": "body.md",
+        "tags": task.tags()?,
+        "mediaOrder": assets.iter().filter(|asset| asset.role != "cover").map(|asset| asset.order).collect::<Vec<_>>(),
+        "coverAssetId": cover_id,
+        "assets": assets,
+        "instructions": [
+            "打开目标平台并选择对应账号",
+            "按 assets 中 order 顺序上传媒体；role 为 cover 的素材设为封面",
+            "将 body.md 内容粘贴或导入正文编辑器",
+            "发布完成后在 CreatorRelay 中填写外部作品 ID/URL 并标记完成",
+            "若结果不确定，请先到平台作品列表核对，避免重复发布"
+        ]
+    });
+    let manifest_path = directory.join("publish-package.json");
+    fs::write(
+        &manifest_path,
+        serde_json::to_vec_pretty(&manifest).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| format!("无法写入人工发布清单：{error}"))?;
+    insert_task_event(
+        conn,
+        &task.id,
+        "MANUAL_PACKAGE_EXPORTED",
+        &directory.to_string_lossy(),
+    )?;
+    Ok(ManualPublishPackage {
+        task: view,
+        directory: directory.to_string_lossy().to_string(),
+        manifest_path: manifest_path.to_string_lossy().to_string(),
+        body_path: body_path.to_string_lossy().to_string(),
+        assets,
+        generated_at,
+    })
+}
+
+fn copy_manual_asset(
+    directory: &Path,
+    task: &TaskRow,
+    asset: ContentAsset,
+    role: &str,
+    index: usize,
+) -> Result<ManualPackageAsset, String> {
+    let bytes = match task.source_type {
+        PublishSourceType::PlatformDraft => {
+            content::read_platform_draft_asset(&task_source_workspace(directory)?, &task.source_id, &asset.id)
+        }
+        PublishSourceType::Content => {
+            content::read_content_asset(&task_source_workspace(directory)?, &task.content_id, &asset.id)
+        }
+    };
+    let content = bytes?;
+    let extension = Path::new(&asset.file)
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("bin");
+    let prefix = if index == 0 {
+        "cover".to_string()
+    } else {
+        format!("{index:02}")
+    };
+    let file_name = format!("{prefix}-{role}-{}.{}", safe_component(&asset.original_name), extension);
+    let relative = format!("assets/{file_name}");
+    fs::write(directory.join(&relative), content.bytes)
+        .map_err(|error| format!("无法复制人工发布素材：{error}"))?;
+    Ok(ManualPackageAsset {
+        asset_id: asset.id,
+        kind: match asset.kind {
+            content::AssetKind::Video => "video".to_string(),
+            content::AssetKind::Image => "image".to_string(),
+        },
+        role: role.to_string(),
+        order: asset.order,
+        file: relative,
+        original_name: asset.original_name,
+        mime_type: content.mime_type,
+        byte_size: asset.byte_size,
+        caption: asset.caption,
+    })
+}
+
+fn task_source_workspace(directory: &Path) -> Result<PathBuf, String> {
+    directory
+        .parent()
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
+        .ok_or_else(|| "人工发布包无法定位工作区".to_string())
+}
+
+fn safe_component(value: &str) -> String {
+    let output = value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '_') {
+                character
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+    let trimmed = output.trim_matches('-');
+    if trimmed.is_empty() {
+        "asset".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AnalyticsGranularity {
+    Day,
+    Week,
+    Month,
+}
+
+impl AnalyticsGranularity {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Day => "day",
+            Self::Week => "week",
+            Self::Month => "month",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AnalyticsQuery {
+    pub range: String,
+    pub granularity: AnalyticsGranularity,
+    #[serde(default)]
+    pub platform_id: Option<String>,
+    #[serde(default)]
+    pub account_id: Option<String>,
+    #[serde(default)]
+    pub content_kind: Option<String>,
+    #[serde(default)]
+    pub work_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalyticsPoint {
+    pub bucket: String,
+    pub captured_at: String,
+    pub value: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalyticsSeries {
+    pub key: String,
+    pub work_id: String,
+    pub title: String,
+    pub platform_id: String,
+    pub platform_name: String,
+    pub account_alias: String,
+    pub content_kind: String,
+    pub metric_name: String,
+    pub metric_definition: String,
+    pub unit: String,
+    pub points: Vec<AnalyticsPoint>,
+    pub comparable: bool,
+    pub comparability_note: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalyticsResult {
+    pub range: String,
+    pub from: String,
+    pub to: String,
+    pub granularity: String,
+    pub series: Vec<AnalyticsSeries>,
+    pub warnings: Vec<String>,
+}
+
+fn range_days(range: &str) -> Result<i64, String> {
+    match range {
+        "7d" => Ok(7),
+        "30d" => Ok(30),
+        "90d" => Ok(90),
+        _ => Err("趋势范围必须是 7d、30d 或 90d".to_string()),
+    }
+}
+
+fn analytics_bucket(value: DateTime<Utc>, granularity: AnalyticsGranularity) -> String {
+    match granularity {
+        AnalyticsGranularity::Day => value.format("%Y-%m-%d").to_string(),
+        AnalyticsGranularity::Week => {
+            let iso = value.iso_week();
+            format!("{}-W{:02}", iso.year(), iso.week())
+        }
+        AnalyticsGranularity::Month => value.format("%Y-%m").to_string(),
+    }
+}
+
+pub fn analytics_trend(conn: &Connection, query: &AnalyticsQuery) -> Result<AnalyticsResult, String> {
+    let days = range_days(&query.range)?;
+    let to = Utc::now();
+    let from = to - Duration::days(days - 1);
+    let work_filter = ExternalWorkFilter {
+        platform_id: query.platform_id.clone(),
+        account_id: query.account_id.clone(),
+        content_kind: query.content_kind.clone(),
+        ..ExternalWorkFilter::default()
+    };
+    let works = list_external_works(conn, &work_filter)?;
+    let mut selected = Vec::new();
+    for work in works {
+        if query
+            .work_id
+            .as_deref()
+            .is_some_and(|work_id| work.id != work_id)
+        {
+            continue;
+        }
+        selected.push(work);
+    }
+    let mut grouped: HashMap<String, BTreeMap<String, MetricSnapshot>> = HashMap::new();
+    let mut metadata: HashMap<String, (ExternalWork, String)> = HashMap::new();
+    for work in &selected {
+        for metric in &work.metrics {
+            let captured = match parse_datetime(&metric.captured_at) {
+                Some(value) if value >= from && value <= to => value,
+                _ => continue,
+            };
+            let key = format!("{}::{}", work.id, metric.metric_name);
+            let bucket = analytics_bucket(captured, query.granularity);
+            let bucket_map = grouped.entry(key.clone()).or_default();
+            let replace = bucket_map
+                .get(&bucket)
+                .and_then(|existing| parse_datetime(&existing.captured_at))
+                .is_none_or(|existing| captured > existing);
+            if replace {
+                bucket_map.insert(bucket, metric.clone());
+            }
+            metadata
+                .entry(key)
+                .or_insert_with(|| (work.clone(), metric.metric_name.clone()));
+        }
+    }
+    let mut series = Vec::new();
+    let mut warnings = Vec::new();
+    for (key, buckets) in grouped {
+        let Some((work, metric_name)) = metadata.get(&key) else {
+            continue;
+        };
+        let metric = buckets.values().next().cloned();
+        let Some(metric) = metric else {
+            continue;
+        };
+        let points = buckets
+            .into_iter()
+            .map(|(bucket, snapshot)| AnalyticsPoint {
+                bucket,
+                captured_at: snapshot.captured_at,
+                value: snapshot.value,
+            })
+            .collect::<Vec<_>>();
+        if points.len() < 2 {
+            warnings.push(format!(
+                "《{}》的「{}」仅有 {} 个采样点，暂不绘制趋势，也不会补零",
+                work.title,
+                metric_name,
+                points.len()
+            ));
+        }
+        series.push(AnalyticsSeries {
+            key,
+            work_id: work.id.clone(),
+            title: work.title.clone(),
+            platform_id: work.platform_id.clone(),
+            platform_name: work.platform_name.clone(),
+            account_alias: work.account_alias.clone(),
+            content_kind: work.content_kind.clone(),
+            metric_name: metric_name.clone(),
+            metric_definition: metric.metric_definition.clone(),
+            unit: metric.unit.clone(),
+            points,
+            comparable: metric.comparable,
+            comparability_note: if metric.comparable {
+                "指标有明确统一字典定义，可在相同口径范围内比较".to_string()
+            } else {
+                "仅展示同一作品、同一平台的原始指标，不与其他平台或形态聚合".to_string()
+            },
+        });
+    }
+    series.sort_by(|left, right| {
+        left.platform_name
+            .cmp(&right.platform_name)
+            .then(left.title.cmp(&right.title))
+            .then(left.metric_name.cmp(&right.metric_name))
+    });
+    if series.is_empty() {
+        warnings.push("所选范围内没有可追溯的指标采样；不会用 0 代替缺失数据".to_string());
+    }
+    Ok(AnalyticsResult {
+        range: query.range.clone(),
+        from: from.to_rfc3339(),
+        to: to.to_rfc3339(),
+        granularity: query.granularity.as_str().to_string(),
+        series,
+        warnings,
+    })
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DashboardFilter {
+    #[serde(default)]
+    pub range: Option<String>,
+    #[serde(default)]
+    pub platform_id: Option<String>,
+    #[serde(default)]
+    pub account_id: Option<String>,
+    #[serde(default)]
+    pub content_kind: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationsDashboard {
+    pub platform_count: usize,
+    pub account_count: usize,
+    pub recent_publish_count: usize,
+    pub pending_task_count: usize,
+    pub sync_error_count: usize,
+    pub recent_works: Vec<ExternalWork>,
+    pub pending_tasks: Vec<PublishTask>,
+    pub recent_publishes: Vec<PublishTask>,
+    pub sync_runs: Vec<SyncRunResult>,
+    pub filter: DashboardFilterApplied,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DashboardFilterApplied {
+    pub range: String,
+    pub platform_id: Option<String>,
+    pub account_id: Option<String>,
+    pub content_kind: Option<String>,
+    pub from: String,
+    pub to: String,
+}
+
+pub fn operations_dashboard(
+    conn: &Connection,
+    filter: &DashboardFilter,
+) -> Result<OperationsDashboard, String> {
+    let range = filter.range.as_deref().unwrap_or("7d");
+    let days = range_days(range)?;
+    let to = Utc::now();
+    let from = to - Duration::days(days - 1);
+    let accounts = platforms::list_accounts(conn)?;
+    let visible_accounts = accounts
+        .into_iter()
+        .filter(|account| {
+            filter
+                .platform_id
+                .as_deref()
+                .is_none_or(|value| account.platform_id == value)
+                && filter
+                    .account_id
+                    .as_deref()
+                    .is_none_or(|value| account.id == value)
+        })
+        .collect::<Vec<_>>();
+    let platform_count = visible_accounts
+        .iter()
+        .map(|account| account.platform_id.as_str())
+        .collect::<HashSet<_>>()
+        .len();
+    let account_count = visible_accounts.len();
+    let mut tasks = list_publish_tasks(conn)?;
+    tasks.retain(|task| {
+        let created = parse_datetime(&task.created_at).unwrap_or(to);
+        created >= from
+            && filter
+                .platform_id
+                .as_deref()
+                .is_none_or(|value| task.platform_id == value)
+            && filter
+                .account_id
+                .as_deref()
+                .is_none_or(|value| task.account_id == value)
+            && filter
+                .content_kind
+                .as_deref()
+                .is_none_or(|value| task.content_kind.as_str() == value)
+    });
+    let recent_publishes = tasks
+        .iter()
+        .filter(|task| task.status == PublishTaskStatus::Success)
+        .take(10)
+        .cloned()
+        .collect::<Vec<_>>();
+    let pending_tasks = tasks
+        .iter()
+        .filter(|task| {
+            matches!(
+                task.status,
+                PublishTaskStatus::Created
+                    | PublishTaskStatus::Validating
+                    | PublishTaskStatus::Pending
+                    | PublishTaskStatus::Scheduled
+                    | PublishTaskStatus::NeedsManualAction
+            )
+        })
+        .take(10)
+        .cloned()
+        .collect::<Vec<_>>();
+    let work_filter = ExternalWorkFilter {
+        platform_id: filter.platform_id.clone(),
+        account_id: filter.account_id.clone(),
+        content_kind: filter.content_kind.clone(),
+        published_from: Some(from.to_rfc3339()),
+        published_to: Some(to.to_rfc3339()),
+        ..ExternalWorkFilter::default()
+    };
+    let recent_works = list_external_works(conn, &work_filter)?
+        .into_iter()
+        .take(10)
+        .collect::<Vec<_>>();
+    let sync_runs = list_sync_runs(conn, 50)?
+        .into_iter()
+        .filter(|run| {
+            parse_datetime(&run.completed_at).is_some_and(|value| value >= from)
+                && filter
+                    .platform_id
+                    .as_deref()
+                    .is_none_or(|value| run.platform_id == value)
+                && filter
+                    .account_id
+                    .as_deref()
+                    .is_none_or(|value| run.account_id == value)
+        })
+        .collect::<Vec<_>>();
+    let sync_error_count = sync_runs
+        .iter()
+        .filter(|run| run.status != "SUCCESS")
+        .count();
+    Ok(OperationsDashboard {
+        platform_count,
+        account_count,
+        recent_publish_count: recent_publishes.len(),
+        pending_task_count: pending_tasks.len(),
+        sync_error_count,
+        recent_works: recent_works.clone(),
+        pending_tasks,
+        recent_publishes,
+        sync_runs,
+        filter: DashboardFilterApplied {
+            range: range.to_string(),
+            platform_id: filter.platform_id.clone(),
+            account_id: filter.account_id.clone(),
+            content_kind: filter.content_kind.clone(),
+            from: from.to_rfc3339(),
+            to: to.to_rfc3339(),
+        },
+    })
+}
+
+
 

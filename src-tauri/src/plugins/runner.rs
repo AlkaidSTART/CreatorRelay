@@ -16,6 +16,7 @@ enum RunnerProfile {
     Healthy,
     Faulty,
     ProbeFailure,
+    PublishTimeout,
 }
 
 impl RunnerProfile {
@@ -23,6 +24,7 @@ impl RunnerProfile {
         match value {
             "faulty" | "fault" => Self::Faulty,
             "probeFailure" | "probe-failure" => Self::ProbeFailure,
+            "publishTimeout" | "publish-timeout" => Self::PublishTimeout,
             _ => Self::Healthy,
         }
     }
@@ -250,6 +252,9 @@ fn handle_request(
             )
         }
         "publish" => {
+            if profile == RunnerProfile::PublishTimeout {
+                thread::sleep(Duration::from_secs(30));
+            }
             let input = match serde_json::from_value::<PublishInput>(
                 params.get("input").cloned().unwrap_or(Value::Null),
             ) {
@@ -440,6 +445,14 @@ fn test_capabilities(manifest_id: &str) -> Value {
           { "kind": "article", "read": "supported", "publish": "supported", "reason": "纯文章发布可验证" }
         ]);
     }
+    if manifest_id == "creatorrelay.official.publish-timeout-adapter" {
+        return json!([
+          { "kind": "video", "read": "supported", "publish": "unsupported" },
+          { "kind": "imageText", "read": "supported", "publish": "supported", "reason": "用于验证发布超时结果不确定" },
+          { "kind": "imageArticle", "read": "supported", "publish": "unsupported" },
+          { "kind": "article", "read": "supported", "publish": "supported" }
+        ]);
+    }
     json!([
       { "kind": "video", "read": "unsupported", "publish": "unsupported", "reason": "测试适配器不模拟视频发布" },
       { "kind": "imageText", "read": "supported", "publish": "supported", "reason": "图文发布可验证" },
@@ -454,7 +467,8 @@ fn test_publish_supported(manifest_id: &str, kind: ContentKind) -> bool {
         "creatorrelay.official.sync-adapter" | "creatorrelay.official.test-adapter" => {
             matches!(kind, ContentKind::ImageText | ContentKind::Article)
         }
-        "creatorrelay.official.fault-adapter" => {
+        "creatorrelay.official.fault-adapter"
+        | "creatorrelay.official.publish-timeout-adapter" => {
             matches!(kind, ContentKind::ImageText | ContentKind::Article)
         }
         _ => false,

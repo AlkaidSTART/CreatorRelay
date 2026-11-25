@@ -1,0 +1,54 @@
+{
+  "id": "creatorrelay.official.publish-timeout-adapter",
+  "name": "CreatorRelay 发布超时适配器",
+  "description": "M6 超时不确定验收适配器：发布请求超时后必须进入人工核对，不得自动重复提交。",
+  "version": "1.0.0",
+  "pluginType": "adapter",
+  "adapterContractVersion": 1,
+  "runtime": {
+    "kind": "coreTestRunner",
+    "profile": "publishTimeout",
+    "timeoutMs": 1000
+  },
+  "entry": "builtin://creatorrelay.official.publish-timeout-adapter",
+  "permissions": [
+    {
+      "id": "account.credentials",
+      "required": true,
+      "reason": "验证超时请求的账号作用域"
+    },
+    {
+      "id": "platform.publish",
+      "required": true,
+      "reason": "模拟平台发布超时"
+    }
+  ],
+  "capabilities": [
+    {
+      "kind": "video",
+      "read": "supported",
+      "publish": "unsupported"
+    },
+    {
+      "kind": "imageText",
+      "read": "supported",
+      "publish": "supported",
+      "note": "用于验证发布超时结果不确定"
+    },
+    {
+      "kind": "imageArticle",
+      "read": "supported",
+      "publish": "unsupported"
+    },
+    {
+      "kind": "article",
+      "read": "supported",
+      "publish": "supported"
+    }
+  ],
+  "mcp": {
+    "transport": "stdio",
+    "command": "creatorrelay-adapter-runner",
+    "args": []
+  }
+}
