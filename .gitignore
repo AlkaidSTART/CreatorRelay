@@ -22,4 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-progress/*
+/progress/
+docs/*
+!progress/*.md
+!progress/verification/
+!progress/verification/*.md

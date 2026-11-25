@@ -30,6 +30,7 @@ struct Document {
     char_count: usize,
     tags: Vec<String>,
     content_hash: String,
+    assets: Vec<WorkspaceAsset>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -37,6 +38,24 @@ struct Document {
 struct DocumentContent {
     content: String,
     content_hash: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceAsset {
+    path: String,
+    markdown: String,
+    mime_type: String,
+    size: u64,
+    available: bool,
+    warning: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceAssetContent {
+    bytes: Vec<u8>,
+    mime_type: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -393,6 +412,132 @@ fn app_db_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("creatorrelay.sqlite3"))
 }
 
+fn markdown_url_is_external(url: &str) -> bool {
+    ["http://", "https://", "mailto:", "tel:", "data:", "#", "?"]
+        .iter()
+        .any(|prefix| url.starts_with(prefix))
+}
+
+fn markdown_url_is_unsafe_local(url: &str) -> bool {
+    url.starts_with('/')
+        || url.starts_with("file:")
+        || url.split('/').any(|component| component == "..")
+}
+
+fn list_document_assets(
+    workspace: &Path,
+    document_path: &str,
+    markdown: &str,
+) -> Result<Vec<WorkspaceAsset>, String> {
+    let mut output = Vec::new();
+    let patterns = [
+        (
+            regex::Regex::new(r"!\[[^\]]*\]\(([^)]+)\)").map_err(|e| e.to_string())?,
+            true,
+        ),
+        (
+            regex::Regex::new(r"\[[^\]]+\]\(([^)]+)\)").map_err(|e| e.to_string())?,
+            false,
+        ),
+    ];
+    for (captures, is_image) in patterns {
+        for capture in captures.captures_iter(markdown) {
+            let raw_url = capture
+                .get(1)
+                .ok_or("invalid Markdown link")?
+                .as_str()
+                .trim();
+            let url = raw_url
+                .trim_matches(['<', '>'])
+                .split_whitespace()
+                .next()
+                .unwrap_or("");
+            if url.is_empty() {
+                continue;
+            }
+            if markdown_url_is_unsafe_local(url) {
+                return Err("Markdown 本地引用不能使用绝对路径或目录穿越".to_string());
+            }
+            if markdown_url_is_external(url) || !url.starts_with("assets/") {
+                if is_image && !markdown_url_is_external(url) {
+                    return Err("文章图片必须使用文章目录下的 assets/ 相对路径".to_string());
+                }
+                continue;
+            }
+            let relative = url;
+            if output
+                .iter()
+                .any(|asset: &WorkspaceAsset| asset.path == relative)
+            {
+                continue;
+            }
+            let path = match resolve_workspace_asset(workspace, document_path, relative) {
+                Ok(path) => path,
+                Err(error) => {
+                    output.push(WorkspaceAsset {
+                        path: relative.to_string(),
+                        markdown: String::new(),
+                        mime_type: "application/octet-stream".to_string(),
+                        size: 0,
+                        available: false,
+                        warning: Some(error),
+                    });
+                    continue;
+                }
+            };
+            let metadata = match fs::metadata(&path) {
+                Ok(metadata) if metadata.is_file() => metadata,
+                Ok(_) => {
+                    output.push(WorkspaceAsset {
+                        path: relative.to_string(),
+                        markdown: String::new(),
+                        mime_type: "application/octet-stream".to_string(),
+                        size: 0,
+                        available: false,
+                        warning: Some("素材不是普通文件".to_string()),
+                    });
+                    continue;
+                }
+                Err(error) => {
+                    output.push(WorkspaceAsset {
+                        path: relative.to_string(),
+                        markdown: String::new(),
+                        mime_type: "application/octet-stream".to_string(),
+                        size: 0,
+                        available: false,
+                        warning: Some(format!("素材无法定位：{error}")),
+                    });
+                    continue;
+                }
+            };
+            output.push(WorkspaceAsset {
+                path: relative.to_string(),
+                markdown: String::new(),
+                mime_type: asset_mime_type(&path).to_string(),
+                size: metadata.len(),
+                available: true,
+                warning: None,
+            });
+        }
+    }
+    Ok(output)
+}
+
+fn validate_asset_references(
+    workspace: &Path,
+    relative: &str,
+    content: &str,
+) -> Result<(), String> {
+    let assets = list_document_assets(workspace, relative, content)?;
+    if let Some(asset) = assets.iter().find(|asset| !asset.available) {
+        return Err(asset
+            .warning
+            .clone()
+            .unwrap_or_else(|| format!("素材无法定位：{}", asset.path)));
+    }
+    Ok(())
+}
+
 fn setup_workspace(path: &Path) -> Result<(), String> {
     fs::create_dir_all(path.join("articles")).map_err(|e| e.to_string())?;
     fs::create_dir_all(path.join("assets")).map_err(|e| e.to_string())?;
@@ -467,6 +612,22 @@ fn title_for(content: &str, path: &Path) -> String {
         })
 }
 
+fn document_matches_query(document: &Document, path: &Path, query: &str) -> Result<bool, String> {
+    if query.is_empty() {
+        return Ok(true);
+    }
+    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let needle = query.to_lowercase();
+    let body = body_for_word_count(&content).to_lowercase();
+    Ok(document.title.to_lowercase().contains(&needle)
+        || document.preview.to_lowercase().contains(&needle)
+        || body.contains(&needle)
+        || document
+            .tags
+            .iter()
+            .any(|tag| tag.to_lowercase().contains(&needle)))
+}
+
 fn body_for_word_count(content: &str) -> &str {
     if content.starts_with("---\n") {
         if let Some(end) = content[4..].find("\n---") {
@@ -503,6 +664,7 @@ fn document_from_file(id: String, path: &Path, workspace: &Path) -> Result<Docum
         .map(chrono::DateTime::<Utc>::from)
         .map(|time| time.to_rfc3339())
         .unwrap_or_else(|| Utc::now().to_rfc3339());
+    let assets = list_document_assets(workspace, &relative, &content)?;
     Ok(Document {
         id,
         title,
@@ -516,14 +678,19 @@ fn document_from_file(id: String, path: &Path, workspace: &Path) -> Result<Docum
             .count(),
         tags,
         content_hash: digest(&content),
+        assets,
     })
 }
 
 fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
+    atomic_write_bytes(path, content.as_bytes())
+}
+
+fn atomic_write_bytes(path: &Path, content: &[u8]) -> Result<(), String> {
     let parent = path.parent().ok_or("目标文件没有父目录")?;
     fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     let mut temp = NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
-    std::io::Write::write_all(&mut temp, content.as_bytes()).map_err(|e| e.to_string())?;
+    std::io::Write::write_all(&mut temp, content).map_err(|e| e.to_string())?;
     temp.as_file().sync_all().map_err(|e| e.to_string())?;
     temp.persist(path).map_err(|e| e.error.to_string())?;
     Ok(())
@@ -563,6 +730,65 @@ fn resolve_document(workspace: &Path, relative: &str) -> Result<PathBuf, String>
     Ok(candidate)
 }
 
+fn asset_mime_type(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "mp4" => "video/mp4",
+        "mov" => "video/quicktime",
+        "webm" => "video/webm",
+        "pdf" => "application/pdf",
+        "txt" => "text/plain; charset=utf-8",
+        _ => "application/octet-stream",
+    }
+}
+
+fn resolve_workspace_asset(
+    workspace: &Path,
+    document_path: &str,
+    asset_path: &str,
+) -> Result<PathBuf, String> {
+    let document = resolve_document(workspace, document_path)?;
+    let relative = Path::new(asset_path);
+    let components = relative.components().collect::<Vec<_>>();
+    if components.len() != 2
+        || components[0].as_os_str() != "assets"
+        || !components
+            .iter()
+            .all(|part| matches!(part, Component::Normal(_)))
+    {
+        return Err("素材路径必须是文章目录下的 assets/<file> 相对路径".to_string());
+    }
+    let article_root = document.parent().ok_or("文章目录不可用")?;
+    let candidate = article_root.join(relative);
+    if candidate.exists() {
+        for path in [
+            article_root.to_path_buf(),
+            article_root.join("assets"),
+            candidate.clone(),
+        ] {
+            if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+                return Err("素材路径不能经过符号链接".to_string());
+            }
+        }
+        let root = workspace.canonicalize().map_err(|e| e.to_string())?;
+        let canonical = candidate.canonicalize().map_err(|e| e.to_string())?;
+        if !canonical.starts_with(root) || !canonical.is_file() {
+            return Err("素材路径超出工作区范围或不是文件".to_string());
+        }
+    }
+    Ok(candidate)
+}
+
 fn database_document_path(workspace: &Path, relative: &str) -> Result<String, String> {
     let canonical_workspace = workspace.canonicalize().map_err(|e| e.to_string())?;
     let path = canonical_workspace.join(relative);
@@ -595,7 +821,11 @@ fn normalize_legacy_paths(conn: &Connection, workspace: &Path) -> Result<(), Str
     Ok(())
 }
 
-fn sync_index(conn: &Connection, workspace: &Path) -> Result<(), String> {
+fn sync_index(
+    conn: &Connection,
+    workspace: &Path,
+    history_root: Option<&Path>,
+) -> Result<(), String> {
     if !workspace.is_dir() {
         return Err("工作区路径不可用，请重新选择工作区".to_string());
     }
@@ -640,6 +870,18 @@ fn sync_index(conn: &Connection, workspace: &Path) -> Result<(), String> {
             .map(|(id, _)| id.clone())
             .unwrap_or_else(|| Uuid::new_v4().to_string());
         let document = document_from_file(id.clone(), path, workspace)?;
+        let previous_hash = indexed.as_ref().map(|(_, hash)| hash.as_str());
+        if history_root.is_some() && previous_hash.is_some_and(|hash| hash != document.content_hash)
+        {
+            let history = open_history_repository(history_root.unwrap(), workspace)?;
+            let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+            ensure_document_history(&history, &tx, &id, &relative, &content)?;
+            commit_document_content(&history, &relative, &content, "检测到外部修改", None)?;
+        } else if history_root.is_some() && previous_hash.is_none() {
+            let history = open_history_repository(history_root.unwrap(), workspace)?;
+            let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+            commit_document_content(&history, &relative, &content, "导入工作区文章", None)?;
+        }
         tx.execute(
             "INSERT INTO documents(id, path, title, updated_at, content_hash) VALUES(?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(path) DO UPDATE SET title=excluded.title, updated_at=excluded.updated_at, content_hash=excluded.content_hash",
@@ -699,7 +941,7 @@ fn set_workspace_path(path: String, state: State<'_, AppState>) -> Result<Worksp
     }
     setup_workspace(&path)?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    sync_index(&conn, &path)?;
+    sync_index(&conn, &path, Some(&state.history_root))?;
     set_workspace(&conn, &path)?;
     Ok(WorkspaceInfo {
         name: path
@@ -720,7 +962,7 @@ fn list_documents(
     let Some(workspace) = active_workspace(&conn)? else {
         return Ok(Vec::new());
     };
-    sync_index(&conn, &workspace)?;
+    sync_index(&conn, &workspace, Some(&state.history_root))?;
     let filter = query.unwrap_or_default().trim().to_lowercase();
     let mut output = Vec::new();
     for entry in WalkDir::new(workspace.join("articles"))
@@ -752,22 +994,7 @@ fn list_documents(
             )
             .map_err(|e| e.to_string())?;
         let document = document_from_file(id, entry.path(), &workspace)?;
-        let searchable_content = if filter.is_empty() {
-            String::new()
-        } else {
-            fs::read_to_string(entry.path())
-                .map_err(|e| e.to_string())?
-                .to_lowercase()
-        };
-        if filter.is_empty()
-            || document.title.to_lowercase().contains(&filter)
-            || document.preview.to_lowercase().contains(&filter)
-            || searchable_content.contains(&filter)
-            || document
-                .tags
-                .iter()
-                .any(|tag| tag.to_lowercase().contains(&filter))
-        {
+        if document_matches_query(&document, entry.path(), &filter)? {
             output.push(document);
         }
     }
@@ -779,7 +1006,7 @@ fn list_documents(
 fn rebuild_workspace_index(state: State<'_, AppState>) -> Result<usize, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
-    sync_index(&conn, &workspace)?;
+    sync_index(&conn, &workspace, Some(&state.history_root))?;
     let count: i64 = conn
         .query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))
         .map_err(|e| e.to_string())?;
@@ -796,6 +1023,102 @@ fn read_document(path: String, state: State<'_, AppState>) -> Result<DocumentCon
         content_hash: digest(&content),
         content,
     })
+}
+
+#[tauri::command]
+fn import_document_bundle(
+    source_path: String,
+    title: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<Document, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+    let source = PathBuf::from(source_path);
+    let source = source.canonicalize().map_err(|e| e.to_string())?;
+    if !source.is_dir() {
+        return Err("请选择已导出的内容包目录".to_string());
+    }
+    let body_path = source.join("contents/article/body.md");
+    let body_metadata = fs::symlink_metadata(&body_path).map_err(|e| e.to_string())?;
+    if body_metadata.file_type().is_symlink() || !body_metadata.is_file() {
+        return Err("内容包缺少有效的文章正文".to_string());
+    }
+    if body_metadata.len() > 16 * 1024 * 1024 {
+        return Err("文章正文超过 16 MiB 限制".to_string());
+    }
+    let content = fs::read_to_string(&body_path).map_err(|e| e.to_string())?;
+    let mut asset_paths = Vec::new();
+    for asset in list_document_assets_in_export(&source, &content)? {
+        asset_paths.push(asset);
+    }
+    let id = Uuid::new_v4().to_string();
+    let relative = format!("articles/{id}/article.md");
+    let target = resolve_document(&workspace, &relative)?;
+    atomic_write(&target, &content)?;
+    let target_root = target.parent().ok_or("文章目录无效")?;
+    for asset_path in asset_paths {
+        let relative_asset = Path::new(&asset_path);
+        let components = relative_asset.components().collect::<Vec<_>>();
+        if components.len() != 2
+            || components[0].as_os_str() != "assets"
+            || !components
+                .iter()
+                .all(|part| matches!(part, Component::Normal(_)))
+        {
+            return Err("内容包包含无效素材路径".to_string());
+        }
+        let source_asset = source.join("contents/article").join(relative_asset);
+        let metadata = fs::symlink_metadata(&source_asset).map_err(|e| e.to_string())?;
+        if metadata.file_type().is_symlink()
+            || !metadata.is_file()
+            || metadata.len() > 256 * 1024 * 1024
+        {
+            return Err("内容包素材必须是小于 256 MiB 的普通文件".to_string());
+        }
+        let destination = target_root.join(relative_asset);
+        atomic_write_bytes(
+            &destination,
+            &fs::read(source_asset).map_err(|e| e.to_string())?,
+        )?;
+    }
+    let database_path = database_document_path(&workspace, &relative)?;
+    let title = title.unwrap_or_else(|| title_for(&content, &target));
+    let now = Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO documents(id, path, title, updated_at, content_hash) VALUES(?1, ?2, ?3, ?4, ?5)",
+        params![id, database_path, title, now, digest(&content)],
+    )
+    .map_err(|e| e.to_string())?;
+    let history = open_history_repository(&state.history_root, &workspace)?;
+    commit_document_content(&history, &relative, &content, "导入文章内容包", None)?;
+    document_from_file(id, &target, &workspace)
+}
+
+fn list_document_assets_in_export(source: &Path, markdown: &str) -> Result<Vec<String>, String> {
+    let mut output = Vec::new();
+    let pattern = regex::Regex::new(r"(?:!\[[^\]]*\]|\[[^\]]+\])\((assets/[^)]+)\)")
+        .map_err(|e| e.to_string())?;
+    for captures in pattern.captures_iter(markdown) {
+        let relative = captures.get(1).ok_or("invalid asset ref")?.as_str();
+        if output.iter().any(|path: &String| path == relative) {
+            continue;
+        }
+        let path = Path::new(relative);
+        if path.components().count() != 2
+            || !path
+                .components()
+                .all(|part| matches!(part, Component::Normal(_)))
+        {
+            return Err("内容包素材路径穿越被拒绝".to_string());
+        }
+        let file = source.join("contents/article").join(path);
+        let metadata = fs::symlink_metadata(&file).map_err(|e| format!("内容包素材缺失：{e}"))?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err("内容包素材不是普通文件".to_string());
+        }
+        output.push(relative.to_string());
+    }
+    Ok(output)
 }
 
 #[tauri::command]
@@ -857,6 +1180,161 @@ fn create_document(title: String, state: State<'_, AppState>) -> Result<Document
 }
 
 #[tauri::command]
+fn export_document_bundle(
+    document_path: String,
+    destination_path: String,
+    state: State<'_, AppState>,
+) -> Result<PathBuf, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+    let source = resolve_document(&workspace, &document_path)?;
+    let source_relative = Path::new(&document_path);
+    if source_relative.extension().and_then(|value| value.to_str()) != Some("md") {
+        return Err("仅支持导出 Markdown 内容包".to_string());
+    }
+    let content = fs::read_to_string(&source).map_err(|e| e.to_string())?;
+    let entries = list_document_assets(&workspace, &document_path, &content)?;
+    if entries.iter().any(|asset| !asset.available) {
+        return Err("无法导出：文章包含缺失或不安全的素材引用".to_string());
+    }
+    let output = PathBuf::from(destination_path);
+    if output.exists() {
+        return Err("导出目标已存在，请选择新的目标路径".to_string());
+    }
+    let parent = output.parent().ok_or("导出目标无效")?;
+    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    let staging = tempfile::Builder::new()
+        .prefix("creatorrelay-export-")
+        .tempdir_in(parent)
+        .map_err(|e| e.to_string())?;
+    let content_dir = staging.path().join("contents/article");
+    fs::create_dir_all(&content_dir).map_err(|e| e.to_string())?;
+    let body_path = content_dir.join("body.md");
+    atomic_write(&body_path, &content)?;
+    for asset in entries {
+        let media_path = resolve_workspace_asset(&workspace, &document_path, &asset.path)?;
+        let bytes = fs::read(&media_path).map_err(|e| e.to_string())?;
+        let target = content_dir.join(&asset.path);
+        atomic_write_bytes(&target, &bytes)?;
+    }
+    fs::rename(staging.path(), &output).map_err(|e| e.to_string())?;
+    Ok(output)
+}
+
+#[tauri::command]
+fn import_workspace_asset(
+    document_path: String,
+    source_name: String,
+    bytes: Vec<u8>,
+    state: State<'_, AppState>,
+) -> Result<WorkspaceAsset, String> {
+    const MAX_ASSET_BYTES: usize = 256 * 1024 * 1024;
+    if bytes.is_empty() || bytes.len() > MAX_ASSET_BYTES {
+        return Err("素材必须大于 0 且不超过 256 MiB".to_string());
+    }
+    let extension = Path::new(&source_name)
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if extension.is_empty()
+        || extension.len() > 12
+        || !extension.bytes().all(|byte| byte.is_ascii_alphanumeric())
+    {
+        return Err("无法识别素材文件扩展名".to_string());
+    }
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+    let document = resolve_document(&workspace, &document_path)?;
+    if !document.is_file() {
+        return Err("请先保存文章后再导入素材".to_string());
+    }
+    let database_path = database_document_path(&workspace, &document_path)?;
+    let _: String = conn
+        .query_row(
+            "SELECT id FROM documents WHERE path=?1",
+            [&database_path],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    let name = format!("{}.{}", Uuid::new_v4(), extension);
+    let relative = format!("assets/{name}");
+    let target = resolve_workspace_asset(&workspace, &document_path, &relative)?;
+    atomic_write_bytes(&target, &bytes)?;
+    let markdown = if asset_mime_type(&target).starts_with("image/") {
+        format!("![素材]({relative})")
+    } else {
+        format!(
+            "[{}]({relative})",
+            source_name.replace(['[', ']', '\n', '\r'], "_")
+        )
+    };
+    Ok(WorkspaceAsset {
+        path: relative,
+        markdown,
+        mime_type: asset_mime_type(&target).to_string(),
+        size: bytes.len() as u64,
+        available: true,
+        warning: None,
+    })
+}
+
+#[tauri::command]
+fn list_document_assets_for_document(
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<WorkspaceAsset>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+    let document_path = resolve_document(&workspace, &path)?;
+    let database_path = database_document_path(&workspace, &path)?;
+    let _: String = conn
+        .query_row(
+            "SELECT id FROM documents WHERE path=?1",
+            [&database_path],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    let content = fs::read_to_string(document_path).map_err(|e| e.to_string())?;
+    list_document_assets(&workspace, &path, &content)
+}
+
+#[tauri::command]
+fn read_workspace_asset(
+    document_path: String,
+    asset_path: String,
+    state: State<'_, AppState>,
+) -> Result<WorkspaceAssetContent, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+    let path = resolve_workspace_asset(&workspace, &document_path, &asset_path)?;
+    let metadata = fs::metadata(&path).map_err(|e| e.to_string())?;
+    if metadata.len() > 32 * 1024 * 1024 {
+        return Err("预览素材超过 32 MiB 限制".to_string());
+    }
+    Ok(WorkspaceAssetContent {
+        bytes: fs::read(&path).map_err(|e| e.to_string())?,
+        mime_type: asset_mime_type(&path).to_string(),
+    })
+}
+
+#[tauri::command]
+fn reveal_workspace_asset(
+    document_path: String,
+    asset_path: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+    let path = resolve_workspace_asset(&workspace, &document_path, &asset_path)?;
+    let canonical = path.canonicalize().map_err(|e| e.to_string())?;
+    if !canonical.is_file() {
+        return Err("素材不是普通文件".to_string());
+    }
+    Ok(canonical.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 fn preserve_external_document(
     path: String,
     state: State<'_, AppState>,
@@ -906,6 +1384,7 @@ fn save_document(
     if existing == content {
         return document_from_file(id, &file, &workspace);
     }
+    validate_asset_references(&workspace, &path, &content)?;
     atomic_write(&file, &content)?;
     conn.execute(
         "UPDATE documents SET title=?1, updated_at=?2, content_hash=?3 WHERE id=?4",
@@ -1072,8 +1551,14 @@ pub fn run() {
             rebuild_workspace_index,
             read_document,
             import_markdown,
+            import_document_bundle,
             create_document,
             save_document,
+            export_document_bundle,
+            import_workspace_asset,
+            list_document_assets_for_document,
+            read_workspace_asset,
+            reveal_workspace_asset,
             preserve_external_document,
             list_revisions,
             create_document_revision,
@@ -1112,6 +1597,21 @@ mod tests {
     }
 
     #[test]
+    fn search_matches_title_body_and_tags_case_insensitively() {
+        let temp = tempfile::tempdir().unwrap();
+        let file = temp.path().join("article.md");
+        let content =
+            "---\ntitle: Rust Notes\ntags:\n  - CreatorRelay\n---\n\nA private body phrase.\n";
+        fs::write(&file, content).unwrap();
+        let document = document_from_file("doc".to_string(), &file, temp.path()).unwrap();
+        assert!(document_matches_query(&document, &file, "rust").unwrap());
+        assert!(document_matches_query(&document, &file, "PRIVATE BODY").unwrap());
+        assert!(document_matches_query(&document, &file, "creatorrelay").unwrap());
+        assert!(!document_matches_query(&document, &file, "not present").unwrap());
+        assert!(document_matches_query(&document, &file, "").unwrap());
+    }
+
+    #[test]
     fn document_paths_cannot_escape_or_follow_symlinks() {
         let temp = tempfile::tempdir().unwrap();
         let workspace = temp.path().join("workspace");
@@ -1135,17 +1635,79 @@ mod tests {
         let path = workspace.join("articles/first/article.md");
         atomic_write(&path, "---\ntitle: First\ntags: []\n---\n\n# First\n").unwrap();
         let connection = test_db();
-        sync_index(&connection, &workspace).unwrap();
+        sync_index(&connection, &workspace, None).unwrap();
         let count: i64 = connection
             .query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))
             .unwrap();
         assert_eq!(count, 1);
         fs::write(&path, "---\ntitle: Updated\ntags: []\n---\n\n# Updated\n").unwrap();
-        sync_index(&connection, &workspace).unwrap();
+        sync_index(&connection, &workspace, None).unwrap();
         let title: String = connection
             .query_row("SELECT title FROM documents", [], |row| row.get(0))
             .unwrap();
         assert_eq!(title, "Updated");
+    }
+
+    #[test]
+    fn sync_index_records_external_article_changes_in_git_history() {
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = temp.path().join("workspace");
+        setup_workspace(&workspace).unwrap();
+        let history_root = temp.path().join("app-data/article-history");
+        let path = workspace.join("articles/doc/article.md");
+        let original = "# Original\n";
+        atomic_write(&path, original).unwrap();
+        let connection = test_db();
+        set_workspace(&connection, &workspace).unwrap();
+        sync_index(&connection, &workspace, Some(&history_root)).unwrap();
+        let external = "# External\n";
+        fs::write(&path, external).unwrap();
+        sync_index(&connection, &workspace, Some(&history_root)).unwrap();
+        let relative = "articles/doc/article.md";
+        let repository = open_history_repository(&history_root, &workspace).unwrap();
+        let revisions = list_document_revisions(&repository, relative).unwrap();
+        assert_eq!(revisions.len(), 2);
+        assert!(
+            revisions
+                .iter()
+                .any(|revision| revision.preview == "# Original")
+        );
+        assert!(
+            revisions
+                .iter()
+                .any(|revision| revision.preview == "# External")
+        );
+        assert_eq!(fs::read_to_string(path).unwrap(), external);
+    }
+
+    #[test]
+    fn workspace_assets_are_confined_to_article_assets_and_reject_symlinks() {
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = temp.path().join("workspace");
+        let article_dir = workspace.join("articles/doc");
+        fs::create_dir_all(article_dir.join("assets")).unwrap();
+        fs::write(article_dir.join("article.md"), "# Article").unwrap();
+        fs::write(article_dir.join("assets/image.png"), b"image").unwrap();
+        let normal =
+            resolve_workspace_asset(&workspace, "articles/doc/article.md", "assets/image.png")
+                .unwrap();
+        assert_eq!(normal, article_dir.join("assets/image.png"));
+        assert!(
+            resolve_workspace_asset(&workspace, "articles/doc/article.md", "../../outside.png",)
+                .is_err()
+        );
+        #[cfg(unix)]
+        {
+            let outside = temp.path().join("outside.png");
+            fs::write(&outside, b"outside").unwrap();
+            std::os::unix::fs::symlink(outside, article_dir.join("assets/linked.png")).unwrap();
+            assert!(resolve_workspace_asset(
+                &workspace,
+                "articles/doc/article.md",
+                "assets/linked.png",
+            )
+            .is_err());
+        }
     }
 
     #[test]
@@ -1195,8 +1757,8 @@ mod tests {
         atomic_write(&first_doc, "# First\n").unwrap();
         atomic_write(&second_doc, "# Second\n").unwrap();
         let connection = test_db();
-        sync_index(&connection, &first).unwrap();
-        sync_index(&connection, &second).unwrap();
+        sync_index(&connection, &first, None).unwrap();
+        sync_index(&connection, &second, None).unwrap();
         let rows: i64 = connection
             .query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))
             .unwrap();
@@ -1346,20 +1908,101 @@ mod tests {
         atomic_write(&article, content).unwrap();
         let before = digest(&fs::read_to_string(&article).unwrap());
         let db = test_db();
-        sync_index(&db, &workspace).unwrap();
+        sync_index(&db, &workspace, None).unwrap();
         db.execute("DELETE FROM documents", []).unwrap();
-        sync_index(&db, &workspace).unwrap();
+        sync_index(&db, &workspace, None).unwrap();
         let title: String = db
             .query_row("SELECT title FROM documents", [], |row| row.get(0))
             .unwrap();
         assert_eq!(title, "Rebuild");
         assert_eq!(digest(&fs::read_to_string(&article).unwrap()), before);
         fs::remove_file(&article).unwrap();
-        sync_index(&db, &workspace).unwrap();
+        sync_index(&db, &workspace, None).unwrap();
         let remaining: i64 = db
             .query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))
             .unwrap();
         assert_eq!(remaining, 0);
+    }
+
+    #[test]
+    fn referenced_assets_are_listed_and_missing_assets_are_rejected() {
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = temp.path().join("workspace");
+        let article_dir = workspace.join("articles/doc");
+        fs::create_dir_all(article_dir.join("assets")).unwrap();
+        fs::write(article_dir.join("article.md"), "# Article").unwrap();
+        fs::write(article_dir.join("assets/image.png"), b"image").unwrap();
+        let markdown = "# Article\n\n![alt](assets/image.png)\n";
+        let assets = list_document_assets(&workspace, "articles/doc/article.md", markdown).unwrap();
+        assert_eq!(assets.len(), 1);
+        assert_eq!(assets[0].mime_type, "image/png");
+        let missing = list_document_assets(
+            &workspace,
+            "articles/doc/article.md",
+            "![missing](assets/missing.png)",
+        )
+        .unwrap();
+        assert_eq!(missing.len(), 1);
+        assert!(!missing[0].available);
+        assert!(missing[0].warning.is_some());
+    }
+
+    #[test]
+    fn article_asset_references_are_checked_before_saving() {
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = temp.path().join("workspace");
+        setup_workspace(&workspace).unwrap();
+        let document_dir = workspace.join("articles/doc");
+        fs::create_dir_all(document_dir.join("assets")).unwrap();
+        fs::write(document_dir.join("assets/image.png"), b"image").unwrap();
+        assert!(
+            validate_asset_references(
+                &workspace,
+                "articles/doc/article.md",
+                "![image](assets/image.png)",
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_asset_references(
+                &workspace,
+                "articles/doc/article.md",
+                "![missing](assets/missing.png)",
+            )
+            .is_err()
+        );
+        assert!(
+            validate_asset_references(
+                &workspace,
+                "articles/doc/article.md",
+                "![escape](../../outside.png)",
+            )
+            .is_err()
+        );
+        assert!(
+            validate_asset_references(
+                &workspace,
+                "articles/doc/article.md",
+                "[external](https://example.com/article)",
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_asset_references(
+                &workspace,
+                "articles/doc/article.md",
+                "![remote](https://example.com/cover.png)",
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_asset_references(
+                &workspace,
+                "articles/doc/article.md",
+                "![other](other/image.png)",
+            )
+            .is_err()
+        );
     }
 
     #[test]

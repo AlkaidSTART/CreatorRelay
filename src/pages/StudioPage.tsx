@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { readFile, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -60,6 +61,17 @@ export function StudioPage() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedRevisionId, setSelectedRevisionId] = useState("");
   const [revisionLabel, setRevisionLabel] = useState("");
+  const [assetPreviewUrl, setAssetPreviewUrl] = useState("");
+  const [assetPreviewMime, setAssetPreviewMime] = useState("");
+  const [documentAssets, setDocumentAssets] = useState<
+    Array<{
+      path: string;
+      mimeType: string;
+      size: number;
+      available: boolean;
+      warning: string | null;
+    }>
+  >([]);
 
   const workspace = useWorkspaceStore((state) => state.workspace);
   const documents = useWorkspaceStore((state) => state.documents);
@@ -77,6 +89,7 @@ export function StudioPage() {
   const selectDocumentSafely = useWorkspaceStore((state) => state.selectDocumentSafely);
   const restoreRevision = useWorkspaceStore((state) => state.restoreRevision);
   const createRevision = useWorkspaceStore((state) => state.createRevision);
+  const loadDocumentAssets = useWorkspaceStore((state) => state.loadDocumentAssets);
 
   const platformAccounts = useContentStore((state) => state.platformAccounts);
   const publishTasks = useContentStore((state) => state.publishTasks);
@@ -129,6 +142,15 @@ export function StudioPage() {
     () => documents.find((doc) => doc.id === selectedId) ?? null,
     [documents, selectedId],
   );
+
+  useEffect(() => {
+    if (!selected || !isTauri() || saveState !== "saved") {
+      if (!selected) setDocumentAssets([]);
+      return;
+    }
+    void loadDocumentAssets(selected.path).then(setDocumentAssets);
+  }, [selected?.path, saveState, loadDocumentAssets]);
+
   const { frontmatter, body: editableBody } = useMemo(
     () => extractFrontmatterBlock(content),
     [content],
@@ -145,20 +167,99 @@ export function StudioPage() {
     }
   }
 
+  async function ensureCurrentDraftSaved() {
+    const store = useWorkspaceStore.getState();
+    if (store.saveState === "saving" || store.saveState === "error") {
+      showToast("请先完成当前文章的保存，再继续此操作", 2400);
+      return false;
+    }
+    if (store.saveState === "unsaved") {
+      const saved = await store.saveCurrentDocument({ silent: true });
+      if (!saved) return false;
+    }
+    return true;
+  }
+
   async function handleExportMarkdown() {
     if (!selected) return;
     if (!isTauri()) {
       showToast("请在桌面端导出 Markdown 文件");
       return;
     }
-    const target = await save({
-      defaultPath: `${selected.title.replace(/[\\/:*?"<>|]/gu, "-")}.md`,
-      filters: [{ name: "Markdown", extensions: ["md"] }],
-    });
-    if (!target) return;
+    if (!(await ensureCurrentDraftSaved())) return;
     try {
+      const target = await save({
+        defaultPath: `${selected.title.replace(/[\\/:*?"<>|]/gu, "-")}.md`,
+        filters: [{ name: "Markdown", extensions: ["md"] }],
+      });
+      if (!target) return;
       await writeTextFile(target, content);
       showToast("Markdown 已导出");
+    } catch (cause) {
+      useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  async function handleExportBundle() {
+    if (!selected || !isTauri()) {
+      showToast("请在桌面端选择文章后导出内容包");
+      return;
+    }
+    if (!(await ensureCurrentDraftSaved())) return;
+    try {
+      const output = await open({
+        directory: true,
+        multiple: false,
+        title: "选择内容包导出父目录",
+      });
+      if (typeof output !== "string") return;
+      const folderName = selected.title.replace(/[\\/:*?"<>|]/gu, "-").slice(0, 80) || "article";
+      await invoke("export_document_bundle", {
+        documentPath: selected.path,
+        destinationPath: `${output}/${folderName}-content-package`,
+      });
+      showToast("Markdown 与引用素材已导出为内容包");
+    } catch (cause) {
+      useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  async function handleImportBundle() {
+    if (!isTauri()) {
+      showToast("请在桌面端导入内容包");
+      return;
+    }
+    if (!(await ensureCurrentDraftSaved())) return;
+    try {
+      const source = await open({
+        directory: true,
+        multiple: false,
+        title: "选择 CreatorRelay 导出的文章内容包",
+      });
+      if (typeof source !== "string") return;
+      const imported = await invoke<{
+        id: string;
+        title: string;
+        path: string;
+        updatedAt: string;
+        preview: string;
+        wordCount: number;
+        charCount: number;
+        tags: string[];
+        contentHash: string;
+        assets: Array<{
+          path: string;
+          mimeType: string;
+          size: number;
+          available: boolean;
+          warning: string | null;
+        }>;
+      }>("import_document_bundle", { sourcePath: source, title: null });
+      await useWorkspaceStore.getState().loadDocuments();
+      useWorkspaceStore.setState({ selectedId: imported.id });
+      await useWorkspaceStore.getState().loadDocument(imported);
+      await useWorkspaceStore.getState().loadRevisions(imported.path);
+      showToast("内容包及素材已导入工作区");
     } catch (cause) {
       useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));
     }
@@ -169,12 +270,13 @@ export function StudioPage() {
       showToast("请在桌面端导入 Markdown 文件");
       return;
     }
-    const source = await open({
-      multiple: false,
-      filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
-    });
-    if (typeof source !== "string") return;
+    if (!(await ensureCurrentDraftSaved())) return;
     try {
+      const source = await open({
+        multiple: false,
+        filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
+      });
+      if (typeof source !== "string") return;
       const imported = await invoke<{
         id: string;
         title: string;
@@ -198,6 +300,112 @@ export function StudioPage() {
     } catch (cause) {
       useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));
     }
+  }
+
+  async function handleRevealAsset(path: string) {
+    if (!selected || !isTauri()) return;
+    try {
+      const absolutePath = await invoke<string>("reveal_workspace_asset", {
+        documentPath: selected.path,
+        assetPath: path,
+      });
+      await revealItemInDir(absolutePath);
+    } catch (cause) {
+      useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  async function handleImportAsset() {
+    if (!selected || !isTauri()) {
+      showToast("请在桌面工作区选择文章后导入素材");
+      return;
+    }
+    try {
+      const source = await open({
+        multiple: false,
+        filters: [
+          {
+            name: "图片、视频与附件",
+            extensions: [
+              "png",
+              "jpg",
+              "jpeg",
+              "gif",
+              "webp",
+              "svg",
+              "mp4",
+              "mov",
+              "webm",
+              "pdf",
+              "txt",
+            ],
+          },
+        ],
+      });
+      if (typeof source !== "string") return;
+      const file = await readFile(source);
+      if (file.byteLength > 256 * 1024 * 1024) {
+        showToast("素材不能超过 256 MiB", 2600);
+        return;
+      }
+      const currentMarkdown = useWorkspaceStore.getState().content;
+      const parts = extractFrontmatterBlock(currentMarkdown);
+      const currentBody = parts.body;
+      const result = await invoke<{ markdown: string; path: string; mimeType: string }>(
+        "import_workspace_asset",
+        {
+          documentPath: selected.path,
+          sourceName: source.split(/[\\/]/u).pop() || "asset.bin",
+          bytes: Array.from(file),
+        },
+      );
+      const separator = currentBody.trim() ? "\n\n" : "";
+      useWorkspaceStore
+        .getState()
+        .updateContent(
+          `${parts.frontmatter}${separator}${currentBody}${separator}${result.markdown}\n`,
+        );
+      setDocumentAssets(await loadDocumentAssets(selected.path));
+      showToast("素材已复制到文章 assets/ 并插入相对引用");
+    } catch (cause) {
+      useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  async function handlePreviewAsset(path: string) {
+    if (!selected || !isTauri()) return;
+    try {
+      const asset = await invoke<{ bytes: number[]; mimeType: string }>("read_workspace_asset", {
+        documentPath: selected.path,
+        assetPath: path,
+      });
+      if (asset.mimeType === "image/svg+xml") {
+        setAssetPreviewMime(asset.mimeType);
+        setAssetPreviewUrl("svg-asset-located");
+        return;
+      }
+      if (!asset.mimeType.startsWith("image/")) {
+        showToast(`已定位素材（${asset.mimeType}）`);
+        return;
+      }
+      const blob = new Blob([new Uint8Array(asset.bytes)], { type: asset.mimeType });
+      setAssetPreviewUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return URL.createObjectURL(blob);
+      });
+      setAssetPreviewMime(asset.mimeType);
+    } catch (cause) {
+      useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  async function handleCreateDocument() {
+    if (!selected) {
+      setIsCreating(true);
+      return;
+    }
+    if (!(await ensureCurrentDraftSaved())) return;
+    setIsCreating(true);
   }
 
   const saveMeta =
@@ -565,6 +773,22 @@ export function StudioPage() {
                   <FilePlus2 size={13} />
                 </button>
                 <button
+                  onClick={() => void handleImportBundle()}
+                  aria-label="导入内容包"
+                  title="导入文章内容包"
+                  className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-ink-secondary transition-colors hover:bg-sidebar hover:text-ink"
+                >
+                  <FilePlus2 size={13} />
+                </button>
+                <button
+                  onClick={() => void handleExportBundle()}
+                  aria-label="导出内容包"
+                  title="导出文章与引用素材"
+                  className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-ink-secondary transition-colors hover:bg-sidebar hover:text-ink"
+                >
+                  <FolderOpen size={13} />
+                </button>
+                <button
                   onClick={() => void handleExportMarkdown()}
                   aria-label="导出"
                   title="导出 Markdown"
@@ -712,7 +936,7 @@ export function StudioPage() {
               )}
             </div>
           ) : (
-            <StudioNoDocumentState onCreateDocument={() => setIsCreating(true)} />
+            <StudioNoDocumentState onCreateDocument={() => void handleCreateDocument()} />
           )}
         </div>
 
@@ -903,21 +1127,94 @@ export function StudioPage() {
                     <div className="mb-2.5 flex items-center justify-between">
                       <span className="text-xs font-semibold text-ink">素材</span>
                       <button
-                        onClick={() => showToast("素材导入将在下一步接入工作区文件系统")}
+                        onClick={() => void handleImportAsset()}
                         aria-label="导入素材"
                         className="grid h-6 w-6 cursor-pointer place-items-center rounded text-ink-muted hover:bg-hover hover:text-ink"
                       >
                         <Plus size={13} />
                       </button>
                     </div>
-                    <button
-                      onClick={() => showToast("支持拖入图片素材，素材目录接口正在开发中")}
-                      className="flex w-full cursor-pointer items-center gap-2 rounded-xl border border-dashed border-line-strong bg-surface px-3 py-2.5 text-left text-[11.5px] text-ink-secondary transition-colors hover:border-accent hover:text-ink"
-                    >
-                      <Image size={14} className="shrink-0 text-accent" />
-                      <span className="flex-1">拖入图片或从本地添加</span>
-                      <ChevronRight size={12} className="shrink-0 text-ink-muted" />
-                    </button>
+                    {selected && isTauri() ? (
+                      <div className="space-y-2">
+                        {documentAssets.map((asset) => (
+                          <div key={asset.path} className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => void handlePreviewAsset(asset.path)}
+                              disabled={!asset.available}
+                              title={asset.warning ?? asset.path}
+                              className={`flex min-w-0 flex-1 items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-[11px] ${
+                                asset.available
+                                  ? "border-line bg-surface text-ink-secondary hover:border-accent"
+                                  : "border-amber-300 bg-amber-50 text-amber-900"
+                              }`}
+                            >
+                              <Image size={13} className="shrink-0 text-accent" />
+                              <span className="truncate">{asset.path}</span>
+                              <span className="ml-auto shrink-0 text-[10px]">
+                                {asset.available
+                                  ? `${Math.ceil(asset.size / 1024)} KB`
+                                  : "无法定位"}
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleRevealAsset(asset.path)}
+                              disabled={!asset.available}
+                              aria-label={`在文件管理器中定位 ${asset.path}`}
+                              title="在文件管理器中定位"
+                              className="grid w-8 shrink-0 place-items-center rounded-lg border border-line bg-surface text-ink-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <ArrowUpRight size={11} />
+                            </button>
+                          </div>
+                        ))}
+                        {assetPreviewUrl && (
+                          <div className="rounded-lg border border-line bg-surface p-2">
+                            {assetPreviewMime === "image/svg+xml" ? (
+                              <div className="text-[11px] text-ink-secondary">
+                                SVG 素材已定位；为降低脚本注入风险，不在 WebView 中内联预览。
+                              </div>
+                            ) : (
+                              <img
+                                src={assetPreviewUrl}
+                                alt="工作区素材预览"
+                                className="max-h-36 w-full rounded object-contain"
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (assetPreviewUrl !== "svg-asset-located")
+                                  URL.revokeObjectURL(assetPreviewUrl);
+                                setAssetPreviewUrl("");
+                              }}
+                              className="mt-2 text-[10px] text-accent"
+                            >
+                              关闭预览
+                            </button>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void handleImportAsset()}
+                          className="flex w-full cursor-pointer items-center gap-2 rounded-xl border border-dashed border-line-strong bg-surface px-3 py-2.5 text-left text-[11.5px] text-ink-secondary transition-colors hover:border-accent hover:text-ink"
+                        >
+                          <Image size={14} className="shrink-0 text-accent" />
+                          <span className="flex-1">添加素材并插入相对引用</span>
+                          <ChevronRight size={12} className="shrink-0 text-ink-muted" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => showToast("选择桌面工作区及文章后即可导入素材")}
+                        className="flex w-full cursor-pointer items-center gap-2 rounded-xl border border-dashed border-line-strong bg-surface px-3 py-2.5 text-left text-[11.5px] text-ink-secondary transition-colors hover:border-accent hover:text-ink"
+                      >
+                        <Image size={14} className="shrink-0 text-accent" />
+                        <span className="flex-1">选择文章后从本地添加素材</span>
+                        <ChevronRight size={12} className="shrink-0 text-ink-muted" />
+                      </button>
+                    )}
                   </section>
 
                   {/* Source Version */}
@@ -968,6 +1265,15 @@ export function StudioPage() {
                   保存版本
                 </button>
               </div>
+              <button
+                type="button"
+                onClick={() => void handleExportBundle()}
+                disabled={!selected}
+                className="mb-3 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-xs font-medium text-ink-secondary hover:border-accent disabled:opacity-50"
+              >
+                <FolderOpen size={12} />
+                导出文章与引用素材
+              </button>
               <div className="space-y-4">
                 {revisions.map((revision, index) => (
                   <div key={revision.id} className="relative flex gap-3">

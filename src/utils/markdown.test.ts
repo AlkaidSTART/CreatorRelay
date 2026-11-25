@@ -25,7 +25,7 @@ describe("markdown helpers", () => {
     const original = "---\ntitle: Draft\ncustom_field: keep me\ntags: []\n---\n\n# Old body\n";
     const next = preserveFrontmatter(original, "# New body\n");
 
-    expect(next).toBe("---\ntitle: Draft\ncustom_field: keep me\ntags: []\n---\n# New body\n");
+    expect(next).toBe("---\ntitle: Draft\ncustom_field: keep me\ntags: []\n---\n\n# New body\n");
   });
 
   it("counts words in the body without counting frontmatter", () => {

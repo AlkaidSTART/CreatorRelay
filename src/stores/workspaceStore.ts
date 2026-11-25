@@ -91,6 +91,15 @@ export interface WorkspaceStore {
   saveState: SaveState;
   revisions: Revision[];
   recentExternalChange: string;
+  loadDocumentAssets: (path: string) => Promise<
+    Array<{
+      path: string;
+      mimeType: string;
+      size: number;
+      available: boolean;
+      warning: string | null;
+    }>
+  >;
   loading: boolean;
   initialized: boolean;
   setQuery: (query: string) => void;
@@ -101,6 +110,7 @@ export interface WorkspaceStore {
   loadRevisions: (path: string) => Promise<void>;
   checkExternalChange: () => Promise<void>;
   saveCurrentDocument: (options?: { silent?: boolean }) => Promise<boolean>;
+  exportBundle: (path: string, destination: string) => Promise<void>;
   chooseWorkspace: () => Promise<void>;
   selectDocumentSafely: (document: Document) => Promise<boolean>;
   createDocument: () => Promise<Document | null>;
@@ -242,7 +252,7 @@ const createWorkspaceStoreState: StateCreator<WorkspaceStore> = (set, get) => {
       if (!isTauri()) return;
       const state = get();
       const selected = state.documents.find((doc) => doc.id === state.selectedId);
-      if (!selected || !state.baseHash) return;
+      if (!selected || !state.baseHash || state.saveState === "saving") return;
       try {
         const disk = await invoke<{ content: string; contentHash: string }>("read_document", {
           path: selected.path,
@@ -250,6 +260,24 @@ const createWorkspaceStoreState: StateCreator<WorkspaceStore> = (set, get) => {
         set({ recentExternalChange: disk.contentHash === get().baseHash ? "" : selected.path });
       } catch (cause) {
         useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    },
+
+    loadDocumentAssets: async (path) => {
+      if (!isTauri()) return [];
+      try {
+        return await invoke<
+          Array<{
+            path: string;
+            mimeType: string;
+            size: number;
+            available: boolean;
+            warning: string | null;
+          }>
+        >("list_document_assets_for_document", { path });
+      } catch (cause) {
+        useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));
+        return [];
       }
     },
 
@@ -366,6 +394,18 @@ const createWorkspaceStoreState: StateCreator<WorkspaceStore> = (set, get) => {
           set({ saveState: "unsaved" });
           scheduleAutoSave();
         }
+      }
+    },
+
+    exportBundle: async (path, destination) => {
+      try {
+        await invoke("export_document_bundle", {
+          documentPath: path,
+          destinationPath: destination,
+        });
+      } catch (cause) {
+        useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));
+        throw cause;
       }
     },
 

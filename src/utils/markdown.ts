@@ -22,7 +22,7 @@ export function preserveFrontmatter(original: string, next: string) {
   if (!original.startsWith("---\n")) return next;
   const end = original.indexOf("\n---", 4);
   if (end < 0) return next;
-  const frontmatter = original.slice(0, end + 4);
+  const frontmatter = original.slice(0, end + 5);
   const nextBody = bodyFromMarkdown(next);
   return `${frontmatter}\n${nextBody}`;
 }

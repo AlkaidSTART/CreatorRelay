@@ -20,3 +20,28 @@ Each acceptance report must include:
 - Tests/build/manual checks with exact commands and outcomes, plus remaining risks, exclusions, and follow-up work.
 
 Treat implementation status and acceptance status separately: code presence or a passing build alone does not prove a milestone is accepted. Never infer completion or test results; report unknowns as `not verified`.
+
+## Milestone verification records
+
+Store verification activity and results in `progress/verification/`, using `M1-verification-YYYY-MM-DD.md`, `M2-verification-YYYY-MM-DD.md`, and the same pattern for later milestones.
+
+- Verification records contain exact commands, outcomes, AC snapshots, manual/platform evidence, and unverified gaps.
+- Milestone trackers must link to the relevant verification record from their stage summary; they must not duplicate command output or AC verification tables.
+- A verification record may record `partial`, `not verified`, or blockers. It is not an acceptance report and does not authorize acceptance.
+- Acceptance reports remain separate and are created only after all required AC pass, as specified above.
+
+## Milestone stage summaries
+
+Every milestone tracker under `progress/` (M1–M8) must maintain a `## 阶段任务总结` section. Update it after each meaningful implementation batch, blocker, verification run, scope change, or status change.
+
+The stage summary is implementation tracking, not an acceptance report. It may record `not started`, `in progress`, `partial`, `blocked`, or `not verified`. It must not be used as evidence that a milestone is accepted. Acceptance reports remain governed by the section above and may only be created after every required acceptance criterion passes.
+
+Each stage summary must state at least:
+
+- The summary date and scope.
+- The current implementation status.
+- Completed tasks, with links or file references where available.
+- The verification status and a link to the corresponding record under `progress/verification/`. Commands, AC snapshots, and manual evidence belong in that record, not in the milestone tracker.
+- Incomplete work and blockers.
+- Acceptance status (`not accepted`, `partial`, `accepted`, or equivalent) and the acceptance report path or `not created`.
+- The next step.
