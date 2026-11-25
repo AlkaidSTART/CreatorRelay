@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   ChevronsUpDown,
   FilePlus2,
+  FolderOpen,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -149,57 +150,15 @@ export function AppLayout() {
   }
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-canvas text-ink">
-      <motion.aside
-        className="relative z-10 flex h-full shrink-0 flex-col overflow-hidden border-r border-line bg-sidebar py-4"
-        initial={false}
-        animate={{ width: sidebarOpen ? 236 : 70 }}
-        transition={
-          reducedMotion
-            ? { duration: 0 }
-            : { type: "spring", stiffness: 360, damping: 36, mass: 0.8 }
-        }
-        aria-label="应用侧边栏"
-      >
-        {/* Brand Header */}
-        <div
-          className={`flex h-9 shrink-0 items-center justify-between gap-2 ${sidebarOpen ? "mx-3.5" : "mx-auto w-10"}`}
-        >
-          <button
-            type="button"
-            onClick={() => navigate("/dashboard")}
-            className="flex min-w-0 cursor-pointer items-center gap-2.5 text-left"
-          >
-            <img className="h-7 w-7 shrink-0 object-contain" src="/icon.svg" alt="CreatorRelay" />
-            <AnimatePresence initial={false}>
-              {sidebarOpen && (
-                <motion.div
-                  key="brand-label"
-                  initial={reducedMotion ? false : { opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={reducedMotion ? undefined : { opacity: 0, x: -4 }}
-                  transition={{
-                    duration: reducedMotion ? 0 : 0.15,
-                    delay: sidebarOpen && !reducedMotion ? 0.04 : 0,
-                  }}
-                  className="flex min-w-0 flex-col"
-                >
-                  <span className="whitespace-nowrap text-[14px] font-semibold tracking-tight text-ink">
-                    CreatorRelay
-                  </span>
-                  <span className="whitespace-nowrap text-[10px] text-ink-muted">
-                    一稿多发工作台
-                  </span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </button>
+    <div className="flex h-full w-full flex-col overflow-hidden bg-canvas text-ink">
+      {/* Fixed Top App & Workspace Bar */}
+      <header className="z-20 flex h-11 shrink-0 items-center justify-between gap-3 border-b border-line bg-sidebar/95 px-3.5">
+        <div className="flex min-w-0 items-center gap-2.5">
           <motion.button
             type="button"
-
             whileTap={reducedMotion ? undefined : { scale: 0.94 }}
             transition={{ duration: reducedMotion ? 0 : 0.12 }}
-            className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-md text-ink-muted outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
+            className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-md text-ink-muted outline-none hover:bg-hover/80 hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
             aria-label={sidebarOpen ? "收起侧边栏" : "展开侧边栏"}
             aria-expanded={sidebarOpen}
             title={sidebarOpen ? "收起侧边栏" : "展开侧边栏"}
@@ -207,68 +166,96 @@ export function AppLayout() {
           >
             {sidebarOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
           </motion.button>
+
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard")}
+            className="flex shrink-0 cursor-pointer items-center gap-2 text-left"
+          >
+            <img className="h-6 w-6 shrink-0 object-contain" src="/icon.svg" alt="CreatorRelay" />
+            <span className="whitespace-nowrap text-[13.5px] font-semibold tracking-tight text-ink">
+              CreatorRelay
+            </span>
+          </button>
+
+          <span className="h-4 w-px shrink-0 bg-line" aria-hidden="true" />
+
+          {/* Fixed Workspace Switcher */}
+          <button
+            type="button"
+            onClick={() => void chooseWorkspace()}
+            title={
+              workspace?.path
+                ? `当前工作空间：${workspace.path}（点击切换文件夹）`
+                : "选择本地工作空间文件夹"
+            }
+            aria-label={`切换工作空间文件夹：${workspace?.name ?? "未选择"}`}
+            className="group flex h-8 min-w-0 max-w-[440px] cursor-pointer items-center gap-2 rounded-xl border border-line bg-surface/95 px-2.5 text-left shadow-[0_1px_2px_rgba(74,58,48,0.03)] transition-colors hover:border-line-strong hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+          >
+            <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-accent-soft text-accent-deep">
+              <FolderOpen size={11} />
+            </span>
+            <span className="hidden shrink-0 text-[10.5px] text-ink-muted sm:inline">工作空间</span>
+            <strong className="truncate text-xs font-medium text-ink">
+              {workspace?.name ?? "选择文件夹"}
+            </strong>
+            {workspace?.path && (
+              <span className="hidden max-w-[200px] truncate font-mono text-[10px] text-ink-muted lg:inline">
+                {workspace.path}
+              </span>
+            )}
+            <ChevronsUpDown
+              size={11}
+              className="ml-0.5 shrink-0 text-ink-muted transition-colors group-hover:text-ink"
+            />
+          </button>
         </div>
 
-        {/* Workspace Switcher */}
-        <button
-          className={`mx-auto mt-3.5 flex h-9.5 shrink-0 cursor-pointer items-center overflow-hidden rounded-xl border border-line bg-surface/90 text-left shadow-[0_1px_2px_rgba(74,58,48,0.03)] transition-colors hover:border-line-strong hover:bg-surface ${sidebarOpen ? "w-[calc(100%-24px)] gap-2.5 px-2.5" : "w-10 justify-center self-center p-0"}`}
-          onClick={() => void chooseWorkspace()}
-          title={workspace?.name ?? "选择工作区"}
-          aria-label={sidebarOpen ? undefined : `工作区：${workspace?.name ?? "选择工作区"}`}
-        >
-          <span className="grid h-5.5 w-5.5 shrink-0 place-items-center rounded-md bg-accent-soft text-[11px] font-semibold text-accent-deep">
-            {workspace?.name.slice(0, 1).toUpperCase() ?? "C"}
-          </span>
-          <AnimatePresence initial={false}>
-            {sidebarOpen && (
-              <motion.span
-                key="workspace-label"
-                initial={reducedMotion ? false : { opacity: 0, x: -5 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={reducedMotion ? undefined : { opacity: 0, x: -4 }}
-                transition={{ duration: reducedMotion ? 0 : 0.14 }}
-                className="flex min-w-0 flex-1 items-center gap-2"
-              >
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <strong className="truncate text-xs font-medium text-ink">
-                    {workspace?.name ?? "选择工作区"}
-                  </strong>
-                  <small className="text-[10px] text-ink-muted">本地空间</small>
-                </span>
-                <ChevronsUpDown size={12} className="shrink-0 text-ink-muted" />
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </button>
+        <span className="hidden shrink-0 text-[11px] text-ink-muted md:inline">
+          一稿多发工作台
+        </span>
+      </header>
 
-        {/* Primary CTA — Adaptive Theme Accent */}
-        <motion.button
-          whileTap={reducedMotion ? undefined : { scale: 0.98 }}
-          transition={{ duration: reducedMotion ? 0 : 0.12 }}
-          className={`mx-auto mt-2.5 flex h-8.5 shrink-0 cursor-pointer items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-xl bg-accent text-xs font-medium text-accent-on shadow-sm transition-colors hover:bg-accent-hover ${sidebarOpen ? "w-[calc(100%-24px)] px-3" : "w-10 p-0"}`}
-          onClick={() => setIsCreating(true)}
-          title="新建文章 (⌘N)"
-          aria-label={sidebarOpen ? undefined : "新建文章"}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <motion.aside
+          className="relative z-10 flex h-full shrink-0 flex-col overflow-hidden border-r border-line bg-sidebar py-3"
+          initial={false}
+          animate={{ width: sidebarOpen ? 236 : 70 }}
+          transition={
+            reducedMotion
+              ? { duration: 0 }
+              : { type: "spring", stiffness: 360, damping: 36, mass: 0.8 }
+          }
+          aria-label="应用侧边栏"
         >
-          <Plus size={13} />
-          <AnimatePresence initial={false}>
-            {sidebarOpen && (
-              <motion.span
-                key="create-label"
-                initial={reducedMotion ? false : { opacity: 0, x: -5 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={reducedMotion ? undefined : { opacity: 0, x: -4 }}
-                transition={{ duration: reducedMotion ? 0 : 0.14 }}
-                className="flex min-w-0 flex-1 items-center whitespace-nowrap"
-              >
-                <span>新建文章</span>
-                <kbd className="ml-auto rounded bg-surface/18 px-1.5 py-0.5 text-[10px] font-normal text-white/90">
-                  ⌘N
-                </kbd>
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </motion.button>
+          {/* Primary CTA — Adaptive Theme Accent */}
+          <motion.button
+            whileTap={reducedMotion ? undefined : { scale: 0.98 }}
+            transition={{ duration: reducedMotion ? 0 : 0.12 }}
+            className={`mx-auto flex h-8.5 shrink-0 cursor-pointer items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-xl bg-accent text-xs font-medium text-accent-on shadow-sm transition-colors hover:bg-accent-hover ${sidebarOpen ? "w-[calc(100%-24px)] px-3" : "w-10 p-0"}`}
+            onClick={() => setIsCreating(true)}
+            title="新建文章 (⌘N)"
+            aria-label={sidebarOpen ? undefined : "新建文章"}
+          >
+            <Plus size={13} />
+            <AnimatePresence initial={false}>
+              {sidebarOpen && (
+                <motion.span
+                  key="create-label"
+                  initial={reducedMotion ? false : { opacity: 0, x: -5 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={reducedMotion ? undefined : { opacity: 0, x: -4 }}
+                  transition={{ duration: reducedMotion ? 0 : 0.14 }}
+                  className="flex min-w-0 flex-1 items-center whitespace-nowrap"
+                >
+                  <span>新建文章</span>
+                  <kbd className="ml-auto rounded bg-surface/18 px-1.5 py-0.5 text-[10px] font-normal text-white/90">
+                    ⌘N
+                  </kbd>
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.button>
 
         {/* Navigation */}
         <div
@@ -492,6 +479,7 @@ export function AppLayout() {
             </motion.div>
           </AnimatePresence>
         </div>
+      </div>
       </div>
 
       {/* Create Document Modal */}

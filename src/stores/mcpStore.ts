@@ -169,6 +169,7 @@ export interface McpStore {
   loadThreads: () => Promise<void>;
   createThread: () => Promise<void>;
   selectThread: (threadId: string) => Promise<void>;
+  deleteThread: (threadId: string) => Promise<void>;
   sendPrompt: (prompt: string) => Promise<void>;
   previewToolCall: (toolName: string, args: Record<string, unknown>) => Promise<void>;
   confirmPreview: () => Promise<McpCallResult | null>;
@@ -366,10 +367,18 @@ const createMcpStoreState: StateCreator<McpStore> = (set, get) => {
       set({ busyAction: "thread" });
       try {
         if (!isTauri()) {
-          set({
-            threads: [demoThread],
-            activeThread: { thread: demoThread, messages: [] },
-          });
+          const now = new Date().toISOString();
+          const created: AssistantThread = {
+            ...demoThread,
+            id: `demo-thread-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+            title: "新对话",
+            createdAt: now,
+            updatedAt: now,
+          };
+          set((state) => ({
+            threads: [created, ...state.threads],
+            activeThread: { thread: created, messages: [] },
+          }));
           return;
         }
         const thread = await invoke<AssistantThread>("create_assistant_thread", {
@@ -394,7 +403,8 @@ const createMcpStoreState: StateCreator<McpStore> = (set, get) => {
       set({ busyAction: "thread" });
       try {
         if (!isTauri()) {
-          set({ activeThread: { thread: demoThread, messages: [] } });
+          const target = get().threads.find((item) => item.id === threadId) ?? demoThread;
+          set({ activeThread: { thread: target, messages: [] } });
           return;
         }
         set({
@@ -404,6 +414,60 @@ const createMcpStoreState: StateCreator<McpStore> = (set, get) => {
         });
       } catch (cause) {
         set({ error: String(cause) });
+      } finally {
+        set({ busyAction: "" });
+      }
+    },
+
+    deleteThread: async (threadId) => {
+      set({ busyAction: "thread", error: "" });
+      try {
+        const wasActive = get().activeThread?.thread.id === threadId;
+        if (!isTauri()) {
+          let remaining = get().threads.filter((item) => item.id !== threadId);
+          if (remaining.length === 0) {
+            const now = new Date().toISOString();
+            remaining = [
+              {
+                ...demoThread,
+                id: `demo-thread-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+                title: "新对话",
+                createdAt: now,
+                updatedAt: now,
+              },
+            ];
+          }
+          set((state) => ({
+            threads: remaining,
+            activeThread:
+              wasActive || !state.activeThread
+                ? { thread: remaining[0], messages: [] }
+                : state.activeThread,
+          }));
+          useUiStore.getState().showToast("已删除任务会话");
+          return;
+        }
+        await invoke("delete_assistant_thread", { threadId });
+        let remaining = await invoke<AssistantThread[]>("list_assistant_threads");
+        if (remaining.length === 0) {
+          const created = await invoke<AssistantThread>("create_assistant_thread", {
+            title: null,
+            providerId: null,
+          });
+          remaining = [created];
+        }
+        const nextActive =
+          wasActive || !get().activeThread
+            ? await invoke<AssistantThreadDetail>("get_assistant_thread", {
+                threadId: remaining[0].id,
+              })
+            : get().activeThread;
+        set({ threads: remaining, activeThread: nextActive });
+        useUiStore.getState().showToast("已删除任务会话");
+      } catch (cause) {
+        const message = String(cause);
+        set({ error: message });
+        useUiStore.getState().showToast(message);
       } finally {
         set({ busyAction: "" });
       }

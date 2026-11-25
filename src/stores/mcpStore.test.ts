@@ -25,4 +25,25 @@ describe("MCP assistant store", () => {
     expect(result?.status).toBe("success");
     expect(store.getState().activePreview).toBeNull();
   });
+
+  it("creates and deletes assistant task threads cleanly", async () => {
+    const store = createMcpStore();
+    await store.getState().initialize();
+
+    const initialId = store.getState().threads[0].id;
+    await store.getState().createThread();
+    expect(store.getState().threads).toHaveLength(2);
+    const createdId = store.getState().activeThread?.thread.id;
+    expect(createdId).toBeTruthy();
+    expect(createdId).not.toBe(initialId);
+
+    await store.getState().deleteThread(createdId!);
+    expect(store.getState().threads).toHaveLength(1);
+    expect(store.getState().activeThread?.thread.id).toBe(initialId);
+
+    await store.getState().deleteThread(initialId);
+    expect(store.getState().threads).toHaveLength(1);
+    expect(store.getState().threads[0].id).not.toBe(initialId);
+    expect(store.getState().activeThread?.thread.id).toBe(store.getState().threads[0].id);
+  });
 });

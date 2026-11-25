@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Bot, PanelLeftClose, Plus, RefreshCw, Search, Server } from "../Icons";
+import { Bot, PanelLeftClose, Plus, RefreshCw, Search, Server, Trash2 } from "../Icons";
 import type { AssistantThread, McpHostStatus } from "../../types/mcp";
 
 function relativeTime(value: string) {
@@ -25,6 +25,7 @@ interface AssistantThreadRailProps {
   busyAction: string;
   onCreateThread: () => void;
   onSelectThread: (threadId: string) => void;
+  onDeleteThread: (threadId: string) => void;
   onCollapse: () => void;
   onOpenHostInspector: () => void;
   onHealthCheck: () => void;
@@ -38,6 +39,7 @@ export function AssistantThreadRail({
   busyAction,
   onCreateThread,
   onSelectThread,
+  onDeleteThread,
   onCollapse,
   onOpenHostInspector,
   onHealthCheck,
@@ -112,32 +114,49 @@ export function AssistantThreadRail({
         {filteredThreads.map((thread) => {
           const isActive = activeThreadId === thread.id;
           return (
-            <button
+            <div
               key={thread.id}
-              type="button"
-              onClick={() => onSelectThread(thread.id)}
-              className={`group flex w-full cursor-pointer flex-col gap-1 rounded-xl px-2.5 py-2 text-left transition-colors ${
+              className={`group relative rounded-xl transition-colors ${
                 isActive
                   ? "bg-surface text-ink shadow-[0_1px_4px_rgba(51,43,41,0.06)] ring-1 ring-line"
                   : "text-ink-secondary hover:bg-hover/70 hover:text-ink"
               }`}
             >
-              <div className="flex items-start gap-2">
-                <Bot
-                  size={12}
-                  className={`mt-0.5 shrink-0 ${
-                    isActive ? "text-accent" : "text-ink-muted group-hover:text-ink-secondary"
-                  }`}
-                />
-                <span className="line-clamp-2 min-w-0 flex-1 text-[12px] leading-snug font-medium">
-                  {thread.title}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2 pl-5 text-[10px] text-ink-muted">
-                <span className="truncate">{thread.providerName}</span>
-                <span className="shrink-0">{relativeTime(thread.updatedAt)}</span>
-              </div>
-            </button>
+              <button
+                type="button"
+                onClick={() => onSelectThread(thread.id)}
+                className="flex w-full cursor-pointer flex-col gap-1 rounded-xl py-2 pr-8 pl-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+              >
+                <div className="flex items-start gap-2">
+                  <Bot
+                    size={12}
+                    className={`mt-0.5 shrink-0 ${
+                      isActive ? "text-accent" : "text-ink-muted group-hover:text-ink-secondary"
+                    }`}
+                  />
+                  <span className="line-clamp-2 min-w-0 flex-1 text-[12px] leading-snug font-medium">
+                    {thread.title}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2 pl-5 text-[10px] text-ink-muted">
+                  <span className="truncate">{thread.providerName}</span>
+                  <span className="shrink-0">{relativeTime(thread.updatedAt)}</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onDeleteThread(thread.id);
+                }}
+                disabled={Boolean(busyAction)}
+                title="删除任务"
+                aria-label={`删除任务：${thread.title}`}
+                className="absolute top-1.5 right-1.5 grid h-6 w-6 cursor-pointer place-items-center rounded-lg text-ink-muted opacity-0 transition-all hover:bg-coral-bg hover:text-coral-text focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-coral-border group-hover:opacity-100 group-focus-within:opacity-100 disabled:pointer-events-none disabled:opacity-30"
+              >
+                <Trash2 size={11} />
+              </button>
+            </div>
           );
         })}
 

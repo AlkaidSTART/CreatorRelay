@@ -389,260 +389,252 @@ export function PlatformsPage() {
       />
 
       <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-7 py-6">
-          <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="平台类型筛选">
-            {categoryFilterOptions.map((option) => {
-              const count =
-                option.id === "ALL"
-                  ? accounts.length
-                  : accounts.filter((account) => account.category === option.id).length;
-              const selected = categoryFilter === option.id;
-              return (
-                <button
-                  key={option.id}
-                  role="tab"
-                  aria-selected={selected}
-                  onClick={() => setCategoryFilter(option.id)}
-                  className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-colors ${
-                    selected
-                      ? "border-accent bg-accent text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.22)]"
-                      : "border-line bg-surface text-ink-secondary hover:bg-subtle"
+        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="平台类型筛选">
+          {categoryFilterOptions.map((option) => {
+            const count =
+              option.id === "ALL"
+                ? accounts.length
+                : accounts.filter((account) => account.category === option.id).length;
+            const selected = categoryFilter === option.id;
+            return (
+              <button
+                key={option.id}
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setCategoryFilter(option.id)}
+                className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-colors ${
+                  selected
+                    ? "border-accent bg-accent text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.22)]"
+                    : "border-line bg-surface text-ink-secondary hover:bg-subtle"
+                }`}
+              >
+                <span>{option.label}</span>
+                <span
+                  className={`rounded-full px-1.5 text-[10px] ${
+                    selected ? "bg-surface/20 text-white" : "bg-sidebar text-ink-muted"
                   }`}
                 >
-                  <span>{option.label}</span>
-                  <span
-                    className={`rounded-full px-1.5 text-[10px] ${
-                      selected ? "bg-surface/20 text-white" : "bg-sidebar text-ink-muted"
-                    }`}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
-          {accounts.length === 0 ? (
-            <section className="rounded-2xl border border-dashed border-line-strong bg-surface p-10 text-center">
-              <div className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-accent-soft text-accent-deep">
-                <KeyRound size={19} />
-              </div>
-              <h2 className="mt-3 text-sm font-semibold text-ink">还没有平台账号</h2>
-              <p className="mx-auto mt-1 max-w-lg text-xs leading-relaxed text-ink-secondary">
-                添加账号后，CreatorRelay 会先验证平台返回的真实 UID/昵称，再把会话写入系统
-                Keychain。
-              </p>
-            </section>
-          ) : (
-            <div className="space-y-6">
-              {visibleGroups.map((group) => (
-                <section key={group.id} className="space-y-3">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-sm font-semibold text-ink">{group.label}</h2>
-                      <span className="rounded-md border border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-secondary">
-                        {group.accounts.length} 个账号
-                      </span>
-                    </div>
-                    <p className="text-xs text-ink-muted">{group.description}</p>
+        {accounts.length === 0 ? (
+          <section className="rounded-2xl border border-dashed border-line-strong bg-surface p-10 text-center">
+            <div className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-accent-soft text-accent-deep">
+              <KeyRound size={19} />
+            </div>
+            <h2 className="mt-3 text-sm font-semibold text-ink">还没有平台账号</h2>
+            <p className="mx-auto mt-1 max-w-lg text-xs leading-relaxed text-ink-secondary">
+              添加账号后，CreatorRelay 会先验证平台返回的真实 UID/昵称，再把会话写入系统 Keychain。
+            </p>
+          </section>
+        ) : (
+          <div className="space-y-6">
+            {visibleGroups.map((group) => (
+              <section key={group.id} className="space-y-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-semibold text-ink">{group.label}</h2>
+                    <span className="rounded-md border border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-secondary">
+                      {group.accounts.length} 个账号
+                    </span>
                   </div>
+                  <p className="text-xs text-ink-muted">{group.description}</p>
+                </div>
 
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    {group.accounts.map((account) => {
-                      const status = accountStatusLabel[account.status];
-                      const disabled = account.enabled === false;
-                      const busy = busyAccountId === account.id;
-                      const verifiedIdentity = account.nickname || account.uid;
-                      return (
-                        <article
-                          key={account.id}
-                          className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex min-w-0 items-center gap-3">
-                              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-white shadow-[0_1px_2px_rgba(35,28,25,0.04)]">
-                                <PlatformLogo
-                                  platformId={account.platformId}
-                                  platformName={account.platformName}
-                                  size={28}
-                                />
-                              </div>
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  <h3 className="truncate text-sm font-semibold text-ink">
-                                    {account.platformName} · {account.alias}
-                                  </h3>
-                                  {account.isDefault && (
-                                    <span className="rounded-md bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent-deep">
-                                      默认
-                                    </span>
-                                  )}
-                                </div>
-                                <small className="block truncate text-[11px] text-ink-muted">
-                                  {verifiedIdentity
-                                    ? `已验证：${account.nickname || "未提供昵称"} · UID ${account.uid}`
-                                    : "尚未验证平台身份"}
-                                </small>
-                                <small className="block truncate text-[11px] text-ink-muted">
-                                  认证方式：{authMethodLabel[account.authMode] ?? account.authMode}{" "}
-                                  · 检测：{formatCheckedAt(account.lastCheckedAt)}
-                                </small>
-                              </div>
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  {group.accounts.map((account) => {
+                    const status = accountStatusLabel[account.status];
+                    const disabled = account.enabled === false;
+                    const busy = busyAccountId === account.id;
+                    const verifiedIdentity = account.nickname || account.uid;
+                    return (
+                      <article
+                        key={account.id}
+                        className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-white shadow-[0_1px_2px_rgba(35,28,25,0.04)]">
+                              <PlatformLogo
+                                platformId={account.platformId}
+                                platformName={account.platformName}
+                                size={28}
+                              />
                             </div>
-                            <span
-                              className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-medium ${status.className}`}
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <h3 className="truncate text-sm font-semibold text-ink">
+                                  {account.platformName} · {account.alias}
+                                </h3>
+                                {account.isDefault && (
+                                  <span className="rounded-md bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent-deep">
+                                    默认
+                                  </span>
+                                )}
+                              </div>
+                              <small className="block truncate text-[11px] text-ink-muted">
+                                {verifiedIdentity
+                                  ? `已验证：${account.nickname || "未提供昵称"} · UID ${account.uid}`
+                                  : "尚未验证平台身份"}
+                              </small>
+                              <small className="block truncate text-[11px] text-ink-muted">
+                                认证方式：{authMethodLabel[account.authMode] ?? account.authMode} ·
+                                检测：{formatCheckedAt(account.lastCheckedAt)}
+                              </small>
+                            </div>
+                          </div>
+                          <span
+                            className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-medium ${status.className}`}
+                          >
+                            {account.status === "ACTIVE" ? (
+                              <CheckCircle2 size={11} />
+                            ) : (
+                              <ShieldAlert size={11} />
+                            )}
+                            {status.label}
+                          </span>
+                        </div>
+
+                        {account.lastError && (
+                          <p className="rounded-xl bg-coral-bg px-3 py-2 text-[11px] leading-relaxed text-coral-text">
+                            {account.lastError}
+                          </p>
+                        )}
+
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className="rounded-lg border border-line bg-canvas px-2 py-0.5 text-[11px] text-ink-secondary">
+                            作品读取：{capabilityLabel[account.capabilities.contentRead]}
+                          </span>
+                          <span className="rounded-lg border border-line bg-canvas px-2 py-0.5 text-[11px] text-ink-secondary">
+                            发布能力：{capabilityLabel[account.capabilities.contentPublish]}
+                          </span>
+                          <span className="rounded-lg border border-line bg-canvas px-2 py-0.5 text-[11px] text-ink-secondary">
+                            数据分析：{capabilityLabel[account.capabilities.analytics]}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+                          <div className="flex items-center gap-2 text-[11px] text-ink-muted">
+                            <span className="font-mono">
+                              profile: {account.profileId?.slice(0, 18) ?? "独立容器"}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              disabled={busy || disabled}
+                              onClick={() => void handleCheck(account)}
+                              className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg border border-line-strong bg-surface px-2.5 text-xs font-medium text-ink-secondary hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              {account.status === "ACTIVE" ? (
-                                <CheckCircle2 size={11} />
-                              ) : (
-                                <ShieldAlert size={11} />
-                              )}
-                              {status.label}
-                            </span>
-                          </div>
-
-                          {account.lastError && (
-                            <p className="rounded-xl bg-coral-bg px-3 py-2 text-[11px] leading-relaxed text-coral-text">
-                              {account.lastError}
-                            </p>
-                          )}
-
-                          <div className="flex flex-wrap gap-1.5">
-                            <span className="rounded-lg border border-line bg-canvas px-2 py-0.5 text-[11px] text-ink-secondary">
-                              作品读取：{capabilityLabel[account.capabilities.contentRead]}
-                            </span>
-                            <span className="rounded-lg border border-line bg-canvas px-2 py-0.5 text-[11px] text-ink-secondary">
-                              发布能力：{capabilityLabel[account.capabilities.contentPublish]}
-                            </span>
-                            <span className="rounded-lg border border-line bg-canvas px-2 py-0.5 text-[11px] text-ink-secondary">
-                              数据分析：{capabilityLabel[account.capabilities.analytics]}
-                            </span>
-                          </div>
-
-                          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
-                            <div className="flex items-center gap-2 text-[11px] text-ink-muted">
-                              <span className="font-mono">
-                                profile: {account.profileId?.slice(0, 18) ?? "独立容器"}
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap items-center justify-end gap-2">
-                              <button
-                                type="button"
-                                disabled={busy || disabled}
-                                onClick={() => void handleCheck(account)}
-                                className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg border border-line-strong bg-surface px-2.5 text-xs font-medium text-ink-secondary hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                <RefreshCw size={11} />
-                                检测状态
-                              </button>
-                              {!disabled && account.status !== "ACTIVE" && (
-                                <button
-                                  type="button"
-                                  disabled={busy}
-                                  onClick={() => void handleBeginAuth(account)}
-                                  className="inline-flex h-7 cursor-pointer items-center rounded-lg bg-accent px-2.5 text-xs font-medium text-accent-on hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  {account.status === "UNAUTHORIZED" ? "验证身份" : "重新授权"}
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => openEdit(account)}
-                                aria-label={`编辑 ${account.platformName} ${account.alias}`}
-                                className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg border border-line text-ink-secondary hover:bg-subtle"
-                              >
-                                <Pencil size={11} />
-                              </button>
+                              <RefreshCw size={11} />
+                              检测状态
+                            </button>
+                            {!disabled && account.status !== "ACTIVE" && (
                               <button
                                 type="button"
                                 disabled={busy}
-                                onClick={() => void handlePreviewDelete(account)}
-                                aria-label={`删除 ${account.platformName} ${account.alias}`}
-                                className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg border border-line text-coral-text hover:bg-coral-bg disabled:cursor-not-allowed disabled:opacity-50"
+                                onClick={() => void handleBeginAuth(account)}
+                                className="inline-flex h-7 cursor-pointer items-center rounded-lg bg-accent px-2.5 text-xs font-medium text-accent-on hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
                               >
-                                <Trash2 size={11} />
+                                {account.status === "UNAUTHORIZED" ? "验证身份" : "重新授权"}
                               </button>
-                            </div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => openEdit(account)}
+                              aria-label={`编辑 ${account.platformName} ${account.alias}`}
+                              className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg border border-line text-ink-secondary hover:bg-subtle"
+                            >
+                              <Pencil size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void handlePreviewDelete(account)}
+                              aria-label={`删除 ${account.platformName} ${account.alias}`}
+                              className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg border border-line text-coral-text hover:bg-coral-bg disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <Trash2 size={11} />
+                            </button>
                           </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                </section>
-              ))}
-            </div>
-          )}
-
-          <section className="space-y-3">
-            <div>
-              <h2 className="text-sm font-semibold text-ink">平台目录与认证能力</h2>
-              <p className="mt-1 text-xs text-ink-muted">
-                只有实际完成身份校验的方式标记为可用；OAuth、WebView 和人工流程不会互相伪装。
-              </p>
-            </div>
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
-              {visibleCatalog.map((platform) => (
-                <article
-                  key={platform.id}
-                  className="rounded-2xl border border-line bg-surface p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
-                      <PlatformLogo
-                        platformId={platform.id}
-                        platformName={platform.name}
-                        size={24}
-                      />
-                      <div>
-                        <h3 className="text-xs font-semibold text-ink">{platform.name}</h3>
-                        <p className="text-[10.5px] text-ink-muted">
-                          {platform.categoryLabel} · {platform.contentFormats}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAddPlatformId(platform.id);
-                        setAddAlias("");
-                      }}
-                      className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-lg border border-line px-2 text-[10.5px] font-medium text-ink-secondary hover:bg-subtle"
-                    >
-                      <Plus size={9} />
-                      添加
-                    </button>
-                  </div>
-                  <div className="mt-3 space-y-1.5">
-                    {platform.authMethods.map((method) => (
-                      <div
-                        key={method.method}
-                        className="flex items-start justify-between gap-2 rounded-lg bg-canvas px-2.5 py-1.5"
-                      >
-                        <div className="min-w-0">
-                          <strong className="block text-[10.5px] font-medium text-ink-secondary">
-                            {method.label}
-                          </strong>
-                          {method.reason && (
-                            <small className="block text-[10px] leading-relaxed text-ink-muted">
-                              {method.reason}
-                            </small>
-                          )}
                         </div>
-                        <span
-                          className={`shrink-0 rounded-md px-1.5 py-0.5 text-[9.5px] font-medium ${
-                            method.available
-                              ? "bg-mint-bg text-mint-text"
-                              : "bg-sidebar text-ink-muted"
-                          }`}
-                        >
-                          {method.available ? "可用" : "未开放"}
-                        </span>
-                      </div>
-                    ))}
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
+
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-ink">平台目录与认证能力</h2>
+            <p className="mt-1 text-xs text-ink-muted">
+              只有实际完成身份校验的方式标记为可用；OAuth、WebView 和人工流程不会互相伪装。
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            {visibleCatalog.map((platform) => (
+              <article key={platform.id} className="rounded-2xl border border-line bg-surface p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <PlatformLogo platformId={platform.id} platformName={platform.name} size={24} />
+                    <div>
+                      <h3 className="text-xs font-semibold text-ink">{platform.name}</h3>
+                      <p className="text-[10.5px] text-ink-muted">
+                        {platform.categoryLabel} · {platform.contentFormats}
+                      </p>
+                    </div>
                   </div>
-                </article>
-              ))}
-            </div>
-          </section>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddPlatformId(platform.id);
+                      setAddAlias("");
+                    }}
+                    className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-lg border border-line px-2 text-[10.5px] font-medium text-ink-secondary hover:bg-subtle"
+                  >
+                    <Plus size={9} />
+                    添加
+                  </button>
+                </div>
+                <div className="mt-3 space-y-1.5">
+                  {platform.authMethods.map((method) => (
+                    <div
+                      key={method.method}
+                      className="flex items-start justify-between gap-2 rounded-lg bg-canvas px-2.5 py-1.5"
+                    >
+                      <div className="min-w-0">
+                        <strong className="block text-[10.5px] font-medium text-ink-secondary">
+                          {method.label}
+                        </strong>
+                        {method.reason && (
+                          <small className="block text-[10px] leading-relaxed text-ink-muted">
+                            {method.reason}
+                          </small>
+                        )}
+                      </div>
+                      <span
+                        className={`shrink-0 rounded-md px-1.5 py-0.5 text-[9.5px] font-medium ${
+                          method.available
+                            ? "bg-mint-bg text-mint-text"
+                            : "bg-sidebar text-ink-muted"
+                        }`}
+                      >
+                        {method.available ? "可用" : "未开放"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
       </div>
 
       {addPlatformId && selectedPlatform && (

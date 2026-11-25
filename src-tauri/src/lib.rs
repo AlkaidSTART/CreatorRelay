@@ -32,6 +32,9 @@ mod workspace_support;
 pub(crate) use workspace_support::*;
 
 #[cfg(test)]
+#[path = "browser_probe.rs"]
+mod browser_probe;
+#[cfg(test)]
 #[path = "lib_tests.rs"]
 mod tests;
 
@@ -665,6 +668,11 @@ pub fn run() {
             commands::mcp::mcp_health_check,
             commands::creator_centers::list_creator_center_links,
             commands::creator_centers::save_creator_center_link,
+            commands::browser_bridge::creator_browser_status,
+            commands::browser_bridge::creator_browser_start,
+            commands::browser_bridge::creator_browser_stop,
+            commands::browser_bridge::creator_browser_open,
+            commands::browser_bridge::creator_browser_read_page,
             commands::mcp::list_platform_mcp_servers,
             commands::mcp::mcp_list_tools,
             commands::mcp::mcp_cancel_tool,
@@ -677,6 +685,7 @@ pub fn run() {
             commands::mcp::list_assistant_threads,
             commands::mcp::create_assistant_thread,
             commands::mcp::get_assistant_thread,
+            commands::mcp::delete_assistant_thread,
             commands::mcp::assistant_plan_message,
             commands::mcp::assistant_context_preview,
             commands::mcp::assistant_generate_reply

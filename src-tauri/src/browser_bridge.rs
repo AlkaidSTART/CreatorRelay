@@ -14,7 +14,6 @@ use std::{
 use url::Url;
 use uuid::Uuid;
 
-const DEFAULT_PORT: u16 = 9431;
 const MAX_DEBUGGER_JSON: usize = 2 * 1024 * 1024;
 const MAX_PAGE_TEXT: usize = 60_000;
 const MCP_PROFILE: &str = "creatorrelay-mcp-browser";
@@ -24,7 +23,7 @@ const MCP_PROFILE: &str = "creatorrelay-mcp-browser";
 pub struct BrowserBridgeStatus {
     pub state: String,
     pub endpoint: String,
-    pub profile_directory: String,
+    pub isolated_profile: bool,
     pub browser_version: Option<String>,
     pub current_platform_id: Option<String>,
     pub current_url: Option<String>,
@@ -46,7 +45,6 @@ pub struct BrowserPageSnapshot {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CdpTarget {
-    id: String,
     #[serde(rename = "type")]
     target_type: String,
     url: String,
@@ -59,11 +57,12 @@ struct CdpTarget {
 struct BrowserState {
     child: Option<Child>,
     profile_directory: PathBuf,
-    executable: PathBuf,
+    executable: Option<PathBuf>,
     browser_version: Option<String>,
     current_platform_id: Option<String>,
     current_url: Option<String>,
     last_error: Option<String>,
+    devtools_port: Option<u16>,
 }
 
 #[derive(Debug, Clone)]
@@ -74,7 +73,7 @@ pub struct BrowserBridge {
 
 impl BrowserBridge {
     pub fn new(data_directory: PathBuf) -> Result<Self, String> {
-        let executable = chrome_executable()?;
+        let executable = chrome_executable().ok();
         let profile_directory = data_directory.join(MCP_PROFILE);
         std::fs::create_dir_all(&profile_directory)
             .map_err(|error| format!("无法创建 MCP 浏览器专用配置：{error}"))?;
@@ -93,6 +92,7 @@ impl BrowserBridge {
                 current_platform_id: None,
                 current_url: None,
                 last_error: None,
+                devtools_port: None,
             })),
             data_directory,
         })
@@ -113,8 +113,11 @@ impl BrowserBridge {
                 "stopped"
             }
             .to_string(),
-            endpoint: format!("http://127.0.0.1:{DEFAULT_PORT}"),
-            profile_directory: state.profile_directory.to_string_lossy().into_owned(),
+            endpoint: state
+                .devtools_port
+                .map(|port| format!("http://127.0.0.1:{port}"))
+                .unwrap_or_default(),
+            isolated_profile: true,
             browser_version: state.browser_version.clone(),
             current_platform_id: state.current_platform_id.clone(),
             current_url: state.current_url.clone(),
@@ -134,8 +137,17 @@ impl BrowserBridge {
         }
         state.child = None;
         let profile = state.profile_directory.clone();
-        let child = Command::new(&state.executable)
-            .arg(format!("--remote-debugging-port={DEFAULT_PORT}"))
+        let executable = state
+            .executable
+            .clone()
+            .or_else(|| chrome_executable().ok())
+            .ok_or_else(|| {
+                "找不到 Google Chrome/Chromium；请安装 Chrome 或设置 CREATORRELAY_CHROME_PATH"
+                    .to_string()
+            })?;
+        state.executable = Some(executable.clone());
+        let child = Command::new(&executable)
+            .arg("--remote-debugging-port=0".to_string())
             .arg("--remote-debugging-address=127.0.0.1")
             .arg(format!("--user-data-dir={}", profile.display()))
             .arg("--no-first-run")
@@ -150,8 +162,10 @@ impl BrowserBridge {
         state.child = Some(child);
         state.last_error = None;
         drop(state);
-        let version = wait_for_devtools(Instant::now() + Duration::from_secs(12))?;
+        let (port, version) =
+            wait_for_devtools(&profile, Instant::now() + Duration::from_secs(15))?;
         let mut state = self.state.lock().map_err(|error| error.to_string())?;
+        state.devtools_port = Some(port);
         state.browser_version = version
             .get("Browser")
             .and_then(Value::as_str)
@@ -171,6 +185,7 @@ impl BrowserBridge {
         }
         state.current_platform_id = None;
         state.current_url = None;
+        state.devtools_port = None;
         Ok(status_view(&state))
     }
 
@@ -179,7 +194,6 @@ impl BrowserBridge {
         conn: &rusqlite::Connection,
         platform_id: &str,
     ) -> Result<BrowserPageSnapshot, String> {
-        let _ = self.start()?;
         let link = creator_centers::list(conn, Some(platform_id))?
             .into_iter()
             .next()
@@ -188,7 +202,14 @@ impl BrowserBridge {
         if allowed.scheme() != "https" || allowed.host_str().is_none() {
             return Err("仅允许访问已配置的 HTTPS 创作者中心地址".to_string());
         }
-        let page = open_or_reuse_tab(&allowed, &link.url)?;
+        let _ = self.start()?;
+        let port = self
+            .state
+            .lock()
+            .map_err(|error| error.to_string())?
+            .devtools_port
+            .ok_or_else(|| "Chrome DevTools 端口不可用".to_string())?;
+        let page = open_or_reuse_tab(port, &allowed, &link.url)?;
         let mut page = wait_for_page_text(&page, platform_id, &link.platform_name)?;
         page.platform_id = platform_id.to_string();
         page.platform_name = link.platform_name.clone();
@@ -199,10 +220,22 @@ impl BrowserBridge {
     }
 
     pub fn read_current_page(&self, platform_id: &str) -> Result<BrowserPageSnapshot, String> {
-        let state = self.state.lock().map_err(|error| error.to_string())?;
-        if state.child.is_none() {
+        let mut state = self.state.lock().map_err(|error| error.to_string())?;
+        let exited = match state.child.as_mut() {
+            Some(child) => child
+                .try_wait()
+                .map_err(|error| error.to_string())?
+                .is_some(),
+            None => true,
+        };
+        if exited {
+            state.child = None;
+            state.devtools_port = None;
             return Err("MCP 浏览器尚未启动".to_string());
         }
+        let port = state
+            .devtools_port
+            .ok_or_else(|| "Chrome DevTools 端口不可用".to_string())?;
         let platform = state
             .current_platform_id
             .clone()
@@ -217,7 +250,7 @@ impl BrowserBridge {
             .into_iter()
             .next()
             .ok_or_else(|| "没有该平台的创作者中心链接".to_string())?;
-        let targets = get_json(&format!("http://127.0.0.1:{DEFAULT_PORT}/json/list"))?;
+        let targets = get_json(&format!("http://127.0.0.1:{port}/json/list"))?;
         let page: CdpTarget = targets
             .as_array()
             .into_iter()
@@ -240,6 +273,19 @@ impl BrowserBridge {
     }
 }
 
+impl Drop for BrowserBridge {
+    fn drop(&mut self) {
+        if Arc::strong_count(&self.state) == 1 {
+            if let Ok(mut state) = self.state.lock() {
+                if let Some(mut child) = state.child.take() {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+            }
+        }
+    }
+}
+
 fn status_view(state: &BrowserState) -> BrowserBridgeStatus {
     BrowserBridgeStatus {
         state: if state.child.is_some() {
@@ -248,8 +294,11 @@ fn status_view(state: &BrowserState) -> BrowserBridgeStatus {
             "stopped"
         }
         .to_string(),
-        endpoint: format!("http://127.0.0.1:{DEFAULT_PORT}"),
-        profile_directory: state.profile_directory.to_string_lossy().into_owned(),
+        endpoint: state
+            .devtools_port
+            .map(|port| format!("http://127.0.0.1:{port}"))
+            .unwrap_or_default(),
+        isolated_profile: true,
         browser_version: state.browser_version.clone(),
         current_platform_id: state.current_platform_id.clone(),
         current_url: state.current_url.clone(),
@@ -322,16 +371,28 @@ fn which(name: &str) -> Result<PathBuf, String> {
         .ok_or_else(|| format!("未找到 {name}"))
 }
 
-fn wait_for_devtools(deadline: Instant) -> Result<Value, String> {
+fn wait_for_devtools(profile: &PathBuf, deadline: Instant) -> Result<(u16, Value), String> {
+    let port_file = profile.join("DevToolsActivePort");
     loop {
-        match get_json(&format!("http://127.0.0.1:{DEFAULT_PORT}/json/version")) {
-            Ok(value) => return Ok(value),
-            Err(error) if Instant::now() < deadline => {
-                let _ = error;
-                thread::sleep(Duration::from_millis(150));
+        if let Ok(contents) = std::fs::read_to_string(&port_file)
+            && let Some(port) = contents
+                .lines()
+                .next()
+                .and_then(|line| line.parse::<u16>().ok())
+        {
+            match get_json(&format!("http://127.0.0.1:{port}/json/version")) {
+                Ok(value) => return Ok((port, value)),
+                Err(error) if Instant::now() < deadline => {
+                    let _ = error;
+                    thread::sleep(Duration::from_millis(150));
+                }
+                Err(error) => return Err(format!("Chrome DevTools 端点未就绪：{error}")),
             }
-            Err(error) => return Err(format!("Chrome DevTools 端点未就绪：{error}")),
         }
+        if Instant::now() >= deadline {
+            return Err("Chrome 未在限时内创建随机 DevTools 端口".to_string());
+        }
+        thread::sleep(Duration::from_millis(150));
     }
 }
 
@@ -355,8 +416,8 @@ fn url_matches_platform(configured: &Url, candidate: &str) -> bool {
         .is_ok_and(|url| url.scheme() == "https" && url.host_str() == configured.host_str())
 }
 
-fn open_or_reuse_tab(configured: &Url, destination: &str) -> Result<CdpTarget, String> {
-    let targets = get_json(&format!("http://127.0.0.1:{DEFAULT_PORT}/json/list"))?;
+fn open_or_reuse_tab(port: u16, configured: &Url, destination: &str) -> Result<CdpTarget, String> {
+    let targets = get_json(&format!("http://127.0.0.1:{port}/json/list"))?;
     let reusable = targets
         .as_array()
         .into_iter()
@@ -379,11 +440,11 @@ fn open_or_reuse_tab(configured: &Url, destination: &str) -> Result<CdpTarget, S
         });
     }
     let url = format!(
-        "http://127.0.0.1:{DEFAULT_PORT}/json/new?{}",
+        "http://127.0.0.1:{port}/json/new?{}",
         percent_encode(destination)
     );
-    let response = ureq::get(&url)
-        .call()
+    let response = ureq::put(&url)
+        .send_empty()
         .map_err(|error| format!("无法创建平台标签页：{error}"))?;
     let mut bytes = Vec::new();
     response
@@ -401,22 +462,41 @@ fn wait_for_page_text(
     platform_name: &str,
 ) -> Result<BrowserPageSnapshot, String> {
     let platform = Url::parse(&target.url).map_err(|error| error.to_string())?;
-    let result = cdp_command(
-        &target.websocket_url,
-        "Runtime.evaluate",
-        serde_json::json!({
-            "expression": "JSON.stringify({title:document.title,url:location.href,text:(document.body?.innerText||'').slice(0,60000)})",
-            "returnByValue": true,
-            "awaitPromise": true,
-            "userGesture": false
-        }),
-    )?;
-    let value = result
-        .pointer("/result/result/value")
-        .and_then(Value::as_str)
-        .ok_or_else(|| "页面未返回可见文本".to_string())?;
-    let value: Value =
-        serde_json::from_str(value).map_err(|error| format!("页面快照解析失败：{error}"))?;
+    let deadline = Instant::now() + Duration::from_secs(15);
+    let value = loop {
+        let result = cdp_command(
+            &target.websocket_url,
+            "Runtime.evaluate",
+            serde_json::json!({
+                "expression": "JSON.stringify({title:document.title,url:location.href,text:(document.body?.innerText||'').slice(0,60000)})",
+                "returnByValue": true,
+                "awaitPromise": true,
+                "userGesture": false
+            }),
+        )?;
+        if let Some(raw) = result
+            .pointer("/result/result/value")
+            .and_then(Value::as_str)
+            && let Ok(value) = serde_json::from_str::<Value>(raw)
+            && value
+                .get("url")
+                .and_then(Value::as_str)
+                .is_some_and(|url| !url.starts_with("about:"))
+            && value
+                .get("text")
+                .and_then(Value::as_str)
+                .is_some_and(|text| !text.trim().is_empty())
+        {
+            break value;
+        }
+        if Instant::now() >= deadline {
+            return Err(
+                "页面尚未呈现可读正文；登录或页面初始化后可重试 creator_browser_read_page"
+                    .to_string(),
+            );
+        }
+        thread::sleep(Duration::from_millis(300));
+    };
     let url = value
         .get("url")
         .and_then(Value::as_str)
@@ -609,6 +689,39 @@ mod tests {
             "http://creator.douyin.com/"
         ));
     }
+    #[test]
+    fn live_isolated_chrome_can_load_a_creator_center() {
+        if std::env::var("CREATORRELAY_LIVE_BROWSER_TEST").as_deref() != Ok("1") {
+            return;
+        }
+        let temp = tempfile::tempdir().unwrap();
+        let mut conn =
+            rusqlite::Connection::open(temp.path().join("creatorrelay.sqlite3")).unwrap();
+        crate::database::migrate(&mut conn).unwrap();
+        let bridge = BrowserBridge::new(temp.path().to_path_buf()).unwrap();
+        let page = bridge.open_creator_center(&conn, "xiaohongshu").unwrap();
+        assert_eq!(page.platform_id, "xiaohongshu");
+        assert!(page.url.starts_with("https://creator.xiaohongshu.com/"));
+        assert!(!page.title.trim().is_empty());
+        assert!(!page.text.trim().is_empty());
+        assert!(
+            page.url.contains("login")
+                || page.text.contains("登录")
+                || page.text.contains("扫码")
+                || page.text.contains("笔记"),
+            "页面没有呈现可识别的登录或创作中心内容：{}",
+            page.text
+        );
+        println!(
+            "LIVE_CREATOR_BROWSER platform={} title={} url={} body_chars={}",
+            page.platform_id,
+            page.title,
+            page.url,
+            page.text.chars().count()
+        );
+        bridge.stop().unwrap();
+    }
+
     #[test]
     fn page_snapshot_text_is_bounded_and_does_not_use_cdp_source() {
         assert!(MAX_PAGE_TEXT >= 10_000);

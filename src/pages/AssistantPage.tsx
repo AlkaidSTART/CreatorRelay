@@ -208,6 +208,7 @@ export function AssistantPage() {
             busyAction={mcp.busyAction}
             onCreateThread={() => void mcp.createThread()}
             onSelectThread={(threadId) => void mcp.selectThread(threadId)}
+            onDeleteThread={(threadId) => void mcp.deleteThread(threadId)}
             onCollapse={() => setThreadRailOpen(false)}
             onOpenHostInspector={() => setInspectorTab("mcp")}
             onHealthCheck={() => void mcp.healthCheck()}

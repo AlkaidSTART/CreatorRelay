@@ -135,6 +135,15 @@ pub(crate) fn get_assistant_thread(
 }
 
 #[tauri::command]
+pub(crate) fn delete_assistant_thread(
+    thread_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|error| error.to_string())?;
+    mcp::delete_assistant_thread(&conn, &thread_id)
+}
+
+#[tauri::command]
 pub(crate) fn assistant_plan_message(
     prompt: String,
     thread_id: Option<String>,

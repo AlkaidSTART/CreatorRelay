@@ -439,6 +439,7 @@ const createWorkspaceStoreState: StateCreator<WorkspaceStore> = (set, get) => {
           await get().loadDocument(items[0]);
           await get().loadRevisions(items[0].path);
         }
+        ui.showToast(`已切换工作空间：${next.name}`, 1800);
       } catch (cause) {
         ui.setError(cause instanceof Error ? cause.message : String(cause));
       }

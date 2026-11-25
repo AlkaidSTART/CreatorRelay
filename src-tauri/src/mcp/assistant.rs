@@ -143,6 +143,23 @@ pub fn get_assistant_thread(
     Ok(AssistantThreadDetail { thread, messages })
 }
 
+pub fn delete_assistant_thread(conn: &Connection, thread_id: &str) -> Result<(), String> {
+    let _ = get_thread_row(conn, thread_id)?;
+    conn.execute(
+        "UPDATE mcp_tool_audit SET thread_id=NULL WHERE thread_id=?1",
+        [thread_id],
+    )
+    .map_err(|error| format!("清理对话审计关联失败：{error}"))?;
+    conn.execute(
+        "DELETE FROM assistant_messages WHERE thread_id=?1",
+        [thread_id],
+    )
+    .map_err(|error| format!("删除对话消息失败：{error}"))?;
+    conn.execute("DELETE FROM assistant_threads WHERE id=?1", [thread_id])
+        .map_err(|error| format!("删除助手对话失败：{error}"))?;
+    Ok(())
+}
+
 pub(super) fn append_assistant_message(
     conn: &Connection,
     thread_id: &str,
@@ -606,4 +623,48 @@ pub fn default_context_scope(conn: &Connection) -> Result<ModelContextScope, Str
     Ok(context_scope_from_setting(
         &get_settings(conn)?.default_context_scope,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::database;
+
+    #[test]
+    fn delete_assistant_thread_removes_messages_and_detaches_audit() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        database::migrate(&mut conn).unwrap();
+
+        let thread = create_assistant_thread(&conn, Some("待删除任务".into()), None).unwrap();
+        let _plan = plan_assistant_message(&conn, "查询账号", Some(&thread.id)).unwrap();
+        conn.execute(
+            "INSERT INTO mcp_tool_audit(
+                id, thread_id, call_id, server_id, tool_name, permission, status, started_at
+             ) VALUES('audit-1', ?1, 'call-1', 'srv-1', 'account_get_info', 'read', 'success', '2026-11-25T00:00:00Z')",
+            [&thread.id],
+        )
+        .unwrap();
+
+        delete_assistant_thread(&conn, &thread.id).unwrap();
+
+        assert!(get_assistant_thread(&conn, &thread.id).is_err());
+        assert!(list_assistant_threads(&conn).unwrap().is_empty());
+        let msg_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM assistant_messages WHERE thread_id=?1",
+                [&thread.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(msg_count, 0);
+        let audit_thread_id: Option<String> = conn
+            .query_row(
+                "SELECT thread_id FROM mcp_tool_audit WHERE id='audit-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(audit_thread_id, None);
+        assert!(delete_assistant_thread(&conn, &thread.id).is_err());
+    }
 }

@@ -1,4 +1,5 @@
 pub(crate) mod ai;
+pub(crate) mod browser_bridge;
 pub(crate) mod content;
 pub(crate) mod creator_centers;
 pub(crate) mod ecosystem;
