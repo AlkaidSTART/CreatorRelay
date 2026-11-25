@@ -13,7 +13,7 @@ const platformSnapshots = [
     followers: "3,420",
     capturedAt: "今天 09:30",
     barPercent: 82,
-    goalLabel: "月目标达成 82%",
+    goalLabel: "月目标达成",
   },
   {
     platform: "Bilibili",
@@ -24,7 +24,7 @@ const platformSnapshots = [
     followers: "5,180",
     capturedAt: "今天 08:15",
     barPercent: 95,
-    goalLabel: "月目标达成 95%",
+    goalLabel: "月目标达成",
   },
   {
     platform: "知乎",
@@ -35,7 +35,7 @@ const platformSnapshots = [
     followers: "1,890",
     capturedAt: "昨天 21:00",
     barPercent: 54,
-    goalLabel: "月目标达成 54%",
+    goalLabel: "月目标达成",
   },
   {
     platform: "CSDN",
@@ -46,7 +46,7 @@ const platformSnapshots = [
     followers: "2,210",
     capturedAt: "今天 09:00",
     barPercent: 66,
-    goalLabel: "月目标达成 66%",
+    goalLabel: "月目标达成",
   },
 ];
 
@@ -61,21 +61,21 @@ export function AnalyticsPage() {
   const setRange = useContentStore((state) => state.setAnalyticsRange);
 
   return (
-    <main className="flex h-full min-w-0 flex-col bg-[#FAF8F3]">
+    <main className="flex h-full min-w-0 flex-col bg-[#FAFAFB]">
       <PageHeader
         eyebrow="ANALYTICS"
         title="数据分析"
-        description="按账号、平台与时间维度观察创作增长，保留各平台真实指标名称与采集时间，不混算失真。"
+        description="按账号、平台与时间维度观察创作增长，保留各平台真实指标名称与采集时间。"
         actions={
-          <div className="flex items-center rounded-xl border border-[#E6E2D8] bg-[#F4F1EA] p-0.5">
+          <div className="flex items-center rounded-lg bg-[#F5F5F7] p-0.5">
             {rangeOptions.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setRange(item.id)}
-                className={`h-7 cursor-pointer rounded-lg px-2.5 text-xs font-medium transition-all ${
+                className={`h-7 cursor-pointer rounded-md px-2.5 text-xs font-medium transition-all ${
                   range === item.id
-                    ? "bg-white text-[#233A29] shadow-2xs"
-                    : "text-[#6B726B] hover:text-[#1E241E]"
+                    ? "bg-white text-[#1D1D1F] shadow-2xs"
+                    : "text-[#6E6E73] hover:text-[#1D1D1F]"
                 }`}
               >
                 {item.label}
@@ -92,48 +92,45 @@ export function AnalyticsPage() {
             return (
               <article
                 key={item.platform}
-                className="rounded-2xl border border-[#E6E2D8] bg-white p-5 transition-all hover:border-[#D4CEC2]"
+                className="rounded-xl border border-black/[0.07] bg-white p-5"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl text-xs font-semibold ${visual.avatarClass}`}
-                    >
-                      {visual.mark}
+                  <div>
+                    <div className="flex items-center gap-1.5 text-[11px] text-[#8E8E93]">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: visual.color }}
+                      />
+                      <span>{item.sourceMetricName}</span>
                     </div>
-                    <div>
-                      <span className="text-[11px] font-medium text-[#7D847D]">
-                        {item.sourceMetricName}
-                      </span>
-                      <h2 className="text-base font-semibold text-[#1E241E]">
-                        {item.platform} · {item.account}
-                      </h2>
-                    </div>
+                    <h2 className="mt-1 text-base font-semibold text-[#1D1D1F]">
+                      {item.platform} · {item.account}
+                    </h2>
                   </div>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-[#E8F6EE] px-2.5 py-0.5 text-xs font-semibold text-[#1E7548]">
+                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
                     <TrendingUp size={11} /> {item.delta}
                   </span>
                 </div>
 
-                <div className="mt-5 mb-2.5 flex items-baseline justify-between">
-                  <strong className="text-3xl font-semibold tracking-tight tabular-nums text-[#1E241E]">
+                <div className="mt-4 mb-2.5 flex items-baseline justify-between">
+                  <strong className="text-3xl font-semibold tracking-tight tabular-nums text-[#1D1D1F]">
                     {item.value}
                   </strong>
-                  <span className="text-xs font-medium text-[#646B64]">粉丝 {item.followers}</span>
+                  <span className="text-xs text-[#6E6E73]">粉丝 {item.followers}</span>
                 </div>
 
-                <div className="mb-1.5 flex items-center justify-between text-[11px] text-[#7D847D]">
+                <div className="mb-1.5 flex items-center justify-between text-[11px] text-[#8E8E93]">
                   <span>{item.goalLabel}</span>
                   <span className="font-mono">{item.barPercent}%</span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-[#F2EFE8]" aria-hidden="true">
+                <div className="h-1.5 overflow-hidden rounded-full bg-[#F2F2F5]" aria-hidden="true">
                   <div
-                    className="h-full rounded-full transition-all duration-300"
+                    className="h-full rounded-full"
                     style={{ width: `${item.barPercent}%`, backgroundColor: visual.barColor }}
                   />
                 </div>
 
-                <div className="mt-4 flex items-center justify-between border-t border-[#F2EFE8] pt-3 text-[11px] text-[#858B83]">
+                <div className="mt-3.5 flex items-center justify-between border-t border-black/[0.05] pt-3 text-[11px] text-[#8E8E93]">
                   <span className="inline-flex items-center gap-1">
                     <BarChart3 size={11} />
                     统计窗口：{rangeOptions.find((r) => r.id === range)?.label}

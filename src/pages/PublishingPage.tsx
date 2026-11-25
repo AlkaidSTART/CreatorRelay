@@ -13,12 +13,12 @@ import { useContentStore, useUiStore } from "../stores";
 import { getPlatformVisual } from "../utils/platformStyle";
 
 const statusMeta: Record<PublishTaskStatus, { label: string; className: string }> = {
-  PENDING: { label: "等待执行", className: "bg-[#F4F1EA] text-[#646B64]" },
-  SCHEDULED: { label: "定时发布", className: "bg-[#EEF4FF] text-[#1E60D5]" },
-  PUBLISHING: { label: "发布中", className: "bg-[#EEF4FF] text-[#1E60D5]" },
-  SUCCESS: { label: "发布成功", className: "bg-[#E8F6EE] text-[#1E7548]" },
-  FAILED: { label: "需核对重试", className: "bg-[#FDEEEE] text-[#C23B3B]" },
-  NEEDS_MANUAL_ACTION: { label: "待你确认", className: "bg-[#FDF3DC] text-[#9A6314]" },
+  PENDING: { label: "等待执行", className: "bg-[#F5F5F7] text-[#6E6E73]" },
+  SCHEDULED: { label: "定时发布", className: "bg-[#EFF6FF] text-[#2563EB]" },
+  PUBLISHING: { label: "发布中", className: "bg-[#EFF6FF] text-[#2563EB]" },
+  SUCCESS: { label: "发布成功", className: "bg-emerald-50 text-emerald-700" },
+  FAILED: { label: "需核对重试", className: "bg-red-50 text-red-700" },
+  NEEDS_MANUAL_ACTION: { label: "待你确认", className: "bg-amber-50 text-amber-700" },
 };
 
 const filterOptions: Array<{ id: "ALL" | PublishTaskStatus; label: string }> = [
@@ -42,21 +42,21 @@ export function PublishingPage() {
     filter === "ALL" ? publishTasks : publishTasks.filter((task) => task.status === filter);
 
   return (
-    <main className="flex h-full min-w-0 flex-col bg-[#FAF8F3]">
+    <main className="flex h-full min-w-0 flex-col bg-[#FAFAFB]">
       <PageHeader
-        eyebrow="PUBLISHING RELAY"
+        eyebrow="PUBLISHING"
         title="发布中心"
-        description="把一篇主稿拆分成各平台独立适配任务，单平台失败互不影响，确认封面与标签后即可安心发布。"
+        description="把一篇主稿拆分成各平台独立适配任务，单平台失败互不影响，确认封面与标签后即可发布。"
         actions={
           <button
-            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl bg-[#2F4A36] px-3.5 text-xs font-medium text-white shadow-xs transition-colors hover:bg-[#233A29]"
+            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-[#2563EB] px-3 text-xs font-medium text-white shadow-[0_1px_2px_rgba(37,99,235,0.25)] transition-colors hover:bg-[#1D4ED8]"
             onClick={() => {
-              showToast("在写作空间顶部的「一键接力分发」栏即可快速加入发布队列");
+              showToast("在写作空间顶部的「分发到平台」栏即可一键加入发布队列");
               navigate("/studio");
             }}
           >
             <Plus size={13} />
-            从主稿发起接力
+            从主稿发起分发
           </button>
         }
       />
@@ -74,18 +74,16 @@ export function PublishingPage() {
                 role="tab"
                 aria-selected={filter === option.id}
                 onClick={() => setFilter(option.id)}
-                className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-colors ${
+                className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${
                   filter === option.id
-                    ? "border-[#2F4A36] bg-[#2F4A36] text-white"
-                    : "border-[#E3DED2] bg-white text-[#545C54] hover:border-[#CFC8B9] hover:bg-[#FDFCF9]"
+                    ? "border-[#1D1D1F] bg-[#1D1D1F] text-white"
+                    : "border-black/[0.08] bg-white text-[#58585D] hover:bg-[#F5F5F7]"
                 }`}
               >
                 <span>{option.label}</span>
                 <span
-                  className={`rounded-full px-1.5 py-0.2 text-[10px] ${
-                    filter === option.id
-                      ? "bg-white/20 text-white"
-                      : "bg-[#F4F1EA] text-[#7D847D]"
+                  className={`rounded-full px-1.5 text-[10px] ${
+                    filter === option.id ? "bg-white/20 text-white" : "bg-[#F5F5F7] text-[#8E8E93]"
                   }`}
                 >
                   {count}
@@ -102,36 +100,40 @@ export function PublishingPage() {
             return (
               <article
                 key={task.id}
-                className="flex flex-col justify-between gap-4 rounded-2xl border border-[#E6E2D8] bg-white p-5 transition-all hover:border-[#D4CEC2] sm:flex-row sm:items-center"
+                className="flex flex-col justify-between gap-4 rounded-xl border border-black/[0.07] bg-white p-5 transition-colors hover:border-black/[0.13] sm:flex-row sm:items-center"
               >
                 <div className="flex min-w-0 flex-1 items-start gap-3.5">
-                  <div
-                    className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl text-xs font-semibold ${visual.avatarClass}`}
-                  >
-                    {task.platformMark}
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-black/[0.07] bg-[#FAFAFB] text-xs font-semibold text-[#1D1D1F]">
+                    <span className="flex items-center gap-1">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: visual.color }}
+                      />
+                      {task.platformMark}
+                    </span>
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <strong className="text-sm font-semibold text-[#1E241E]">
+                      <strong className="text-sm font-medium text-[#1D1D1F]">
                         {task.articleTitle}
                       </strong>
                       <span
-                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${meta.className}`}
+                        className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${meta.className}`}
                       >
                         {meta.label}
                       </span>
                     </div>
-                    <small className="mt-1 block text-xs text-[#858B83]">
+                    <small className="mt-1 block text-xs text-[#8E8E93]">
                       {task.platform} · {task.accountAlias} · 更新于 {task.updatedAt}
                       {task.scheduledAt ? ` · 计划时间 ${task.scheduledAt}` : ""}
                     </small>
-                    <p className="mt-1.5 text-xs leading-relaxed text-[#646B64]">{task.note}</p>
+                    <p className="mt-1.5 text-xs leading-relaxed text-[#6E6E73]">{task.note}</p>
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {task.status === "NEEDS_MANUAL_ACTION" && (
                     <button
-                      className="inline-flex h-8.5 cursor-pointer items-center gap-1.5 rounded-xl bg-[#2F4A36] px-3.5 text-xs font-medium text-white shadow-xs transition-colors hover:bg-[#233A29]"
+                      className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-[#2563EB] px-3 text-xs font-medium text-white transition-colors hover:bg-[#1D4ED8]"
                       onClick={() => completePublishTask(task.id)}
                     >
                       <ExternalLink size={12} />
@@ -140,7 +142,7 @@ export function PublishingPage() {
                   )}
                   {task.status === "FAILED" && (
                     <button
-                      className="inline-flex h-8.5 cursor-pointer items-center gap-1.5 rounded-xl border border-[#E4D1AC] bg-[#FFFBF2] px-3.5 text-xs font-medium text-[#7A5416] transition-colors hover:bg-[#FDF3DC]"
+                      className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-black/[0.1] bg-white px-3 text-xs font-medium text-[#1D1D1F] hover:bg-[#F5F5F7]"
                       onClick={() => retryPublishTask(task.id)}
                     >
                       <RefreshCw size={12} />
@@ -148,12 +150,12 @@ export function PublishingPage() {
                     </button>
                   )}
                   {task.status === "SCHEDULED" && (
-                    <span className="inline-flex items-center gap-1.5 rounded-xl bg-[#EEF4FF] px-3 py-1.5 text-xs font-medium text-[#1E60D5]">
+                    <span className="inline-flex items-center gap-1.5 text-xs text-[#6E6E73]">
                       <Clock3 size={12} /> 定时排队中
                     </span>
                   )}
                   {task.status === "SUCCESS" && (
-                    <span className="inline-flex items-center gap-1.5 rounded-xl bg-[#E8F6EE] px-3 py-1.5 text-xs font-medium text-[#1E7548]">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600">
                       <CheckCircle2 size={12} /> 已归档外部链接
                     </span>
                   )}
@@ -163,9 +165,9 @@ export function PublishingPage() {
           })}
 
           {!visibleTasks.length && (
-            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-[#E6E2D8] bg-white py-14 text-[#858B83]">
+            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-black/[0.07] bg-white py-14 text-[#8E8E93]">
               <AlertCircle size={20} />
-              <strong className="text-xs font-medium text-[#545C54]">
+              <strong className="text-xs font-medium text-[#58585D]">
                 当前筛选条件下暂无发布任务
               </strong>
             </div>

@@ -389,7 +389,7 @@ export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
         platformName: "掘金",
         accountAlias: "技术主号",
         metricLabel: "文章阅读（掘金口径）",
-        color: "#1E80FF",
+        color: "#6B9ED4",
         values: [1120, 1480, 1360, 2240, 2680, 2410, 2950],
       },
       {
@@ -397,7 +397,7 @@ export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
         platformName: "Bilibili",
         accountAlias: "林工视频号",
         metricLabel: "视频播放（Bilibili 口径）",
-        color: "#FB7299",
+        color: "#E38AA6",
         values: [2840, 3420, 3190, 3860, 4290, 4610, 5120],
       },
       {
@@ -405,7 +405,7 @@ export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
         platformName: "CSDN",
         accountAlias: "Rust 专栏号",
         metricLabel: "博客阅读（CSDN 口径）",
-        color: "#E05A2B",
+        color: "#E39472",
         values: [890, 1020, 1180, 1290, 1410, 1340, 1580],
       },
       {
@@ -413,7 +413,7 @@ export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
         platformName: "知乎",
         accountAlias: "林工笔记",
         metricLabel: "专栏浏览（知乎口径）",
-        color: "#2F7D5B",
+        color: "#68B692",
         values: [640, 720, 810, 960, 1120, 1380, 1490],
       },
     ],
@@ -438,7 +438,7 @@ export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
         platformName: "掘金",
         accountAlias: "技术主号",
         metricLabel: "文章阅读（掘金口径）",
-        color: "#1E80FF",
+        color: "#6B9ED4",
         values: [1420, 1680, 1950, 1810, 2190, 2480, 2320, 2610, 2890, 3120, 3450],
       },
       {
@@ -446,7 +446,7 @@ export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
         platformName: "Bilibili",
         accountAlias: "林工视频号",
         metricLabel: "视频播放（Bilibili 口径）",
-        color: "#FB7299",
+        color: "#E38AA6",
         values: [2150, 2480, 2760, 3120, 2980, 3540, 3890, 4120, 4380, 4760, 5120],
       },
       {
@@ -454,7 +454,7 @@ export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
         platformName: "CSDN",
         accountAlias: "Rust 专栏号",
         metricLabel: "博客阅读（CSDN 口径）",
-        color: "#E05A2B",
+        color: "#E39472",
         values: [780, 860, 940, 1080, 1150, 1210, 1190, 1340, 1420, 1490, 1580],
       },
       {
@@ -462,7 +462,7 @@ export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
         platformName: "知乎",
         accountAlias: "林工笔记",
         metricLabel: "专栏浏览（知乎口径）",
-        color: "#2F7D5B",
+        color: "#68B692",
         values: [520, 610, 690, 740, 820, 890, 970, 1050, 1180, 1340, 1490],
       },
     ],

@@ -84,17 +84,17 @@ export function AppLayout() {
 
   if (loading) {
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-white text-[#6E6E73]">
+      <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-[#FAF7F4] text-[#6F6561]">
         <img className="h-9 w-9 animate-pulse object-contain" src="/icon.svg" alt="" />
-        <span className="text-xs text-[#8E8E93]">正在整理工作区...</span>
+        <span className="text-xs text-[#9A8F8A]">正在整理工作区...</span>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-white text-[#1D1D1F]">
+    <div className="flex h-full w-full overflow-hidden bg-[#FAF7F4] text-[#332B29]">
       <motion.aside
-        className="relative z-10 flex h-full shrink-0 flex-col overflow-hidden border-r border-black/[0.07] bg-[#F5F5F7] py-4"
+        className="relative z-10 flex h-full shrink-0 flex-col overflow-hidden border-r border-[#EAE2D9] bg-[#F4EFEA] py-4"
         initial={false}
         animate={{ width: sidebarOpen ? 236 : 70 }}
         transition={
@@ -127,10 +127,10 @@ export function AppLayout() {
                   }}
                   className="flex min-w-0 flex-col"
                 >
-                  <span className="whitespace-nowrap text-[14px] font-semibold tracking-tight text-[#1D1D1F]">
+                  <span className="whitespace-nowrap text-[14px] font-semibold tracking-tight text-[#332B29]">
                     CreatorRelay
                   </span>
-                  <span className="whitespace-nowrap text-[10px] text-[#8E8E93]">
+                  <span className="whitespace-nowrap text-[10px] text-[#9A8F8A]">
                     一稿多发工作台
                   </span>
                 </motion.div>
@@ -139,10 +139,10 @@ export function AppLayout() {
           </button>
           <motion.button
             type="button"
-            whileHover={reducedMotion ? undefined : { backgroundColor: "rgba(0,0,0,0.06)" }}
+            whileHover={reducedMotion ? undefined : { backgroundColor: "rgba(91,72,136,0.08)" }}
             whileTap={reducedMotion ? undefined : { scale: 0.94 }}
             transition={{ duration: reducedMotion ? 0 : 0.12 }}
-            className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-md text-[#8E8E93] outline-none hover:text-[#1D1D1F] focus-visible:ring-2 focus-visible:ring-[#2563EB]/40"
+            className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-md text-[#9A8F8A] outline-none hover:text-[#332B29] focus-visible:ring-2 focus-visible:ring-[#7B68A8]/40"
             aria-label={sidebarOpen ? "收起侧边栏" : "展开侧边栏"}
             aria-expanded={sidebarOpen}
             title={sidebarOpen ? "收起侧边栏" : "展开侧边栏"}
@@ -154,12 +154,12 @@ export function AppLayout() {
 
         {/* Workspace Switcher */}
         <button
-          className={`mx-auto mt-3.5 flex h-9.5 shrink-0 cursor-pointer items-center overflow-hidden rounded-lg border border-black/[0.07] bg-white text-left transition-colors hover:border-black/[0.14] ${sidebarOpen ? "w-[calc(100%-24px)] gap-2.5 px-2.5" : "w-10 justify-center self-center p-0"}`}
+          className={`mx-auto mt-3.5 flex h-9.5 shrink-0 cursor-pointer items-center overflow-hidden rounded-xl border border-[#EAE2D9] bg-white/90 text-left shadow-[0_1px_2px_rgba(74,58,48,0.03)] transition-colors hover:border-[#DCD2C7] hover:bg-white ${sidebarOpen ? "w-[calc(100%-24px)] gap-2.5 px-2.5" : "w-10 justify-center self-center p-0"}`}
           onClick={() => void chooseWorkspace()}
           title={workspace?.name ?? "选择工作区"}
           aria-label={sidebarOpen ? undefined : `工作区：${workspace?.name ?? "选择工作区"}`}
         >
-          <span className="grid h-5.5 w-5.5 shrink-0 place-items-center rounded-md bg-[#F2F2F5] text-[11px] font-semibold text-[#1D1D1F]">
+          <span className="grid h-5.5 w-5.5 shrink-0 place-items-center rounded-md bg-[#F2ECF9] text-[11px] font-semibold text-[#5B4888]">
             {workspace?.name.slice(0, 1).toUpperCase() ?? "C"}
           </span>
           <AnimatePresence initial={false}>
@@ -173,23 +173,23 @@ export function AppLayout() {
                 className="flex min-w-0 flex-1 items-center gap-2"
               >
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <strong className="truncate text-xs font-medium text-[#1D1D1F]">
+                  <strong className="truncate text-xs font-medium text-[#332B29]">
                     {workspace?.name ?? "选择工作区"}
                   </strong>
-                  <small className="text-[10px] text-[#8E8E93]">本地空间</small>
+                  <small className="text-[10px] text-[#9A8F8A]">本地空间</small>
                 </span>
-                <ChevronsUpDown size={12} className="shrink-0 text-[#AEAEB2]" />
+                <ChevronsUpDown size={12} className="shrink-0 text-[#B7ABA4]" />
               </motion.span>
             )}
           </AnimatePresence>
         </button>
 
-        {/* Primary CTA — Crisp Royal Blue */}
+        {/* Primary CTA — Taro Lavender */}
         <motion.button
-          whileHover={reducedMotion ? undefined : { backgroundColor: "#1D4ED8" }}
+          whileHover={reducedMotion ? undefined : { backgroundColor: "#6A5796" }}
           whileTap={reducedMotion ? undefined : { scale: 0.98 }}
           transition={{ duration: reducedMotion ? 0 : 0.12 }}
-          className={`mx-auto mt-2.5 flex h-8.5 shrink-0 cursor-pointer items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-lg bg-[#2563EB] text-xs font-medium text-white shadow-[0_1px_2px_rgba(37,99,235,0.28)] ${sidebarOpen ? "w-[calc(100%-24px)] px-3" : "w-10 p-0"}`}
+          className={`mx-auto mt-2.5 flex h-8.5 shrink-0 cursor-pointer items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-xl bg-[#7B68A8] text-xs font-medium text-white shadow-[0_2px_6px_rgba(123,104,168,0.28)] ${sidebarOpen ? "w-[calc(100%-24px)] px-3" : "w-10 p-0"}`}
           onClick={() => setIsCreating(true)}
           title="新建文章 (⌘N)"
           aria-label={sidebarOpen ? undefined : "新建文章"}
@@ -228,7 +228,7 @@ export function AppLayout() {
                 transition={{ duration: reducedMotion ? 0 : 0.14 }}
                 className="flex h-full min-h-0 flex-col"
               >
-                <div className="mb-1.5 px-2.5 text-[10px] font-medium tracking-wider text-[#8E8E93] uppercase">
+                <div className="mb-1.5 px-2.5 text-[10px] font-medium tracking-wider text-[#9A8F8A] uppercase">
                   工作区
                 </div>
                 <nav className="flex flex-col gap-0.5" aria-label="主导航">
@@ -243,10 +243,10 @@ export function AppLayout() {
                         key={item.id}
                         to={item.path}
                         className={({ isActive }) =>
-                          `group flex h-8.5 items-center gap-2.5 rounded-lg px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]/40 ${
+                          `group flex h-8.5 items-center gap-2.5 rounded-xl px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7B68A8]/40 ${
                             isActive
-                              ? "bg-white font-medium text-[#1D1D1F] shadow-[0_1px_2px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05]"
-                              : "text-[#58585D] hover:bg-black/[0.045] hover:text-[#1D1D1F]"
+                              ? "bg-white font-medium text-[#332B29] shadow-[0_2px_6px_rgba(91,72,136,0.08)] ring-1 ring-[#EAE2D9]"
+                              : "text-[#6F6561] hover:bg-[#EFE8E0]/80 hover:text-[#332B29]"
                           }`
                         }
                       >
@@ -255,12 +255,12 @@ export function AppLayout() {
                             <Icon
                               size={14}
                               className={`shrink-0 transition-colors ${
-                                isActive ? "text-[#2563EB]" : "text-[#8E8E93] group-hover:text-[#58585D]"
+                                isActive ? "text-[#7B68A8]" : "text-[#9A8F8A] group-hover:text-[#6F6561]"
                               }`}
                             />
                             <span className="truncate">{item.label}</span>
                             {badge && (
-                              <span className="ml-auto rounded-full bg-[#EFF6FF] px-1.5 py-0.5 text-[10px] font-semibold text-[#2563EB]">
+                              <span className="ml-auto rounded-full bg-[#FCECEB] px-1.5 py-0.5 text-[10px] font-semibold text-[#A24752]">
                                 {badge}
                               </span>
                             )}
@@ -271,8 +271,8 @@ export function AppLayout() {
                   })}
                 </nav>
 
-                <div className="mt-auto flex flex-col gap-0.5 border-t border-black/[0.06] pt-3">
-                  <div className="mb-1.5 px-2.5 text-[10px] font-medium tracking-wider text-[#8E8E93] uppercase">
+                <div className="mt-auto flex flex-col gap-0.5 border-t border-[#EAE2D9] pt-3">
+                  <div className="mb-1.5 px-2.5 text-[10px] font-medium tracking-wider text-[#9A8F8A] uppercase">
                     工具与连接
                   </div>
                   {SECONDARY_ROUTES.map((item) => {
@@ -282,10 +282,10 @@ export function AppLayout() {
                         key={item.id}
                         to={item.path}
                         className={({ isActive }) =>
-                          `group flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-[12.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]/40 ${
+                          `group flex h-8 items-center gap-2.5 rounded-xl px-2.5 text-[12.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7B68A8]/40 ${
                             isActive
-                              ? "bg-white font-medium text-[#1D1D1F] shadow-[0_1px_2px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05]"
-                              : "text-[#6E6E73] hover:bg-black/[0.045] hover:text-[#1D1D1F]"
+                              ? "bg-white font-medium text-[#332B29] shadow-[0_2px_6px_rgba(91,72,136,0.08)] ring-1 ring-[#EAE2D9]"
+                              : "text-[#6F6561] hover:bg-[#EFE8E0]/80 hover:text-[#332B29]"
                           }`
                         }
                       >
@@ -294,12 +294,12 @@ export function AppLayout() {
                             <Icon
                               size={14}
                               className={`shrink-0 transition-colors ${
-                                isActive ? "text-[#2563EB]" : "text-[#8E8E93] group-hover:text-[#58585D]"
+                                isActive ? "text-[#7B68A8]" : "text-[#9A8F8A] group-hover:text-[#6F6561]"
                               }`}
                             />
                             <span className="truncate">{item.label}</span>
                             {item.id === "assistant" && (
-                              <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                              <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-[#68B692]" />
                             )}
                           </>
                         )}
@@ -308,14 +308,14 @@ export function AppLayout() {
                   })}
                   <button
                     onClick={() => navigate("/settings")}
-                    className="mt-2 flex cursor-pointer items-center gap-2.5 border-t border-black/[0.06] px-1.5 pt-3 text-left transition-opacity hover:opacity-80"
+                    className="mt-2 flex cursor-pointer items-center gap-2.5 border-t border-[#EAE2D9] px-1.5 pt-3 text-left transition-opacity hover:opacity-80"
                   >
-                    <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-black/[0.08] bg-white text-xs font-medium text-[#1D1D1F]">
+                    <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-[#F2C9C6] bg-[#FCECEB] text-xs font-medium text-[#A24752]">
                       林
                     </div>
                     <div className="flex min-w-0 flex-1 flex-col">
-                      <strong className="truncate text-xs font-medium text-[#1D1D1F]">创作者</strong>
-                      <small className="truncate text-[10px] text-[#8E8E93]">本地优先模式</small>
+                      <strong className="truncate text-xs font-medium text-[#332B29]">创作者</strong>
+                      <small className="truncate text-[10px] text-[#9A8F8A]">本地优先模式</small>
                     </div>
                   </button>
                 </div>
@@ -339,10 +339,10 @@ export function AppLayout() {
                       title={`${item.label} (${item.enLabel})`}
                       aria-label={item.label}
                       className={({ isActive }) =>
-                        `grid h-9 w-10 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]/40 ${
+                        `grid h-9 w-10 place-items-center rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7B68A8]/40 ${
                           isActive
-                            ? "bg-white text-[#2563EB] shadow-[0_1px_2px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05]"
-                            : "text-[#6E6E73] hover:bg-black/[0.045] hover:text-[#1D1D1F]"
+                            ? "bg-white text-[#7B68A8] shadow-[0_2px_6px_rgba(91,72,136,0.08)] ring-1 ring-[#EAE2D9]"
+                            : "text-[#6F6561] hover:bg-[#EFE8E0]/80 hover:text-[#332B29]"
                         }`
                       }
                     >
@@ -357,17 +357,17 @@ export function AppLayout() {
       </motion.aside>
 
       {/* Main Content Stage */}
-      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#FAFAFB]">
+      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#FAF7F4]">
         {showDemoBanner && (
-          <div className="flex items-center justify-between border-b border-black/[0.06] bg-[#F5F5F7] px-5 py-1.5 text-[11px] text-[#6E6E73]">
+          <div className="flex items-center justify-between border-b border-[#EAE2D9] bg-[#F7F2EC] px-5 py-1.5 text-[11px] text-[#6F6561]">
             <span>
-              <strong className="mr-1.5 font-medium text-[#1D1D1F]">演示环境</strong>
+              <strong className="mr-1.5 font-medium text-[#5B4888]">演示环境</strong>
               所有写作、分发与状态切换均可直接交互体验；桌面端直接读写本地文件夹。
             </span>
             <button
               onClick={() => setShowDemoBanner(false)}
               aria-label="关闭提示"
-              className="grid h-5 w-5 cursor-pointer place-items-center rounded text-[#8E8E93] hover:bg-black/[0.05] hover:text-[#1D1D1F]"
+              className="grid h-5 w-5 cursor-pointer place-items-center rounded text-[#9A8F8A] hover:bg-[#EAE2D9]/60 hover:text-[#332B29]"
             >
               <X size={12} />
             </button>
@@ -375,12 +375,12 @@ export function AppLayout() {
         )}
 
         {error && (
-          <div className="flex items-center justify-between border-b border-red-200 bg-red-50 px-5 py-2 text-xs text-red-700">
+          <div className="flex items-center justify-between border-b border-[#F3C4C9] bg-[#FDECEE] px-5 py-2 text-xs text-[#AD3A49]">
             <span>{error}</span>
             <button
               onClick={clearError}
               aria-label="关闭错误"
-              className="grid h-5 w-5 cursor-pointer place-items-center rounded text-red-500 hover:bg-red-100"
+              className="grid h-5 w-5 cursor-pointer place-items-center rounded text-[#AD3A49] hover:bg-[#F3C4C9]/40"
             >
               <X size={13} />
             </button>
@@ -396,7 +396,7 @@ export function AppLayout() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={reducedMotion ? undefined : { opacity: 0, y: -6, scale: 0.97 }}
               transition={{ duration: 0.16 }}
-              className="pointer-events-none fixed top-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-[#1D1D1F] px-3.5 py-2 text-xs font-medium text-white shadow-lg"
+              className="pointer-events-none fixed top-4 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-[#3E3432] px-3.5 py-2 text-xs font-medium text-[#FFFDF9] shadow-[0_8px_24px_rgba(51,43,41,0.18)]"
             >
               {notice}
             </motion.div>
@@ -411,13 +411,13 @@ export function AppLayout() {
       {/* Create Document Modal */}
       {isCreating && (
         <div
-          className="fixed inset-0 z-40 grid place-items-center bg-black/25 backdrop-blur-[2px]"
+          className="fixed inset-0 z-40 grid place-items-center bg-[#332B29]/25 backdrop-blur-[2px]"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setIsCreating(false);
           }}
         >
           <form
-            className="relative w-[min(440px,calc(100vw-32px))] rounded-2xl border border-black/[0.08] bg-white p-6 shadow-2xl"
+            className="relative w-[min(440px,calc(100vw-32px))] rounded-2xl border border-[#EAE2D9] bg-[#FFFDFA] p-6 shadow-[0_20px_50px_rgba(51,43,41,0.14)]"
             onSubmit={(event) => {
               event.preventDefault();
               void handleCreateSubmit();
@@ -425,25 +425,25 @@ export function AppLayout() {
           >
             <button
               type="button"
-              className="absolute top-4 right-4 grid h-7 w-7 cursor-pointer place-items-center rounded-md text-[#8E8E93] transition-colors hover:bg-[#F5F5F7] hover:text-[#1D1D1F]"
+              className="absolute top-4 right-4 grid h-7 w-7 cursor-pointer place-items-center rounded-md text-[#9A8F8A] transition-colors hover:bg-[#F4EFEA] hover:text-[#332B29]"
               onClick={() => setIsCreating(false)}
               aria-label="关闭"
             >
               <X size={15} />
             </button>
 
-            <div className="mb-4 grid h-9 w-9 place-items-center rounded-xl bg-[#EFF6FF] text-[#2563EB]">
+            <div className="mb-4 grid h-9 w-9 place-items-center rounded-xl border border-[#DDD2EE] bg-[#F2ECF9] text-[#5B4888]">
               <FilePlus2 size={17} />
             </div>
 
-            <h2 className="text-lg font-semibold tracking-tight text-[#1D1D1F]">新建本地主稿</h2>
-            <p className="mt-1 text-xs leading-relaxed text-[#6E6E73]">
+            <h2 className="text-lg font-semibold tracking-tight text-[#332B29]">新建本地主稿</h2>
+            <p className="mt-1 text-xs leading-relaxed text-[#6F6561]">
               保存为本地 Markdown 文件，写作完成后可一键生成掘金、CSDN、知乎等多平台适配稿。
             </p>
 
             <label
               htmlFor="document-title"
-              className="mt-5 mb-1.5 block text-xs font-medium text-[#1D1D1F]"
+              className="mt-5 mb-1.5 block text-xs font-medium text-[#332B29]"
             >
               文章标题
             </label>
@@ -453,18 +453,18 @@ export function AppLayout() {
               value={newTitle}
               onChange={(event) => setNewTitle(event.target.value)}
               placeholder="例如：一次关于边缘计算的轻量化实践"
-              className="h-9.5 w-full rounded-lg border border-black/[0.12] bg-white px-3 text-sm text-[#1D1D1F] placeholder:text-[#AEAEB2] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/15"
+              className="h-9.5 w-full rounded-xl border border-[#DCD2C7] bg-white px-3 text-sm text-[#332B29] placeholder:text-[#B7ABA4] focus:border-[#7B68A8] focus:outline-none focus:ring-2 focus:ring-[#7B68A8]/20"
             />
 
             <div className="mt-3">
-              <span className="text-[11px] text-[#8E8E93]">快速填入示例标题：</span>
+              <span className="text-[11px] text-[#9A8F8A]">快速填入示例标题：</span>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {QUICK_STARTER_TITLES.map((suggestion) => (
                   <button
                     key={suggestion}
                     type="button"
                     onClick={() => setNewTitle(suggestion)}
-                    className="cursor-pointer rounded-md border border-black/[0.08] bg-[#FAFAFB] px-2.5 py-1 text-[11px] text-[#58585D] transition-colors hover:border-[#2563EB]/40 hover:bg-[#EFF6FF] hover:text-[#2563EB]"
+                    className="cursor-pointer rounded-lg border border-[#EAE2D9] bg-[#FAF7F4] px-2.5 py-1 text-[11px] text-[#6F6561] transition-colors hover:border-[#DDD2EE] hover:bg-[#F2ECF9] hover:text-[#5B4888]"
                   >
                     {suggestion}
                   </button>
@@ -475,7 +475,7 @@ export function AppLayout() {
             <div className="mt-6 flex justify-end gap-2">
               <button
                 type="button"
-                className="h-8.5 cursor-pointer rounded-lg border border-black/[0.1] bg-white px-3.5 text-xs font-medium text-[#58585D] transition-colors hover:bg-[#F5F5F7]"
+                className="h-8.5 cursor-pointer rounded-xl border border-[#DCD2C7] bg-white px-3.5 text-xs font-medium text-[#6F6561] transition-colors hover:bg-[#F4EFEA]"
                 onClick={() => setIsCreating(false)}
               >
                 取消
@@ -483,7 +483,7 @@ export function AppLayout() {
               <button
                 type="submit"
                 disabled={!newTitle.trim()}
-                className="inline-flex h-8.5 cursor-pointer items-center gap-1.5 rounded-lg bg-[#2563EB] px-3.5 text-xs font-medium text-white transition-colors hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:bg-[#C7C7CC]"
+                className="inline-flex h-8.5 cursor-pointer items-center gap-1.5 rounded-xl bg-[#7B68A8] px-3.5 text-xs font-medium text-white shadow-[0_2px_6px_rgba(123,104,168,0.24)] transition-colors hover:bg-[#6A5796] disabled:cursor-not-allowed disabled:bg-[#D5CCC4]"
               >
                 <Plus size={13} />
                 创建并开始写作

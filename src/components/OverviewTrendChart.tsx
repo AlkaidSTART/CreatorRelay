@@ -48,24 +48,24 @@ export function buildOverviewTrendOption(dataset: OverviewTrendDataset): Overvie
       itemHeight: 8,
       itemGap: 16,
       textStyle: {
-        color: "#52525b",
+        color: "#6F6561",
         fontSize: 12,
       },
     },
     tooltip: {
       trigger: "axis",
       backgroundColor: "#ffffff",
-      borderColor: "#e4e4e7",
+      borderColor: "#EAE2D9",
       borderWidth: 1,
       padding: [10, 12],
       textStyle: {
-        color: "#18181b",
+        color: "#332B29",
         fontSize: 12,
       },
       axisPointer: {
         type: "line",
         lineStyle: {
-          color: "#d4d4d8",
+          color: "#DCD2C7",
           type: "dashed",
         },
       },
@@ -81,18 +81,18 @@ export function buildOverviewTrendOption(dataset: OverviewTrendDataset): Overvie
           const formatted = Number.isNaN(numericValue)
             ? String(item.value ?? "-")
             : numericValue.toLocaleString("zh-CN");
-          const dotColor = typeof item.color === "string" ? item.color : "#18181b";
+          const dotColor = typeof item.color === "string" ? item.color : "#332B29";
           return [
             `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:6px;">`,
-            `<span style="display:inline-flex;align-items:center;gap:6px;color:#52525b;">`,
+            `<span style="display:inline-flex;align-items:center;gap:6px;color:#6F6561;">`,
             `<span style="width:7px;height:7px;border-radius:999px;background:${dotColor};display:inline-block;"></span>`,
             `${name} · ${metricLabel}`,
             `</span>`,
-            `<strong style="color:#18181b;font-variant-numeric:tabular-nums;">${formatted}</strong>`,
+            `<strong style="color:#332B29;font-variant-numeric:tabular-nums;">${formatted}</strong>`,
             `</div>`,
           ].join("");
         });
-        return `<div style="font-weight:600;color:#18181b;margin-bottom:4px;">${dateLabel}</div>${rows.join("")}`;
+        return `<div style="font-weight:600;color:#332B29;margin-bottom:4px;">${dateLabel}</div>${rows.join("")}`;
       },
     },
     xAxis: {
@@ -101,14 +101,14 @@ export function buildOverviewTrendOption(dataset: OverviewTrendDataset): Overvie
       data: dataset.dates,
       axisLine: {
         lineStyle: {
-          color: "#e4e4e7",
+          color: "#EAE2D9",
         },
       },
       axisTick: {
         show: false,
       },
       axisLabel: {
-        color: "#71717a",
+        color: "#9A8F8A",
         fontSize: 11,
         margin: 10,
       },
@@ -123,12 +123,12 @@ export function buildOverviewTrendOption(dataset: OverviewTrendDataset): Overvie
         show: false,
       },
       axisLabel: {
-        color: "#71717a",
+        color: "#9A8F8A",
         fontSize: 11,
       },
       splitLine: {
         lineStyle: {
-          color: "#f4f4f5",
+          color: "#F4EFEA",
         },
       },
     },

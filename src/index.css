@@ -1,15 +1,47 @@
 @import "tailwindcss";
 
 :root {
-  --bg-canvas: #f5f5f7;
+  /* --- French Cream Macaron Canvas & Surfaces --- */
+  --bg-canvas: #faf7f4;
+  --bg-sidebar: #f4efea;
   --bg-surface: #ffffff;
-  --bg-subtle: #fafafa;
-  --border-hairline: #e5e5ea;
-  --accent-primary: #2563eb;
-  --accent-primary-hover: #1d4ed8;
-  --accent-soft: #eff6ff;
-  --ink-primary: #1d1d1f;
-  --ink-secondary: #6e6e73;
+  --bg-subtle: #f7f2ec;
+  --bg-hover: #efe8e0;
+  --border-hairline: #eae2d9;
+  --border-strong: #dcd2c7;
+
+  /* --- Warm Espresso Typography (WCAG AA/AAA) --- */
+  --ink-primary: #332b29;
+  --ink-secondary: #6f6561;
+  --ink-muted: #9a8f8a;
+
+  /* --- Primary Macaron: Taro Lavender --- */
+  --accent-primary: #7b68a8;
+  --accent-primary-hover: #6a5796;
+  --accent-soft: #f2ecf9;
+  --accent-border: #ddd2ee;
+  --accent-deep: #5b4888;
+
+  /* --- Semantic Macaron Accents --- */
+  --macaron-rose-bg: #fceceb;
+  --macaron-rose-border: #f2c9c6;
+  --macaron-rose-text: #a24752;
+
+  --macaron-mint-bg: #e7f4ee;
+  --macaron-mint-border: #bee0cf;
+  --macaron-mint-text: #286b51;
+
+  --macaron-lemon-bg: #fef5e4;
+  --macaron-lemon-border: #f2dca6;
+  --macaron-lemon-text: #8a6016;
+
+  --macaron-sky-bg: #eaf3fa;
+  --macaron-sky-border: #c4ddf0;
+  --macaron-sky-text: #2d5f8a;
+
+  --macaron-coral-bg: #fdecee;
+  --macaron-coral-border: #f3c4c9;
+  --macaron-coral-text: #ad3a49;
 
   font-family:
     "Inter",
@@ -21,7 +53,7 @@
     "Microsoft YaHei",
     sans-serif;
   color: var(--ink-primary);
-  background-color: var(--bg-surface);
+  background-color: var(--bg-canvas);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -38,7 +70,7 @@ body,
   width: 100%;
   height: 100%;
   margin: 0;
-  background-color: var(--bg-surface);
+  background-color: var(--bg-canvas);
   color: var(--ink-primary);
 }
 
@@ -55,11 +87,11 @@ textarea {
 }
 
 ::selection {
-  color: #1d1d1f;
-  background: #dbeafe;
+  color: #332b29;
+  background: #e6dcf7;
 }
 
-/* Native-feeling minimal scrollbars */
+/* Native-feeling warm minimal scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -68,9 +100,9 @@ textarea {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d8d8de;
+  background: #dcd2c7;
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #bdbdc6;
+  background: #c7bbb0;
 }
