@@ -34,7 +34,11 @@ const initialMessages: ChatMessage[] = [
 const internalTools = [
   { name: "studio_search_articles", level: "Read", desc: "检索本地工作区主稿与平台稿" },
   { name: "studio_adapt_content", level: "Write", desc: "基于主稿生成目标平台适配稿" },
-  { name: "publishing_create_task", level: "Confirm", desc: "创建待确认发布任务（不自动直接发布）" },
+  {
+    name: "publishing_create_task",
+    level: "Confirm",
+    desc: "创建待确认发布任务（不自动直接发布）",
+  },
   { name: "analytics_compare_platforms", level: "Read", desc: "按独立口径对比多平台近期指标" },
 ];
 

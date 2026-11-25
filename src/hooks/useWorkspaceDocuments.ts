@@ -243,7 +243,17 @@ export function useWorkspaceDocuments() {
       }
     }, 650);
     return () => window.clearTimeout(timer);
-  }, [baseHash, content, saveState, selected, setBaseHash, setDocuments, setError, setSaveState, showToast]);
+  }, [
+    baseHash,
+    content,
+    saveState,
+    selected,
+    setBaseHash,
+    setDocuments,
+    setError,
+    setSaveState,
+    showToast,
+  ]);
 
   useEffect(() => {
     if (!selected || isTauri()) return;

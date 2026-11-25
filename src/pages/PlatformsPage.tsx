@@ -93,7 +93,9 @@ export function PlatformsPage() {
                   <div className="platform-card-actions">
                     <button
                       className="secondary-button"
-                      onClick={() => showToast(`正在检测 ${account.platformName} (${account.alias}) 会话状态`)}
+                      onClick={() =>
+                        showToast(`正在检测 ${account.platformName} (${account.alias}) 会话状态`)
+                      }
                     >
                       <RefreshCw size={12} />
                       检测状态
@@ -101,7 +103,9 @@ export function PlatformsPage() {
                     {account.status !== "ACTIVE" && (
                       <button
                         className="primary-button"
-                        onClick={() => showToast(`将打开受控浏览器重新登录 ${account.platformName}`)}
+                        onClick={() =>
+                          showToast(`将打开受控浏览器重新登录 ${account.platformName}`)
+                        }
                       >
                         重新登录
                       </button>

@@ -10,11 +10,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useOutletContext } from "react-router";
 import { PageHeader } from "../components/PageHeader";
-import {
-  demoPlatformAccounts,
-  demoPublishedContents,
-  demoPublishTasks,
-} from "../data/demoData";
+import { demoPlatformAccounts, demoPublishedContents, demoPublishTasks } from "../data/demoData";
 import { formatRelativeTime } from "../hooks/useWorkspaceDocuments";
 import type { AppOutletContext } from "../layouts/AppLayout";
 

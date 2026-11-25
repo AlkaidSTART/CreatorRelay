@@ -97,12 +97,7 @@ export const demoDocuments: Document[] = [
 ];
 
 export type PublishTaskStatus =
-  | "PENDING"
-  | "SCHEDULED"
-  | "PUBLISHING"
-  | "SUCCESS"
-  | "FAILED"
-  | "NEEDS_MANUAL_ACTION";
+  "PENDING" | "SCHEDULED" | "PUBLISHING" | "SUCCESS" | "FAILED" | "NEEDS_MANUAL_ACTION";
 
 export interface PublishTaskItem {
   id: string;

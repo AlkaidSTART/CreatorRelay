@@ -114,7 +114,8 @@ export function AnalyticsPage() {
               </div>
               <div className="analytics-meta">
                 <span>
-                  <BarChart3 size={12} /> 统计窗口：{rangeOptions.find((r) => r.id === range)?.label}
+                  <BarChart3 size={12} /> 统计窗口：
+                  {rangeOptions.find((r) => r.id === range)?.label}
                 </span>
                 <span>采集于 {item.capturedAt}</span>
               </div>

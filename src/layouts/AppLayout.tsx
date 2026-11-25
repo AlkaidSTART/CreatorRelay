@@ -206,7 +206,9 @@ export function AppLayout() {
                   key={item.id}
                   to={item.path}
                   title={`${item.label} (${item.enLabel})`}
-                  className={({ isActive }) => `nav-item collapsed-nav-item ${isActive ? "active" : ""}`}
+                  className={({ isActive }) =>
+                    `nav-item collapsed-nav-item ${isActive ? "active" : ""}`
+                  }
                 >
                   <Icon size={17} strokeWidth={1.7} />
                 </NavLink>

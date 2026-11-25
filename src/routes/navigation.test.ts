@@ -1,0 +1,28 @@
+import { describe, expect, it } from "vitest";
+import { findRouteByPathname, PRD_ROUTES, PRIMARY_ROUTES, SECONDARY_ROUTES } from "./navigation";
+
+describe("PRD route navigation definitions", () => {
+  it("defines all 8 independent PRD modules with unique paths", () => {
+    const ids = PRD_ROUTES.map((route) => route.id);
+    const paths = PRD_ROUTES.map((route) => route.path);
+
+    expect(ids).toEqual([
+      "dashboard",
+      "studio",
+      "publishing",
+      "content",
+      "analytics",
+      "assistant",
+      "platforms",
+      "settings",
+    ]);
+    expect(new Set(paths).size).toBe(8);
+    expect(PRIMARY_ROUTES.length + SECONDARY_ROUTES.length).toBe(PRD_ROUTES.length);
+  });
+
+  it("resolves active route metadata from pathname and falls back to studio", () => {
+    expect(findRouteByPathname("/dashboard").id).toBe("dashboard");
+    expect(findRouteByPathname("/publishing/task-1").id).toBe("publishing");
+    expect(findRouteByPathname("/unknown").id).toBe("studio");
+  });
+});

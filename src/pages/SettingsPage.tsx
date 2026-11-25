@@ -6,7 +6,11 @@ import type { AppOutletContext } from "../layouts/AppLayout";
 const aiProviders = [
   { name: "OpenAI", endpoint: "https://api.openai.com/v1", status: "未配置" },
   { name: "Anthropic", endpoint: "https://api.anthropic.com", status: "未配置" },
-  { name: "Google Gemini", endpoint: "https://generativelanguage.googleapis.com", status: "未配置" },
+  {
+    name: "Google Gemini",
+    endpoint: "https://generativelanguage.googleapis.com",
+    status: "未配置",
+  },
   { name: "DeepSeek", endpoint: "https://api.deepseek.com", status: "未配置" },
   { name: "OpenAI Compatible", endpoint: "自定义端点 / 本地模型", status: "可扩展" },
 ];
@@ -106,8 +110,8 @@ export function SettingsPage() {
               </div>
             </div>
             <p className="card-body-copy">
-              平台适配器插件不直接持有数据库连接和完整凭据访问权限，所有工具调用均经过受控 Core
-              API 与权限校验。
+              平台适配器插件不直接持有数据库连接和完整凭据访问权限，所有工具调用均经过受控 Core API
+              与权限校验。
             </p>
             <button
               className="secondary-button"
