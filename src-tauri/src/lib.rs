@@ -1,4 +1,5 @@
-use chrono::Utc;
+use chrono::{DateTime, TimeZone, Utc};
+use git2::{Commit, DiffFormat, Repository, Signature, Sort, Tree};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -15,6 +16,7 @@ use walkdir::WalkDir;
 
 struct AppState {
     db: Mutex<Connection>,
+    history_root: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -41,10 +43,11 @@ struct DocumentContent {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Revision {
-    id: i64,
+    id: String,
     created_at: String,
     label: String,
     preview: String,
+    diff: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -56,6 +59,311 @@ struct WorkspaceInfo {
 
 fn digest(content: &str) -> String {
     format!("{:x}", Sha256::digest(content.as_bytes()))
+}
+
+
+fn history_repository_path(history_root: &Path, workspace: &Path) -> Result<PathBuf, String> {
+    let workspace = workspace.canonicalize().map_err(|e| e.to_string())?;
+    let identity = digest(&workspace.to_string_lossy());
+    Ok(history_root.join(format!("{identity}.git")))
+}
+
+fn open_history_repository(history_root: &Path, workspace: &Path) -> Result<Repository, String> {
+    fs::create_dir_all(history_root).map_err(|e| e.to_string())?;
+    let path = history_repository_path(history_root, workspace)?;
+    if path.exists() {
+        Repository::open_bare(path).map_err(|e| e.message().to_string())
+    } else {
+        Repository::init_bare(path).map_err(|e| e.message().to_string())
+    }
+}
+
+fn managed_history_path(relative: &str) -> Result<(String, String), String> {
+    let path = Path::new(relative);
+    let components = path.components().collect::<Vec<_>>();
+    if components.len() != 3
+        || components[0].as_os_str() != "articles"
+        || components[2].as_os_str() != "article.md"
+        || !components
+            .iter()
+            .all(|component| matches!(component, Component::Normal(_)))
+    {
+        return Err("版本历史仅支持工作区 articles/<id>/article.md 主稿".to_string());
+    }
+    let document_id = components[1]
+        .as_os_str()
+        .to_str()
+        .ok_or("文章目录名不是有效 UTF-8")?
+        .to_string();
+    Ok((document_id, relative.replace('\\', "/")))
+}
+
+fn copy_tree_entries(
+    builder: &mut git2::TreeBuilder<'_>,
+    tree: Option<&Tree<'_>>,
+    excluded_name: &str,
+) -> Result<(), String> {
+    if let Some(tree) = tree {
+        for entry in tree.iter() {
+            let name = entry.name().ok_or("Git 树包含无效文件名")?;
+            if name != excluded_name {
+                builder
+                    .insert(name, entry.id(), entry.filemode())
+                    .map_err(|e| e.message().to_string())?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn tree_blob_id(tree: &Tree<'_>, relative: &str) -> Option<git2::Oid> {
+    tree.get_path(Path::new(relative)).ok().map(|entry| entry.id())
+}
+
+fn tree_with_document(
+    repo: &Repository,
+    base: Option<&Tree<'_>>,
+    relative: &str,
+    content: &str,
+) -> Result<Tree<'_>, String> {
+    let (document_id, _) = managed_history_path(relative)?;
+    let base_articles = base
+        .and_then(|tree| tree.get_name("articles").ok())
+        .and_then(|entry| entry.to_object(repo).ok())
+        .and_then(|object| object.peel_to_tree().ok());
+    let base_document = base_articles
+        .as_ref()
+        .and_then(|tree| tree.get_name(&document_id).ok())
+        .and_then(|entry| entry.to_object(repo).ok())
+        .and_then(|object| object.peel_to_tree().ok());
+
+    let blob_id = repo
+        .blob(content.as_bytes())
+        .map_err(|e| e.message().to_string())?;
+    let mut document_builder = repo
+        .treebuilder(base_document.as_ref())
+        .map_err(|e| e.message().to_string())?;
+    document_builder
+        .insert("article.md", blob_id, 0o100644)
+        .map_err(|e| e.message().to_string())?;
+    let document_tree = document_builder
+        .write()
+        .map_err(|e| e.message().to_string())?;
+
+    let mut articles_builder = repo
+        .treebuilder(base_articles.as_ref())
+        .map_err(|e| e.message().to_string())?;
+    copy_tree_entries(&mut articles_builder, base_articles.as_ref(), &document_id)?;
+    articles_builder
+        .insert(&document_id, document_tree, 0o040000)
+        .map_err(|e| e.message().to_string())?;
+    let articles_tree = articles_builder
+        .write()
+        .map_err(|e| e.message().to_string())?;
+
+    let mut root_builder = repo
+        .treebuilder(base)
+        .map_err(|e| e.message().to_string())?;
+    copy_tree_entries(&mut root_builder, base, "articles")?;
+    root_builder
+        .insert("articles", articles_tree, 0o040000)
+        .map_err(|e| e.message().to_string())?;
+    let root_tree = root_builder
+        .write()
+        .map_err(|e| e.message().to_string())?;
+    repo.find_tree(root_tree)
+        .map_err(|e| e.message().to_string())
+}
+
+fn current_head(repo: &Repository) -> Result<Option<Commit<'_>>, String> {
+    match repo.head() {
+        Ok(reference) => reference
+            .target()
+            .map(|oid| repo.find_commit(oid).map_err(|e| e.message().to_string()))
+            .transpose(),
+        Err(error) if error.code() == git2::ErrorCode::UnbornBranch => Ok(None),
+        Err(error) => Err(error.message().to_string()),
+    }
+}
+
+fn commit_document_content(
+    repo: &Repository,
+    relative: &str,
+    content: &str,
+    message: &str,
+    timestamp: Option<DateTime<Utc>>,
+) -> Result<Option<git2::Oid>, String> {
+    let head = current_head(repo)?;
+    let parent_tree = head
+        .as_ref()
+        .map(|commit| commit.tree().map_err(|e| e.message().to_string()))
+        .transpose()?;
+    if parent_tree
+        .as_ref()
+        .and_then(|tree| tree_blob_id(tree, relative))
+        .is_some_and(|oid| {
+            repo.find_blob(oid)
+                .is_ok_and(|blob| blob.content() == content.as_bytes())
+        })
+    {
+        return Ok(None);
+    }
+
+    let tree = tree_with_document(repo, parent_tree.as_ref(), relative, content)?;
+    let signature = if let Some(timestamp) = timestamp {
+        let time = git2::Time::new(timestamp.timestamp(), 0);
+        Signature::new("CreatorRelay", "local@creatorrelay.invalid", &time)
+    } else {
+        Signature::now("CreatorRelay", "local@creatorrelay.invalid")
+    }
+    .map_err(|e| e.message().to_string())?;
+    let parents = head.iter().collect::<Vec<_>>();
+    let parent_refs = parents.iter().collect::<Vec<_>>();
+    repo.commit(
+        Some("HEAD"),
+        &signature,
+        &signature,
+        message,
+        &tree,
+        &parent_refs,
+    )
+    .map(Some)
+    .map_err(|e| e.message().to_string())
+}
+
+fn ensure_document_history(
+    repo: &Repository,
+    conn: &Connection,
+    document_id: &str,
+    relative: &str,
+    current_content: &str,
+) -> Result<(), String> {
+    let mut revwalk = repo.revwalk().map_err(|e| e.message().to_string())?;
+    if revwalk.push_head().is_ok() {
+        revwalk
+            .set_sorting(Sort::TOPOLOGICAL | Sort::REVERSE)
+            .map_err(|e| e.message().to_string())?;
+    }
+    let has_history = revwalk
+        .filter_map(Result::ok)
+        .filter_map(|oid| repo.find_commit(oid).ok())
+        .any(|commit| {
+            commit
+                .tree()
+                .ok()
+                .and_then(|tree| tree_blob_id(&tree, relative))
+                .is_some()
+        });
+    if has_history {
+        return Ok(());
+    }
+
+    let mut statement = conn
+        .prepare("SELECT content, label, created_at FROM revisions WHERE document_id=?1 ORDER BY id ASC")
+        .map_err(|e| e.to_string())?;
+    let rows = statement
+        .query_map([document_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+    let snapshots = rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+    drop(statement);
+
+    for (content, label, created_at) in snapshots {
+        let timestamp = DateTime::parse_from_rfc3339(&created_at)
+            .ok()
+            .map(|date| date.with_timezone(&Utc));
+        commit_document_content(
+            repo,
+            relative,
+            &content,
+            &format!("迁移旧版本：{label}"),
+            timestamp,
+        )?;
+    }
+    commit_document_content(repo, relative, current_content, "迁移当前版本", None)?;
+    Ok(())
+}
+
+fn format_revision_diff(repo: &Repository, commit: &Commit<'_>) -> Result<String, String> {
+    let current_tree = commit.tree().map_err(|e| e.message().to_string())?;
+    let parent_tree = commit
+        .parent(0)
+        .ok()
+        .and_then(|parent| parent.tree().ok());
+    let mut options = git2::DiffOptions::new();
+    let diff = repo
+        .diff_tree_to_tree(parent_tree.as_ref(), Some(&current_tree), Some(&mut options))
+        .map_err(|e| e.message().to_string())?;
+    let mut output = String::new();
+    diff.print(DiffFormat::Patch, |_delta, _hunk, line| {
+        output.push_str(&String::from_utf8_lossy(line.content()));
+        true
+    })
+    .map_err(|e| e.message().to_string())?;
+    Ok(output)
+}
+
+fn list_document_revisions(
+    repo: &Repository,
+    relative: &str,
+) -> Result<Vec<Revision>, String> {
+    let mut revwalk = repo.revwalk().map_err(|e| e.message().to_string())?;
+    let Some(head) = current_head(repo)? else {
+        return Ok(Vec::new());
+    };
+    revwalk
+        .push(head.id())
+        .map_err(|e| e.message().to_string())?;
+    revwalk
+        .set_sorting(Sort::TOPOLOGICAL | Sort::TIME)
+        .map_err(|e| e.message().to_string())?;
+
+    let mut revisions = Vec::new();
+    for oid in revwalk {
+        let oid = oid.map_err(|e| e.message().to_string())?;
+        let commit = repo.find_commit(oid).map_err(|e| e.message().to_string())?;
+        let tree = commit.tree().map_err(|e| e.message().to_string())?;
+        let Some(blob_id) = tree_blob_id(&tree, relative) else {
+            continue;
+        };
+        if commit
+            .parent(0)
+            .ok()
+            .and_then(|parent| parent.tree().ok())
+            .and_then(|parent_tree| tree_blob_id(&parent_tree, relative))
+            == Some(blob_id)
+        {
+            continue;
+        }
+        let blob = repo
+            .find_blob(blob_id)
+            .map_err(|e| e.message().to_string())?;
+        let content = String::from_utf8_lossy(blob.content());
+        let preview = body_for_word_count(&content)
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .take(2)
+            .collect::<Vec<_>>()
+            .join(" ");
+        let created_at = Utc
+            .timestamp_opt(commit.time().seconds(), 0)
+            .single()
+            .unwrap_or_else(Utc::now)
+            .to_rfc3339();
+        revisions.push(Revision {
+            id: oid.to_string(),
+            created_at,
+            label: commit.message().unwrap_or("本地版本").trim().to_string(),
+            preview,
+            diff: format_revision_diff(repo, &commit)?,
+        });
+    }
+    Ok(revisions)
 }
 
 fn app_db_path(app: &AppHandle) -> Result<PathBuf, String> {
