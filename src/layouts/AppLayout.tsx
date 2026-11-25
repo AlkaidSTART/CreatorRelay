@@ -10,7 +10,7 @@ import {
 } from "../components/Icons";
 import { NavLink, useLocation, useNavigate, useOutlet } from "react-router";
 import { findRouteByPathname, PRIMARY_ROUTES, SECONDARY_ROUTES } from "../routes/navigation";
-import { useContentStore, useUiStore, useWorkspaceStore } from "../stores";
+import { useContentStore, usePlatformStore, useUiStore, useWorkspaceStore } from "../stores";
 import { applyThemeToDocument } from "../utils/themes";
 
 const ROUTE_ENTER_EASE = [0.22, 1, 0.36, 1] as const;
@@ -64,6 +64,7 @@ export function AppLayout() {
   const workspace = useWorkspaceStore((state) => state.workspace);
   const loading = useWorkspaceStore((state) => state.loading);
   const initialize = useWorkspaceStore((state) => state.initialize);
+  const initializePlatforms = usePlatformStore((state) => state.initialize);
   const chooseWorkspace = useWorkspaceStore((state) => state.chooseWorkspace);
   const createDocument = useWorkspaceStore((state) => state.createDocument);
   const saveCurrentDocument = useWorkspaceStore((state) => state.saveCurrentDocument);
@@ -96,7 +97,8 @@ export function AppLayout() {
 
   useEffect(() => {
     void initialize();
-  }, [initialize]);
+    void initializePlatforms();
+  }, [initialize, initializePlatforms]);
 
   useEffect(() => {
     const activeRoute = findRouteByPathname(location.pathname);
@@ -306,7 +308,9 @@ export function AppLayout() {
                             <Icon
                               size={14}
                               className={`relative z-10 shrink-0 transition-colors ${
-                                isActive ? "text-accent" : "text-ink-muted group-hover:text-ink-secondary"
+                                isActive
+                                  ? "text-accent"
+                                  : "text-ink-muted group-hover:text-ink-secondary"
                               }`}
                             />
                             <span className="relative z-10 truncate">{item.label}</span>
@@ -354,7 +358,9 @@ export function AppLayout() {
                             <Icon
                               size={14}
                               className={`relative z-10 shrink-0 transition-colors ${
-                                isActive ? "text-accent" : "text-ink-muted group-hover:text-ink-secondary"
+                                isActive
+                                  ? "text-accent"
+                                  : "text-ink-muted group-hover:text-ink-secondary"
                               }`}
                             />
                             <span className="relative z-10 truncate">{item.label}</span>
@@ -411,9 +417,7 @@ export function AppLayout() {
                           {isActive && (
                             <motion.span
                               layoutId="sidebar-collapsed-active-pill"
-                              transition={
-                                reducedMotion ? { duration: 0 } : SIDEBAR_PILL_TRANSITION
-                              }
+                              transition={reducedMotion ? { duration: 0 } : SIDEBAR_PILL_TRANSITION}
                               className="pointer-events-none absolute inset-0 rounded-xl bg-surface shadow-[0_2px_6px_rgba(91,72,136,0.08)] ring-1 ring-line"
                             />
                           )}

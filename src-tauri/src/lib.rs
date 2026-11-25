@@ -13,9 +13,12 @@ use tempfile::NamedTempFile;
 use uuid::Uuid;
 use walkdir::WalkDir;
 
+mod platforms;
+
 struct AppState {
     db: Mutex<Connection>,
     history_root: PathBuf,
+    platform_session_root: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1508,6 +1511,169 @@ fn restore_revision(
     document_from_file(id, &file, &workspace)
 }
 
+#[tauri::command]
+fn list_platform_catalog() -> Vec<platforms::PlatformCatalogEntry> {
+    platforms::platform_catalog()
+}
+
+#[tauri::command]
+fn list_platform_accounts(
+    state: State<'_, AppState>,
+) -> Result<Vec<platforms::PlatformAccount>, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    platforms::list_accounts(&conn)
+}
+
+#[tauri::command]
+fn create_platform_account(
+    platform_id: String,
+    alias: String,
+    state: State<'_, AppState>,
+) -> Result<platforms::PlatformAccount, String> {
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    platforms::create_account(
+        &mut conn,
+        &state.platform_session_root,
+        &platform_id,
+        &alias,
+    )
+}
+
+#[tauri::command]
+fn update_platform_account(
+    account_id: String,
+    alias: Option<String>,
+    enabled: Option<bool>,
+    is_default: Option<bool>,
+    state: State<'_, AppState>,
+) -> Result<platforms::PlatformAccount, String> {
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    platforms::update_account(&mut conn, &account_id, alias, enabled, is_default)
+}
+
+#[tauri::command]
+fn begin_platform_authentication(
+    account_id: String,
+    state: State<'_, AppState>,
+) -> Result<platforms::AuthChallenge, String> {
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    platforms::begin_authentication(&mut conn, &account_id)
+}
+
+#[tauri::command]
+fn cancel_platform_authentication(
+    account_id: String,
+    state: State<'_, AppState>,
+) -> Result<platforms::PlatformAccount, String> {
+    let mut conn = state.db.lock().map_err(|_| "数据库状态不可用".to_string())?;
+    platforms::cancel_authentication(&mut conn, &account_id)
+}
+
+#[tauri::command]
+fn complete_platform_authentication(
+    account_id: String,
+    challenge_id: String,
+    credential: String,
+    state: State<'_, AppState>,
+) -> Result<platforms::AccountCheckResult, String> {
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    platforms::complete_authentication(
+        &mut conn,
+        &platforms::KeyringVault,
+        &platforms::PlatformHttpVerifier::default(),
+        &account_id,
+        &challenge_id,
+        &credential,
+    )
+}
+
+#[tauri::command]
+fn check_platform_account_status(
+    account_id: String,
+    state: State<'_, AppState>,
+) -> Result<platforms::AccountCheckResult, String> {
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    platforms::check_account_status(
+        &mut conn,
+        &platforms::KeyringVault,
+        &platforms::PlatformHttpVerifier::default(),
+        &account_id,
+    )
+}
+
+#[tauri::command]
+fn ensure_platform_account_active(
+    account_id: String,
+    state: State<'_, AppState>,
+) -> Result<platforms::PlatformAccount, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    platforms::require_active_account(&conn, &account_id)
+}
+
+#[tauri::command]
+fn preview_platform_account_deletion(
+    account_id: String,
+    state: State<'_, AppState>,
+) -> Result<platforms::DeletionPreview, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    platforms::deletion_preview(&conn, &state.platform_session_root, &account_id)
+}
+
+#[tauri::command]
+fn delete_platform_account(
+    account_id: String,
+    confirmation: platforms::DeletionConfirmation,
+    state: State<'_, AppState>,
+) -> Result<platforms::DeletionResult, String> {
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    platforms::delete_account(
+        &mut conn,
+        &platforms::KeyringVault,
+        &state.platform_session_root,
+        &account_id,
+        &confirmation,
+    )
+}
+
+#[tauri::command]
+fn list_platform_audit_logs(
+    limit: Option<usize>,
+    state: State<'_, AppState>,
+) -> Result<Vec<platforms::AccountAuditLog>, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    platforms::list_audit_logs(&conn, limit.unwrap_or(50))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1516,7 +1682,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             let path = app_db_path(app.handle()).map_err(std::io::Error::other)?;
-            let conn = Connection::open(path).map_err(std::io::Error::other)?;
+            let mut conn = Connection::open(path).map_err(std::io::Error::other)?;
             conn.execute_batch(
                 "PRAGMA journal_mode=WAL;
                  PRAGMA foreign_keys=ON;
@@ -1533,14 +1699,21 @@ pub fn run() {
                 [Utc::now().to_rfc3339()],
             )
             .map_err(std::io::Error::other)?;
+            platforms::initialize_schema(&mut conn).map_err(std::io::Error::other)?;
             let history_root = app
                 .path()
                 .app_data_dir()
                 .map_err(std::io::Error::other)?
                 .join("article-history");
+            let platform_session_root = app
+                .path()
+                .app_data_dir()
+                .map_err(std::io::Error::other)?
+                .join("platform-sessions");
             app.manage(AppState {
                 db: Mutex::new(conn),
                 history_root,
+                platform_session_root,
             });
             Ok(())
         })
@@ -1562,7 +1735,19 @@ pub fn run() {
             preserve_external_document,
             list_revisions,
             create_document_revision,
-            restore_revision
+            restore_revision,
+            list_platform_catalog,
+            list_platform_accounts,
+            create_platform_account,
+            update_platform_account,
+            begin_platform_authentication,
+            cancel_platform_authentication,
+            complete_platform_authentication,
+            check_platform_account_status,
+            ensure_platform_account_active,
+            preview_platform_account_deletion,
+            delete_platform_account,
+            list_platform_audit_logs
         ])
         .run(tauri::generate_context!())
         .expect("error while running CreatorRelay");

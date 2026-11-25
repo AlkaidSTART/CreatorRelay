@@ -2,12 +2,12 @@ import { useMemo } from "react";
 import { ExternalLink, Search } from "../components/Icons";
 import { PageHeader } from "../components/PageHeader";
 import { PlatformLogo } from "../components/PlatformLogo";
-import { useContentStore, useUiStore } from "../stores";
+import { useContentStore, usePlatformStore, useUiStore } from "../stores";
 import { getPlatformVisual } from "../utils/platformStyle";
 
 export function ContentPage() {
   const showToast = useUiStore((state) => state.showToast);
-  const platformAccounts = useContentStore((state) => state.platformAccounts);
+  const platformAccounts = usePlatformStore((state) => state.accounts);
   const publishedContents = useContentStore((state) => state.publishedContents);
   const keyword = useContentStore((state) => state.contentKeyword);
   const setKeyword = useContentStore((state) => state.setContentKeyword);

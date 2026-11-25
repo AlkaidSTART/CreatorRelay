@@ -15,7 +15,7 @@ import { OverviewTrendChart } from "../components/OverviewTrendChart";
 import { PageHeader } from "../components/PageHeader";
 import { PlatformLogo } from "../components/PlatformLogo";
 import { demoOverviewTrends, type TrendRange } from "../data/demoData";
-import { useContentStore, useUiStore, useWorkspaceStore } from "../stores";
+import { useContentStore, usePlatformStore, useUiStore, useWorkspaceStore } from "../stores";
 import { formatRelativeTime } from "../utils/format";
 import { getPlatformVisual } from "../utils/platformStyle";
 
@@ -27,7 +27,7 @@ export function DashboardPage() {
   const selectDocumentSafely = useWorkspaceStore((state) => state.selectDocumentSafely);
   const setIsCreating = useUiStore((state) => state.setIsCreating);
 
-  const platformAccounts = useContentStore((state) => state.platformAccounts);
+  const platformAccounts = usePlatformStore((state) => state.accounts);
   const publishedContents = useContentStore((state) => state.publishedContents);
   const publishTasks = useContentStore((state) => state.publishTasks);
 

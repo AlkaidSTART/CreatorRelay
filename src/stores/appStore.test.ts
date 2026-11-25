@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { PLATFORM_CATEGORIES } from "../data/demoData";
-import { createContentStore, createUiStore, createWorkspaceStore } from "./appStore";
+import {
+  createContentStore,
+  createPlatformStore,
+  createUiStore,
+  createWorkspaceStore,
+} from "./appStore";
 
 describe("stores", () => {
   it("initializes workspace store with clean defaults", () => {
@@ -67,8 +72,8 @@ describe("stores", () => {
   });
 
   it("supports all 10 UI platforms categorized by type", () => {
-    const content = createContentStore();
-    const accounts = content.getState().platformAccounts;
+    const platform = createPlatformStore();
+    const accounts = platform.getState().accounts;
     const names = accounts.map((account) => account.platformName);
 
     expect(names).toEqual(
@@ -95,8 +100,8 @@ describe("stores", () => {
       expect(accounts.some((account) => account.category === category.id)).toBe(true);
     }
 
-    expect(content.getState().platformCategoryFilter).toBe("ALL");
-    content.getState().setPlatformCategoryFilter("video");
-    expect(content.getState().platformCategoryFilter).toBe("video");
+    expect(platform.getState().categoryFilter).toBe("ALL");
+    platform.getState().setCategoryFilter("video");
+    expect(platform.getState().categoryFilter).toBe("video");
   });
 });

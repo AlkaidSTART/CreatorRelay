@@ -51,6 +51,7 @@ export const PanelLeftClose = createIcon("angles-left");
 export const PanelLeftOpen = createIcon("angles-right");
 export const Plug = createIcon("plug");
 export const Plus = createIcon("plus");
+export const Pencil = createIcon("pencil");
 export const RefreshCw = createIcon("arrows-rotate");
 export const Search = createIcon("magnifying-glass");
 export const Send = createIcon("paper-plane");
@@ -62,6 +63,7 @@ export const ShieldCheck = createIcon("shield");
 export const Sparkles = createIcon("wand-magic-sparkles");
 export const Tags = createIcon("tags");
 export const Terminal = createIcon("terminal");
+export const Trash2 = createIcon("trash-can");
 export const TrendingUp = createIcon("chart-line");
 export const X = createIcon("xmark");
 

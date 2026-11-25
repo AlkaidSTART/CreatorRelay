@@ -33,7 +33,7 @@ import {
 } from "../components/StudioWorkspaceEmpty";
 import { useNavigate } from "react-router";
 import { PLATFORM_CATEGORIES } from "../data/demoData";
-import { useContentStore, useUiStore, useWorkspaceStore } from "../stores";
+import { useContentStore, usePlatformStore, useUiStore, useWorkspaceStore } from "../stores";
 import { formatRelativeTime } from "../utils/format";
 import { bodyFromMarkdown } from "../utils/markdown";
 import { getPlatformVisual } from "../utils/platformStyle";
@@ -91,7 +91,10 @@ export function StudioPage() {
   const createRevision = useWorkspaceStore((state) => state.createRevision);
   const loadDocumentAssets = useWorkspaceStore((state) => state.loadDocumentAssets);
 
-  const platformAccounts = useContentStore((state) => state.platformAccounts);
+  const allPlatformAccounts = usePlatformStore((state) => state.accounts);
+  const platformAccounts = allPlatformAccounts.filter(
+    (account) => account.status === "ACTIVE" && account.enabled !== false,
+  );
   const publishTasks = useContentStore((state) => state.publishTasks);
   const createPublishTaskFromDraft = useContentStore((state) => state.createPublishTaskFromDraft);
 

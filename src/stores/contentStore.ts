@@ -2,11 +2,8 @@ import { create } from "zustand";
 import type { StateCreator } from "zustand";
 import { createStore } from "zustand/vanilla";
 import {
-  demoPlatformAccounts,
   demoPublishedContents,
   demoPublishTasks,
-  type PlatformAccountItem,
-  type PlatformCategory,
   type PublishedContentItem,
   type PublishTaskItem,
   type PublishTaskStatus,
@@ -38,21 +35,16 @@ const initialAssistantMessages: ChatMessage[] = [
 export interface ContentStore {
   publishTasks: PublishTaskItem[];
   publishedContents: PublishedContentItem[];
-  platformAccounts: PlatformAccountItem[];
-  platformCategoryFilter: "ALL" | PlatformCategory;
   publishingFilter: "ALL" | PublishTaskStatus;
   contentKeyword: string;
   contentPlatformFilter: string;
   analyticsRange: AnalyticsRange;
   assistantMessages: ChatMessage[];
-  setPlatformCategoryFilter: (category: "ALL" | PlatformCategory) => void;
   setPublishingFilter: (filter: "ALL" | PublishTaskStatus) => void;
   setContentKeyword: (keyword: string) => void;
   setContentPlatformFilter: (platform: string) => void;
   setAnalyticsRange: (range: AnalyticsRange) => void;
   sendAssistantPrompt: (text: string) => void;
-  checkPlatformAccountStatus: (accountId: string) => void;
-  reauthPlatformAccount: (accountId: string) => void;
   createPublishTaskFromDraft: (payload: {
     articleTitle: string;
     platform: string;
@@ -66,15 +58,12 @@ export interface ContentStore {
 const createContentStoreState: StateCreator<ContentStore> = (set, get) => ({
   publishTasks: demoPublishTasks,
   publishedContents: demoPublishedContents,
-  platformAccounts: demoPlatformAccounts,
-  platformCategoryFilter: "ALL",
   publishingFilter: "ALL",
   contentKeyword: "",
   contentPlatformFilter: "全部平台",
   analyticsRange: "7d",
   assistantMessages: initialAssistantMessages,
 
-  setPlatformCategoryFilter: (platformCategoryFilter) => set({ platformCategoryFilter }),
   setPublishingFilter: (publishingFilter) => set({ publishingFilter }),
   setContentKeyword: (contentKeyword) => set({ contentKeyword }),
   setContentPlatformFilter: (contentPlatformFilter) => set({ contentPlatformFilter }),
@@ -109,40 +98,12 @@ const createContentStoreState: StateCreator<ContentStore> = (set, get) => ({
     }));
   },
 
-  checkPlatformAccountStatus: (accountId) => {
-    const target = get().platformAccounts.find((item) => item.id === accountId);
-    if (!target) return;
-    set((state) => ({
-      platformAccounts: state.platformAccounts.map((item) =>
-        item.id === accountId ? { ...item, lastSyncedAt: "刚刚" } : item,
-      ),
-    }));
-    useUiStore
-      .getState()
-      .showToast(`已检测 ${target.platformName} (${target.alias}) 会话状态`);
-  },
-
-  reauthPlatformAccount: (accountId) => {
-    const target = get().platformAccounts.find((item) => item.id === accountId);
-    if (!target) return;
-    set((state) => ({
-      platformAccounts: state.platformAccounts.map((item) =>
-        item.id === accountId ? { ...item, status: "ACTIVE", lastSyncedAt: "刚刚" } : item,
-      ),
-    }));
-    useUiStore
-      .getState()
-      .showToast(`${target.platformName} (${target.alias}) 已重新连接，会话恢复正常`);
-  },
-
   createPublishTaskFromDraft: ({ articleTitle, platform, platformMark, accountAlias }) => {
     const existing = get().publishTasks.find(
       (task) => task.articleTitle === articleTitle && task.platform === platform,
     );
     if (existing) {
-      useUiStore
-        .getState()
-        .showToast(`《${articleTitle}》已在 ${platform} 接力队列中`);
+      useUiStore.getState().showToast(`《${articleTitle}》已在 ${platform} 接力队列中`);
       return;
     }
     const newTask: PublishTaskItem = {
@@ -159,9 +120,7 @@ const createContentStoreState: StateCreator<ContentStore> = (set, get) => ({
     set((state) => ({
       publishTasks: [newTask, ...state.publishTasks],
     }));
-    useUiStore
-      .getState()
-      .showToast(`已为 ${platform} 生成适配稿并加入发布接力队列`);
+    useUiStore.getState().showToast(`已为 ${platform} 生成适配稿并加入发布接力队列`);
   },
 
   completePublishTask: (taskId) => {
@@ -199,9 +158,7 @@ const createContentStoreState: StateCreator<ContentStore> = (set, get) => ({
           : task,
       ),
     }));
-    useUiStore
-      .getState()
-      .showToast(`已重新检查 ${target.platform} 发布任务，可立即确认发布`);
+    useUiStore.getState().showToast(`已重新检查 ${target.platform} 发布任务，可立即确认发布`);
   },
 });
 

@@ -239,9 +239,24 @@ export const demoPublishedContents: PublishedContentItem[] = [
   },
 ];
 
-export type AccountStatus = "ACTIVE" | "EXPIRED" | "NEEDS_REAUTH" | "UNAUTHORIZED";
+import type { PlatformAccountItem, PlatformCategory } from "../types/platform";
 
-export type PlatformCategory = "tech" | "article" | "video" | "social";
+export type {
+  AccountAuditLog,
+  AccountCheckResult,
+  AccountStatus,
+  AuthChallenge,
+  AuthMode,
+  CapabilityLevel,
+  DeletionConfirmation,
+  DeletionPreview,
+  DeletionResult,
+  PlatformAccountItem,
+  PlatformAuthMethod,
+  PlatformCapabilities,
+  PlatformCatalogEntry,
+  PlatformCategory,
+} from "../types/platform";
 
 export interface PlatformCategoryMeta {
   id: PlatformCategory;
@@ -271,24 +286,6 @@ export const PLATFORM_CATEGORIES: PlatformCategoryMeta[] = [
     description: "图文种草笔记与轻量社交动态平台",
   },
 ];
-
-export interface PlatformAccountItem {
-  id: string;
-  platformId: string;
-  platformName: string;
-  category: PlatformCategory;
-  contentFormats: string;
-  authMode: "browser" | "oauth" | "manual";
-  alias: string;
-  uid: string;
-  status: AccountStatus;
-  lastSyncedAt: string;
-  capabilities: {
-    contentRead: "supported" | "restricted" | "experimental";
-    contentPublish: "supported" | "restricted" | "unsupported";
-    analytics: "supported" | "restricted" | "experimental";
-  };
-}
 
 export const demoPlatformAccounts: PlatformAccountItem[] = [
   {

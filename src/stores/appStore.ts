@@ -22,3 +22,4 @@ export {
   type ChatMessage,
   type ContentStore,
 } from "./contentStore";
+export { createPlatformStore, usePlatformStore, type PlatformStore } from "./platformStore";
