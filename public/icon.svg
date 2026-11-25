@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="tileBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fcfbf8" />
+      <stop offset="100%" stop-color="#f2f0e9" />
+    </linearGradient>
+    <filter id="tileShadow" x="-15%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#252720" flood-opacity="0.14" />
+    </filter>
+  </defs>
+
+  <!-- macOS Squircle Tile -->
+  <rect
+    x="88"
+    y="88"
+    width="848"
+    height="848"
+    rx="192"
+    fill="url(#tileBg)"
+    stroke="#e3e1d7"
+    stroke-width="3"
+    filter="url(#tileShadow)"
+  />
+
+  <!-- Geometric Line Emblem -->
+  <g transform="translate(512 512) scale(1.12) translate(-512 -512)">
+    <g fill="none" stroke="#4c5d43" stroke-width="25" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Open Circular Arc (Creator / Local Workspace) -->
+      <path d="M 668.1 459.8 A 204 204 0 1 1 567.8 335.9" />
+      <!-- Upper Relay Arc -->
+      <path d="M 530 568 C 512 458, 578 340, 714 336" />
+      <!-- Lower Parallel Relay S-Arc -->
+      <path d="M 474 636 C 550 632, 594 584, 596 516 C 598 448, 646 414, 714 412" />
+    </g>
+
+    <!-- Champagne-Gold Focal Origin Dot -->
+    <circle cx="472" cy="516" r="18" fill="#c29d63" />
+  </g>
+</svg>

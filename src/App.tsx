@@ -152,6 +152,25 @@ function getStoredDocuments(): Document[] | null {
   }
 }
 
+function BrandMarkIcon() {
+  return (
+    <svg viewBox="220 220 584 584" width="18" height="18" aria-hidden="true">
+      <g
+        fill="none"
+        stroke="#4c5d43"
+        strokeWidth="36"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M 668.1 459.8 A 204 204 0 1 1 567.8 335.9" />
+        <path d="M 530 568 C 512 458, 578 340, 714 336" />
+        <path d="M 474 636 C 550 632, 594 584, 596 516 C 598 448, 646 414, 714 412" />
+      </g>
+      <circle cx="472" cy="516" r="24" fill="#c29d63" />
+    </svg>
+  );
+}
+
 function App() {
   const {
     workspace,
@@ -558,7 +577,9 @@ function App() {
   if (loading)
     return (
       <div className="app-loading">
-        <span className="loading-mark">cr</span>
+        <span className="loading-mark">
+          <BrandMarkIcon />
+        </span>
         <span>正在整理你的工作区</span>
       </div>
     );
@@ -567,7 +588,9 @@ function App() {
     <div className="app-shell flex h-full">
       <aside className={`sidebar ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
         <div className="brand-row">
-          <div className="brand-mark">cr</div>
+          <div className="brand-mark">
+            <BrandMarkIcon />
+          </div>
           {sidebarOpen && (
             <>
               <span className="brand-name">creatorrelay</span>
