@@ -4,7 +4,12 @@ import { create } from "zustand";
 import type { StateCreator } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { demoDocuments, demoWorkspace, sampleContent } from "../data/demoData";
-import { bodyFromMarkdown, countWords, titleFromMarkdown } from "../utils/markdown";
+import {
+  bodyFromMarkdown,
+  countWords,
+  preserveFrontmatter,
+  titleFromMarkdown,
+} from "../utils/markdown";
 import { useUiStore } from "./uiStore";
 
 export type Document = {
@@ -19,7 +24,13 @@ export type Document = {
   contentHash?: string;
 };
 
-export type Revision = { id: string; createdAt: string; label: string; preview: string; diff: string };
+export type Revision = {
+  id: string;
+  createdAt: string;
+  label: string;
+  preview: string;
+  diff: string;
+};
 export type WorkspaceInfo = { path: string; name: string };
 export type SaveState = "saved" | "saving" | "unsaved" | "error";
 
@@ -79,6 +90,7 @@ export interface WorkspaceStore {
   query: string;
   saveState: SaveState;
   revisions: Revision[];
+  recentExternalChange: string;
   loading: boolean;
   initialized: boolean;
   setQuery: (query: string) => void;
@@ -87,11 +99,13 @@ export interface WorkspaceStore {
   loadDocuments: (filter?: string) => Promise<Document[]>;
   loadDocument: (document: Document) => Promise<void>;
   loadRevisions: (path: string) => Promise<void>;
+  checkExternalChange: () => Promise<void>;
   saveCurrentDocument: (options?: { silent?: boolean }) => Promise<boolean>;
   chooseWorkspace: () => Promise<void>;
   selectDocumentSafely: (document: Document) => Promise<boolean>;
   createDocument: () => Promise<Document | null>;
   createRevision: (label?: string) => Promise<void>;
+  resolveExternalChange: (resolution: "reload" | "keep") => Promise<void>;
   restoreRevision: (revision: Revision) => Promise<void>;
 }
 
@@ -117,6 +131,7 @@ const createWorkspaceStoreState: StateCreator<WorkspaceStore> = (set, get) => {
     query: "",
     saveState: "saved",
     revisions: starterRevisions.map((revision) => ({ ...revision })),
+    recentExternalChange: "",
     loading: true,
     initialized: false,
 
@@ -132,7 +147,11 @@ const createWorkspaceStoreState: StateCreator<WorkspaceStore> = (set, get) => {
 
     initialize: async () => {
       if (get().initialized) return;
-      set({ initialized: true, loading: true });
+      set({
+        initialized: true,
+        loading: true,
+        ...(isTauri() ? { revisions: [] } : {}),
+      });
       const ui = useUiStore.getState();
       try {
         if (isTauri()) {
@@ -163,8 +182,16 @@ const createWorkspaceStoreState: StateCreator<WorkspaceStore> = (set, get) => {
 
     loadDocuments: async (filter = "") => {
       if (isTauri()) {
+        const previous = get().documents;
         const items = await invoke<Document[]>("list_documents", { query: filter || null });
-        set({ documents: items });
+        const selected = previous.find((doc) => doc.id === get().selectedId);
+        const refreshed = selected ? items.find((doc) => doc.id === selected.id) : null;
+        const changeDetected =
+          !!selected && !!refreshed && selected.contentHash !== refreshed.contentHash;
+        set({
+          documents: items,
+          recentExternalChange: changeDetected ? selected.path : get().recentExternalChange,
+        });
         return items;
       }
       const items = getStoredDocuments() ?? demoDocuments;
@@ -204,10 +231,25 @@ const createWorkspaceStoreState: StateCreator<WorkspaceStore> = (set, get) => {
         if (loadId !== documentLoadSeq) return;
         const hash = contentHash || (await digest(markdown));
         if (loadId !== documentLoadSeq) return;
-        set({ content: markdown, baseHash: hash, saveState: "saved" });
+        set({ content: markdown, baseHash: hash, saveState: "saved", recentExternalChange: "" });
       } catch (cause) {
         ui.setError(cause instanceof Error ? cause.message : String(cause));
         set({ saveState: "error" });
+      }
+    },
+
+    checkExternalChange: async () => {
+      if (!isTauri()) return;
+      const state = get();
+      const selected = state.documents.find((doc) => doc.id === state.selectedId);
+      if (!selected || !state.baseHash) return;
+      try {
+        const disk = await invoke<{ content: string; contentHash: string }>("read_document", {
+          path: selected.path,
+        });
+        set({ recentExternalChange: disk.contentHash === get().baseHash ? "" : selected.path });
+      } catch (cause) {
+        useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));
       }
     },
 
@@ -218,6 +260,45 @@ const createWorkspaceStoreState: StateCreator<WorkspaceStore> = (set, get) => {
         set({ revisions: items });
       } catch {
         set({ revisions: [] });
+      }
+    },
+
+    resolveExternalChange: async (resolution) => {
+      const state = get();
+      const ui = useUiStore.getState();
+      const selected = state.documents.find((doc) => doc.id === state.selectedId);
+      if (!selected || !state.recentExternalChange) return;
+      if (resolution === "reload") {
+        try {
+          await invoke("preserve_external_document", { path: selected.path });
+        } catch (cause) {
+          ui.setError(cause instanceof Error ? cause.message : String(cause));
+          return;
+        }
+        const items = await get().loadDocuments(state.query);
+        const latest = items.find((doc) => doc.id === selected.id);
+        set({ recentExternalChange: "" });
+        if (latest) await get().loadDocument(latest);
+        return;
+      }
+      if (state.saveState === "saving" || saveInFlight) {
+        ui.showToast("正在保存当前文章，请稍后处理外部版本", 2400);
+        return;
+      }
+      try {
+        const external = await invoke<{ content: string; contentHash: string }>(
+          "preserve_external_document",
+          { path: selected.path },
+        );
+        set({
+          baseHash: external.contentHash,
+          recentExternalChange: "",
+          saveState: "unsaved",
+        });
+        const saved = await get().saveCurrentDocument({ silent: true });
+        if (!saved) return;
+      } catch (cause) {
+        ui.setError(cause instanceof Error ? cause.message : String(cause));
       }
     },
 
@@ -244,18 +325,22 @@ const createWorkspaceStoreState: StateCreator<WorkspaceStore> = (set, get) => {
           }));
           void get().loadRevisions(selected.path);
         } else {
-          localStorage.setItem(`creatorrelay.demo.content.${selected.id}`, snapshot);
+          const mergedMarkdown = preserveFrontmatter(
+            localStorage.getItem(`creatorrelay.demo.content.${selected.id}`) ?? snapshot,
+            snapshot,
+          );
+          localStorage.setItem(`creatorrelay.demo.content.${selected.id}`, mergedMarkdown);
           const updated: Document = {
             ...selected,
-            title: titleFromMarkdown(snapshot, selected.title),
+            title: titleFromMarkdown(mergedMarkdown, selected.title),
             preview:
-              bodyFromMarkdown(snapshot)
+              bodyFromMarkdown(mergedMarkdown)
                 .split("\n")
                 .find((line) => line.trim() && !line.startsWith("#"))
                 ?.slice(0, 120) ?? "",
             updatedAt: new Date().toISOString(),
-            wordCount: countWords(snapshot),
-            charCount: bodyFromMarkdown(snapshot).replace(/\s/gu, "").length,
+            wordCount: countWords(mergedMarkdown),
+            charCount: bodyFromMarkdown(mergedMarkdown).replace(/\s/gu, "").length,
           };
           const all = getStoredDocuments() ?? demoDocuments;
           const next = all.map((doc) => (doc.id === selected.id ? updated : doc));
@@ -304,7 +389,12 @@ const createWorkspaceStoreState: StateCreator<WorkspaceStore> = (set, get) => {
         if (typeof path !== "string") return;
         const next = await invoke<WorkspaceInfo>("set_workspace_path", { path });
         const items = await invoke<Document[]>("list_documents", { query: null });
-        set({ workspace: next, documents: items, selectedId: items[0]?.id ?? "" });
+        set({
+          workspace: next,
+          documents: items,
+          selectedId: items[0]?.id ?? "",
+          revisions: items.length ? get().revisions : [],
+        });
         if (items[0]) {
           await get().loadDocument(items[0]);
           await get().loadRevisions(items[0].path);
@@ -386,6 +476,7 @@ const createWorkspaceStoreState: StateCreator<WorkspaceStore> = (set, get) => {
         set({ selectedId: created.id });
         ui.setViewMode("write");
         await get().loadDocument(created);
+        await get().loadRevisions(created.path);
         return created;
       } catch (cause) {
         ui.setError(cause instanceof Error ? cause.message : String(cause));

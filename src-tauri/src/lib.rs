@@ -263,24 +263,33 @@ fn ensure_document_history(
         return Ok(());
     }
 
-    let mut statement = conn
-        .prepare(
-            "SELECT content, label, created_at FROM revisions WHERE document_id=?1 ORDER BY id ASC",
+    let legacy_table_exists: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='revisions')",
+            [],
+            |row| row.get(0),
         )
         .map_err(|e| e.to_string())?;
-    let rows = statement
-        .query_map([document_id], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-            ))
-        })
-        .map_err(|e| e.to_string())?;
-    let snapshots = rows
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-    drop(statement);
+    let snapshots = if legacy_table_exists {
+        let mut statement = conn
+            .prepare(
+                "SELECT content, label, created_at FROM revisions WHERE document_id=?1 ORDER BY id ASC",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = statement
+            .query_map([document_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?
+    } else {
+        Vec::new()
+    };
 
     for (content, label, created_at) in snapshots {
         let timestamp = DateTime::parse_from_rfc3339(&created_at)
@@ -592,6 +601,7 @@ fn sync_index(conn: &Connection, workspace: &Path) -> Result<(), String> {
     }
     normalize_legacy_paths(conn, workspace)?;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    let mut seen_paths = Vec::new();
     for entry in WalkDir::new(workspace.join("articles"))
         .follow_links(false)
         .into_iter()
@@ -616,6 +626,7 @@ fn sync_index(conn: &Connection, workspace: &Path) -> Result<(), String> {
             .to_string_lossy()
             .replace('\\', "/");
         let database_path = database_document_path(workspace, &relative)?;
+        seen_paths.push(database_path.clone());
         let indexed: Option<(String, String)> = tx
             .query_row(
                 "SELECT id, content_hash FROM documents WHERE path = ?1",
@@ -636,8 +647,31 @@ fn sync_index(conn: &Connection, workspace: &Path) -> Result<(), String> {
         )
         .map_err(|e| e.to_string())?;
     }
-    // Keep missing-file rows and revision snapshots. The file is authoritative,
-    // but an external deletion should not silently destroy recoverable history.
+    let articles_prefix = workspace
+        .canonicalize()
+        .map_err(|e| e.to_string())?
+        .join("articles")
+        .to_string_lossy()
+        .to_string();
+    let mut statement = tx
+        .prepare("SELECT id, path FROM documents")
+        .map_err(|e| e.to_string())?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|e| e.to_string())?;
+    let stale = rows
+        .filter_map(Result::ok)
+        .filter(|(_, path)| {
+            path.starts_with(&format!("{articles_prefix}/")) && !seen_paths.contains(path)
+        })
+        .collect::<Vec<_>>();
+    drop(statement);
+    for (id, _) in stale {
+        tx.execute("DELETE FROM documents WHERE id=?1", [&id])
+            .map_err(|e| e.to_string())?;
+    }
     tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -718,9 +752,17 @@ fn list_documents(
             )
             .map_err(|e| e.to_string())?;
         let document = document_from_file(id, entry.path(), &workspace)?;
+        let searchable_content = if filter.is_empty() {
+            String::new()
+        } else {
+            fs::read_to_string(entry.path())
+                .map_err(|e| e.to_string())?
+                .to_lowercase()
+        };
         if filter.is_empty()
             || document.title.to_lowercase().contains(&filter)
             || document.preview.to_lowercase().contains(&filter)
+            || searchable_content.contains(&filter)
             || document
                 .tags
                 .iter()
@@ -738,8 +780,10 @@ fn rebuild_workspace_index(state: State<'_, AppState>) -> Result<usize, String> 
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
     sync_index(&conn, &workspace)?;
-    conn.query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))
-        .map_err(|e| e.to_string())
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+    usize::try_from(count).map_err(|_| "文档数量超出可表示范围".to_string())
 }
 
 #[tauri::command]
@@ -755,20 +799,19 @@ fn read_document(path: String, state: State<'_, AppState>) -> Result<DocumentCon
 }
 
 #[tauri::command]
-fn import_markdown(source_path: String, state: State<'_, AppState>) -> Result<Document, String> {
+fn import_markdown(
+    source_name: String,
+    content: String,
+    state: State<'_, AppState>,
+) -> Result<Document, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
-    let source = PathBuf::from(&source_path);
-    if source.extension().and_then(|extension| extension.to_str()) != Some("md")
-        && source.extension().and_then(|extension| extension.to_str()) != Some("markdown")
-    {
-        return Err("请选择 Markdown 文件".to_string());
+    let extension = Path::new(&source_name)
+        .extension()
+        .and_then(|value| value.to_str());
+    if !matches!(extension, Some("md" | "markdown")) || content.len() > 16 * 1024 * 1024 {
+        return Err("请选择不超过 16 MiB 的 Markdown 文件".to_string());
     }
-    let metadata = fs::symlink_metadata(&source).map_err(|e| e.to_string())?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
-        return Err("导入源必须是普通文件，不能是符号链接".to_string());
-    }
-    let content = fs::read_to_string(&source).map_err(|e| e.to_string())?;
     let id = Uuid::new_v4().to_string();
     let relative = format!("articles/{id}/article.md");
     let target = resolve_document(&workspace, &relative)?;
@@ -814,6 +857,33 @@ fn create_document(title: String, state: State<'_, AppState>) -> Result<Document
 }
 
 #[tauri::command]
+fn preserve_external_document(
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<DocumentContent, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+    let file = resolve_document(&workspace, &path)?;
+    let relative = managed_history_path(&path)?.1;
+    let database_path = database_document_path(&workspace, &path)?;
+    let id: String = conn
+        .query_row(
+            "SELECT id FROM documents WHERE path=?1",
+            [&database_path],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    let current = fs::read_to_string(&file).map_err(|e| e.to_string())?;
+    let repository = open_history_repository(&state.history_root, &workspace)?;
+    ensure_document_history(&repository, &conn, &id, &relative, &current)?;
+    commit_document_content(&repository, &relative, &current, "检测到外部版本", None)?;
+    Ok(DocumentContent {
+        content_hash: digest(&current),
+        content: current,
+    })
+}
+
+#[tauri::command]
 fn save_document(
     path: String,
     content: String,
@@ -832,7 +902,6 @@ fn save_document(
         )
         .map_err(|e| e.to_string())?;
     let existing = fs::read_to_string(&file).map_err(|e| e.to_string())?;
-    let current_hash = digest(&existing);
     ensure_base_hash(&existing, base_hash.as_deref())?;
     if existing == content {
         return document_from_file(id, &file, &workspace);
@@ -1005,6 +1074,7 @@ pub fn run() {
             import_markdown,
             create_document,
             save_document,
+            preserve_external_document,
             list_revisions,
             create_document_revision,
             restore_revision
@@ -1232,13 +1302,64 @@ mod tests {
         commit_document_content(&repo, path, restored, "恢复选定版本", None).unwrap();
 
         let revisions = list_document_revisions(&repo, path).unwrap();
-        assert_eq!(revisions.len(), 4);
+        assert_eq!(revisions.len(), 3);
         assert_eq!(revisions[0].preview, "# First");
         assert!(
             revisions
                 .iter()
                 .any(|revision| revision.preview == "# Second")
         );
+    }
+
+    #[test]
+    fn git_tree_preserves_workspace_files_but_commits_only_article_markdown() {
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = temp.path().join("workspace");
+        setup_workspace(&workspace).unwrap();
+        fs::write(workspace.join("assets/image.png"), b"asset bytes").unwrap();
+        fs::write(workspace.join("notes.txt"), "outside article scope").unwrap();
+        let repo = open_history_repository(&temp.path().join("history"), &workspace).unwrap();
+        commit_document_content(
+            &repo,
+            "articles/doc/article.md",
+            "# Versioned article\n",
+            "create",
+            None,
+        )
+        .unwrap();
+        let head = current_head(&repo).unwrap().unwrap();
+        let tree = head.tree().unwrap();
+        assert_eq!(tree.len(), 1);
+        assert!(tree.get_name("articles").is_some());
+        assert!(tree.get_name("notes.txt").is_none());
+        assert!(workspace.join("assets/image.png").exists());
+        assert!(!workspace.join(".git").exists());
+    }
+
+    #[test]
+    fn index_rebuild_only_reindexes_markdown_and_does_not_change_files() {
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = temp.path().join("workspace");
+        setup_workspace(&workspace).unwrap();
+        let article = workspace.join("articles/doc/article.md");
+        let content = "---\ntitle: Rebuild\ncustom: value\n---\n\n# Keep me\n";
+        atomic_write(&article, content).unwrap();
+        let before = digest(&fs::read_to_string(&article).unwrap());
+        let db = test_db();
+        sync_index(&db, &workspace).unwrap();
+        db.execute("DELETE FROM documents", []).unwrap();
+        sync_index(&db, &workspace).unwrap();
+        let title: String = db
+            .query_row("SELECT title FROM documents", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(title, "Rebuild");
+        assert_eq!(digest(&fs::read_to_string(&article).unwrap()), before);
+        fs::remove_file(&article).unwrap();
+        sync_index(&db, &workspace).unwrap();
+        let remaining: i64 = db
+            .query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(remaining, 0);
     }
 
     #[test]

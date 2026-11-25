@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bodyFromMarkdown, countWords, titleFromMarkdown } from "./markdown";
+import { bodyFromMarkdown, countWords, preserveFrontmatter, titleFromMarkdown } from "./markdown";
 
 describe("markdown helpers", () => {
   it("removes frontmatter before returning the document body", () => {
@@ -19,6 +19,13 @@ describe("markdown helpers", () => {
     );
     expect(titleFromMarkdown("# From heading", "Fallback")).toBe("From heading");
     expect(titleFromMarkdown("Body without a heading", "Fallback")).toBe("Fallback");
+  });
+
+  it("preserves unknown Frontmatter fields when replacing the document body", () => {
+    const original = "---\ntitle: Draft\ncustom_field: keep me\ntags: []\n---\n\n# Old body\n";
+    const next = preserveFrontmatter(original, "# New body\n");
+
+    expect(next).toBe("---\ntitle: Draft\ncustom_field: keep me\ntags: []\n---\n# New body\n");
   });
 
   it("counts words in the body without counting frontmatter", () => {

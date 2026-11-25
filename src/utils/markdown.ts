@@ -16,3 +16,13 @@ export function titleFromMarkdown(markdown: string, fallback: string) {
 export function countWords(markdown: string) {
   return bodyFromMarkdown(markdown).trim().split(/\s+/u).filter(Boolean).length;
 }
+
+/** Replaces the Markdown body while keeping the complete Frontmatter block byte-for-byte. */
+export function preserveFrontmatter(original: string, next: string) {
+  if (!original.startsWith("---\n")) return next;
+  const end = original.indexOf("\n---", 4);
+  if (end < 0) return next;
+  const frontmatter = original.slice(0, end + 4);
+  const nextBody = bodyFromMarkdown(next);
+  return `${frontmatter}\n${nextBody}`;
+}

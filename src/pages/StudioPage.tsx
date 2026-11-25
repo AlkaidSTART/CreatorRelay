@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -70,6 +70,9 @@ export function StudioPage() {
   const setQuery = useWorkspaceStore((state) => state.setQuery);
   const saveState = useWorkspaceStore((state) => state.saveState);
   const revisions = useWorkspaceStore((state) => state.revisions);
+  const recentExternalChange = useWorkspaceStore((state) => state.recentExternalChange);
+  const resolveExternalChange = useWorkspaceStore((state) => state.resolveExternalChange);
+  const checkExternalChange = useWorkspaceStore((state) => state.checkExternalChange);
   const chooseWorkspace = useWorkspaceStore((state) => state.chooseWorkspace);
   const selectDocumentSafely = useWorkspaceStore((state) => state.selectDocumentSafely);
   const restoreRevision = useWorkspaceStore((state) => state.restoreRevision);
@@ -110,6 +113,13 @@ export function StudioPage() {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isTauri() || !workspace || !selectedId) return;
+    void checkExternalChange();
+    const timer = window.setInterval(() => void checkExternalChange(), 2000);
+    return () => window.clearInterval(timer);
+  }, [workspace?.path, selectedId, checkExternalChange]);
 
   const clampedActiveIndex = documents.length > 0 ? Math.min(activeIndex, documents.length - 1) : 0;
 
@@ -175,7 +185,10 @@ export function StudioPage() {
         charCount: number;
         tags: string[];
         contentHash: string;
-      }>("import_markdown", { sourcePath: source });
+      }>("import_markdown", {
+        sourceName: source.split(/[\\/]/u).pop() || "import.md",
+        content: await readTextFile(source),
+      });
       const store = useWorkspaceStore.getState();
       await store.loadDocuments();
       useWorkspaceStore.setState({ selectedId: imported.id });
@@ -198,6 +211,26 @@ export function StudioPage() {
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-surface-soft">
+      {recentExternalChange && (
+        <div className="fixed top-3 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs text-amber-950 shadow-lg">
+          <span>检测到外部修改：{recentExternalChange}</span>
+          <button
+            type="button"
+            onClick={() => void resolveExternalChange("reload")}
+            className="rounded-lg bg-amber-200 px-2.5 py-1 font-medium hover:bg-amber-300"
+          >
+            载入磁盘版本
+          </button>
+          <button
+            type="button"
+            disabled={saveState === "saving" || saveState === "error"}
+            onClick={() => void resolveExternalChange("keep")}
+            className="rounded-lg border border-amber-400 px-2.5 py-1 font-medium hover:bg-amber-100 disabled:opacity-50"
+          >
+            保留我的草稿
+          </button>
+        </div>
+      )}
       {/* Center Distraction-Free Writing Area */}
       <main className="flex min-w-0 flex-1 flex-col bg-surface-soft">
         {/* Single Unified Header Toolbar */}
@@ -911,7 +944,8 @@ export function StudioPage() {
           ) : (
             <div className="flex flex-1 flex-col overflow-y-auto p-4">
               <p className="mb-3 text-[11.5px] leading-relaxed text-ink-secondary">
-                版本存储在应用数据目录中的独立 Git 仓库，不会在工作区创建 .git；自动保存不会创建版本。
+                版本存储在应用数据目录中的独立 Git 仓库，不会在工作区创建
+                .git；自动保存不会创建版本。
               </p>
               <div className="mb-4 flex gap-2">
                 <input
@@ -969,7 +1003,11 @@ export function StudioPage() {
                       )}
                       <button
                         type="button"
-                        onClick={() => setSelectedRevisionId((current) => current === revision.id ? "" : revision.id)}
+                        onClick={() =>
+                          setSelectedRevisionId((current) =>
+                            current === revision.id ? "" : revision.id,
+                          )
+                        }
                         className="mt-2 mr-3 text-[11px] font-medium text-accent hover:text-accent-deep"
                       >
                         {selectedRevisionId === revision.id ? "隐藏差异" : "查看差异"}

@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { Check, FolderOpen, KeyRound, Palette, Plug, Server, Shield } from "../components/Icons";
 import { PageHeader } from "../components/PageHeader";
 import { useUiStore, useWorkspaceStore } from "../stores";
@@ -21,6 +23,25 @@ export function SettingsPage() {
   const theme = useUiStore((state) => state.theme);
   const setTheme = useUiStore((state) => state.setTheme);
   const showToast = useUiStore((state) => state.showToast);
+  const setError = useUiStore((state) => state.setError);
+  const [rebuilding, setRebuilding] = useState(false);
+
+  async function rebuildIndex() {
+    if (!isTauri()) {
+      showToast("请在桌面端重建工作区索引");
+      return;
+    }
+    setRebuilding(true);
+    try {
+      const count = await invoke<number>("rebuild_workspace_index");
+      await useWorkspaceStore.getState().loadDocuments(useWorkspaceStore.getState().query);
+      showToast(`索引重建完成，发现 ${count} 篇文章`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setRebuilding(false);
+    }
+  }
 
   return (
     <main className="flex h-full min-w-0 flex-col bg-canvas">
@@ -47,7 +68,11 @@ export function SettingsPage() {
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5" role="radiogroup" aria-label="选择应用主题">
+            <div
+              className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5"
+              role="radiogroup"
+              aria-label="选择应用主题"
+            >
               {THEMES.map((item) => {
                 const isActive = item.id === theme;
                 return (
@@ -176,9 +201,7 @@ export function SettingsPage() {
                   className="flex items-center justify-between gap-3 rounded-xl border border-line bg-canvas px-3.5 py-2.5"
                 >
                   <div className="min-w-0 flex-1">
-                    <strong className="block text-xs font-medium text-ink">
-                      {provider.name}
-                    </strong>
+                    <strong className="block text-xs font-medium text-ink">{provider.name}</strong>
                     <small className="block truncate text-[11px] text-ink-muted">
                       {provider.endpoint}
                     </small>
@@ -231,18 +254,18 @@ export function SettingsPage() {
                 <div>
                   <h2 className="text-sm font-semibold text-ink">安全与本地备份</h2>
                   <small className="text-[11px] text-ink-muted">
-                    高风险操作强制确认 · 随时重建本地索引
+                    Markdown 为正文权威；索引可安全重建
                   </small>
                 </div>
               </div>
               <p className="mb-4 text-xs leading-relaxed text-ink-secondary">
-                自动发布、删除内容等高风险操作默认需要你显式确认；索引异常时可直接从本地 Markdown 文件一键恢复。
+                索引重建只扫描当前工作区内的 Markdown 文件，不会修改文章正文或 Git 版本历史。
               </p>
               <button
                 className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3 text-xs font-medium text-ink hover:bg-subtle"
-                onClick={() => showToast("已触发工作区索引一致性检查，全部正常")}
+                onClick={() => void rebuildIndex()}
               >
-                重建本地索引
+                {rebuilding ? "正在重建..." : "重建本地索引"}
               </button>
             </article>
           </section>
