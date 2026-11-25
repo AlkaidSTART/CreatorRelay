@@ -120,12 +120,12 @@ fn tree_blob_id(tree: &Tree<'_>, relative: &str) -> Option<git2::Oid> {
     tree.get_path(Path::new(relative)).ok().map(|entry| entry.id())
 }
 
-fn tree_with_document(
-    repo: &Repository,
-    base: Option<&Tree<'_>>,
+fn tree_with_document<'repo>(
+    repo: &'repo Repository,
+    base: Option<&Tree<'repo>>,
     relative: &str,
     content: &str,
-) -> Result<Tree<'_>, String> {
+) -> Result<Tree<'repo>, String> {
     let (document_id, _) = managed_history_path(relative)?;
     let base_articles = base
         .and_then(|tree| tree.get_name("articles").ok())
@@ -815,7 +815,10 @@ fn read_document(path: String, state: State<'_, AppState>) -> Result<DocumentCon
 }
 
 #[tauri::command]
-fn create_document(title: String, state: State<'_, AppState>) -> Result<Document, String> {
+fn create_document(
+    title: String,
+    state: State<'_, AppState>,
+) -> Result<Document, String> {
     let title = title.trim();
     if title.is_empty() {
         return Err("标题不能为空".to_string());
@@ -831,13 +834,14 @@ fn create_document(title: String, state: State<'_, AppState>) -> Result<Document
         "---\nid: {id}\ntitle: {title_yaml}\ncreated_at: {created_at}\nupdated_at: {created_at}\ntags: []\nstatus: draft\n---\n\n# {title}\n\n"
     );
     atomic_write(&path, &content)?;
+    let history = open_history_repository(&state.history_root, &workspace)?;
+    commit_document_content(&history, &relative, &content, "创建文章", None)?;
     let database_path = database_document_path(&workspace, &relative)?;
     conn.execute(
         "INSERT INTO documents(id, path, title, updated_at, content_hash) VALUES(?1, ?2, ?3, ?4, ?5)",
         params![id, database_path, title, created_at, digest(&content)],
     )
     .map_err(|e| e.to_string())?;
-    create_revision(&conn, &id, &content, "创建")?;
     document_from_file(id, &path, &workspace)
 }
 
@@ -870,21 +874,8 @@ fn save_document(
     if existing == content {
         return document_from_file(id, &file, &workspace);
     }
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
-    let latest_hash: Option<String> = tx
-        .query_row(
-            "SELECT content_hash FROM revisions WHERE document_id=?1 ORDER BY id DESC LIMIT 1",
-            [&id],
-            |row| row.get(0),
-        )
-        .optional()
-        .map_err(|e| e.to_string())?;
-    if latest_hash.as_deref() != Some(current_hash.as_str()) {
-        create_revision_tx(&tx, &id, &existing, "编辑前版本")?;
-    }
-    create_revision_tx(&tx, &id, &content, "自动保存")?;
     atomic_write(&file, &content)?;
-    tx.execute(
+    conn.execute(
         "UPDATE documents SET title=?1, updated_at=?2, content_hash=?3 WHERE id=?4",
         params![
             title_for(&content, &file),
@@ -894,107 +885,116 @@ fn save_document(
         ],
     )
     .map_err(|e| e.to_string())?;
-    tx.commit().map_err(|e| e.to_string())?;
     document_from_file(id, &file, &workspace)
 }
 
 #[tauri::command]
-fn list_revisions(path: String, state: State<'_, AppState>) -> Result<Vec<Revision>, String> {
+fn list_revisions(
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<Revision>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
     let file = resolve_document(&workspace, &path)?;
-    let id: String = conn
-        .query_row("SELECT id FROM documents WHERE path=?1", [&path], |row| {
-            row.get(0)
-        })
-        .map_err(|e| e.to_string())?;
     if !file.exists() {
         return Err("文档文件已不存在".to_string());
     }
-    let current = fs::read_to_string(&file).map_err(|e| e.to_string())?;
-    let current_hash = digest(&current);
-    let latest_hash: Option<String> = conn
+    let (document_id, relative) = managed_history_path(&path)?;
+    let database_path = database_document_path(&workspace, &path)?;
+    let indexed_id: String = conn
         .query_row(
-            "SELECT content_hash FROM revisions WHERE document_id=?1 ORDER BY id DESC LIMIT 1",
-            [&id],
+            "SELECT id FROM documents WHERE path=?1",
+            [&database_path],
             |row| row.get(0),
         )
-        .optional()
         .map_err(|e| e.to_string())?;
-    if latest_hash.as_deref() != Some(current_hash.as_str()) {
-        create_revision(&conn, &id, &current, "当前版本")?;
+    let current = fs::read_to_string(&file).map_err(|e| e.to_string())?;
+    let repository = open_history_repository(&state.history_root, &workspace)?;
+    ensure_document_history(&repository, &conn, &indexed_id, &relative, &current)?;
+    let _ = document_id;
+    list_document_revisions(&repository, &relative)
+}
+
+#[tauri::command]
+fn create_document_revision(
+    path: String,
+    label: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<Vec<Revision>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+    let file = resolve_document(&workspace, &path)?;
+    if !file.exists() {
+        return Err("文档文件已不存在".to_string());
     }
-    let mut statement = conn
-        .prepare("SELECT id, created_at, label, content FROM revisions WHERE document_id=?1 ORDER BY id DESC")
+    let relative = managed_history_path(&path)?.1;
+    let database_path = database_document_path(&workspace, &path)?;
+    let id: String = conn
+        .query_row(
+            "SELECT id FROM documents WHERE path=?1",
+            [&database_path],
+            |row| row.get(0),
+        )
         .map_err(|e| e.to_string())?;
-    let rows = statement
-        .query_map([id], |row| {
-            let content: String = row.get(3)?;
-            let preview = content
-                .lines()
-                .filter(|line| !line.trim().is_empty())
-                .take(2)
-                .collect::<Vec<_>>()
-                .join(" ");
-            Ok(Revision {
-                id: row.get(0)?,
-                created_at: row.get(1)?,
-                label: row.get(2)?,
-                preview,
-            })
-        })
-        .map_err(|e| e.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())
+    let current = fs::read_to_string(&file).map_err(|e| e.to_string())?;
+    let repository = open_history_repository(&state.history_root, &workspace)?;
+    ensure_document_history(&repository, &conn, &id, &relative, &current)?;
+    let label = label.unwrap_or_else(|| "手动保存版本".to_string());
+    if label.trim().is_empty() || label.len() > 120 {
+        return Err("版本说明需为 1 至 120 个字符".to_string());
+    }
+    commit_document_content(&repository, &relative, &current, label.trim(), None)?;
+    list_document_revisions(&repository, &relative)
 }
 
 #[tauri::command]
 fn restore_revision(
     path: String,
-    revision_id: i64,
+    revision_id: String,
     state: State<'_, AppState>,
 ) -> Result<Document, String> {
     let mut conn = state.db.lock().map_err(|e| e.to_string())?;
     let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
     let file = resolve_document(&workspace, &path)?;
+    if !file.exists() {
+        return Err("文档文件已不存在".to_string());
+    }
+    let relative = managed_history_path(&path)?.1;
+    let database_path = database_document_path(&workspace, &path)?;
     let id: String = conn
-        .query_row("SELECT id FROM documents WHERE path=?1", [&path], |row| {
-            row.get(0)
-        })
-        .map_err(|e| e.to_string())?;
-    let restored: String = conn
         .query_row(
-            "SELECT content FROM revisions WHERE id=?1 AND document_id=?2",
-            params![revision_id, id],
+            "SELECT id FROM documents WHERE path=?1",
+            [&database_path],
             |row| row.get(0),
         )
         .map_err(|e| e.to_string())?;
     let current = fs::read_to_string(&file).map_err(|e| e.to_string())?;
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
-    let latest_hash: Option<String> = tx
-        .query_row(
-            "SELECT content_hash FROM revisions WHERE document_id=?1 ORDER BY id DESC LIMIT 1",
-            [&id],
-            |row| row.get(0),
-        )
-        .optional()
-        .map_err(|e| e.to_string())?;
-    if latest_hash.as_deref() != Some(digest(&current).as_str()) {
-        create_revision_tx(&tx, &id, &current, "恢复前")?;
-    }
-    create_revision_tx(&tx, &id, &restored, "恢复版本")?;
-    atomic_write(&file, &restored)?;
-    tx.execute(
+    let repository = open_history_repository(&state.history_root, &workspace)?;
+    ensure_document_history(&repository, &conn, &id, &relative, &current)?;
+    let oid = git2::Oid::from_str(&revision_id).map_err(|e| e.message().to_string())?;
+    let revision = repository
+        .find_commit(oid)
+        .map_err(|_| "找不到所选版本".to_string())?;
+    let tree = revision.tree().map_err(|e| e.message().to_string())?;
+    let blob_id = tree_blob_id(&tree, &relative).ok_or("所选版本不包含此文章")?;
+    let restored_blob = repository
+        .find_blob(blob_id)
+        .map_err(|e| e.message().to_string())?;
+    let restored = std::str::from_utf8(restored_blob.content())
+        .map_err(|_| "所选版本不是有效 UTF-8 Markdown")?;
+    atomic_write(&file, restored)?;
+    let now = fs::read_to_string(&file).map_err(|e| e.to_string())?;
+    commit_document_content(&repository, &relative, &now, "恢复选定版本", None)?;
+    conn.execute(
         "UPDATE documents SET title=?1, updated_at=?2, content_hash=?3 WHERE id=?4",
         params![
-            title_for(&restored, &file),
+            title_for(&now, &file),
             Utc::now().to_rfc3339(),
-            digest(&restored),
+            digest(&now),
             id
         ],
     )
     .map_err(|e| e.to_string())?;
-    tx.commit().map_err(|e| e.to_string())?;
     document_from_file(id, &file, &workspace)
 }
 
@@ -1028,8 +1028,14 @@ pub fn run() {
                 [Utc::now().to_rfc3339()],
             )
             .map_err(std::io::Error::other)?;
+            let history_root = app
+                .path()
+                .app_data_dir()
+                .map_err(std::io::Error::other)?
+                .join("article-history");
             app.manage(AppState {
                 db: Mutex::new(conn),
+                history_root,
             });
             Ok(())
         })
@@ -1041,6 +1047,7 @@ pub fn run() {
             create_document,
             save_document,
             list_revisions,
+            create_document_revision,
             restore_revision
         ])
         .run(tauri::generate_context!())
