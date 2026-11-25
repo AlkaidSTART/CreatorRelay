@@ -1,5 +1,5 @@
-import type { IconComponent } from "../components/Icons";
 import {
+  type IconComponent,
   BarChart3,
   BookOpen,
   Bot,

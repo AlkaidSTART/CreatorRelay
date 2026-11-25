@@ -1,13 +1,13 @@
 import type { CSSProperties, JSX } from "react";
 
-type IconProps = {
+export type IconProps = {
   className?: string;
   size?: number | string;
   strokeWidth?: number;
   style?: CSSProperties;
 };
 
-function createIcon(glyph: string) {
+export function createIcon(glyph: string) {
   return function AppIcon({ className = "", size, style }: IconProps) {
     return (
       <i
@@ -57,7 +57,7 @@ export const Server = createIcon("server");
 export const Settings2 = createIcon("gear");
 export const Shield = createIcon("shield");
 export const ShieldAlert = createIcon("shield-halved");
-export const ShieldCheck = createIcon("shield-check");
+export const ShieldCheck = createIcon("shield");
 export const Sparkles = createIcon("wand-magic-sparkles");
 export const Tags = createIcon("tags");
 export const Terminal = createIcon("terminal");
