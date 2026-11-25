@@ -313,8 +313,7 @@ fn validate_asset_path(package_dir: &Path, file: &str) -> Result<PathBuf, String
     let candidate = package_dir.join(path);
     let assets_dir = package_dir.join("assets");
     if fs::symlink_metadata(&assets_dir).is_ok_and(|metadata| metadata.file_type().is_symlink())
-        || fs::symlink_metadata(&candidate)
-            .is_ok_and(|metadata| metadata.file_type().is_symlink())
+        || fs::symlink_metadata(&candidate).is_ok_and(|metadata| metadata.file_type().is_symlink())
     {
         return Err("素材路径不能经过符号链接".to_string());
     }
@@ -407,10 +406,7 @@ fn read_manifest(package_dir: &Path) -> Result<(ContentManifest, Vec<u8>), Strin
     let manifest: ContentManifest =
         serde_json::from_slice(&bytes).map_err(|e| format!("内容清单格式无效：{e}"))?;
     if manifest.schema_version != CONTENT_SCHEMA_VERSION {
-        return Err(format!(
-            "不支持的内容清单版本：{}",
-            manifest.schema_version
-        ));
+        return Err(format!("不支持的内容清单版本：{}", manifest.schema_version));
     }
     Ok((manifest, bytes))
 }
@@ -562,6 +558,15 @@ pub fn save_content_package(
     package_from_directory(workspace, &package_dir)
 }
 
+pub fn delete_content_package(workspace: &Path, package_id: &str) -> Result<(), String> {
+    let package_dir = package_directory(workspace, package_id)?;
+    let metadata = fs::symlink_metadata(&package_dir).map_err(|_| "未找到内容包".to_string())?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err("内容包路径不是安全的普通目录".to_string());
+    }
+    fs::remove_dir_all(package_dir).map_err(|error| format!("内容包删除失败：{error}"))
+}
+
 pub fn import_content_asset(
     workspace: &Path,
     package_id: &str,
@@ -613,7 +618,11 @@ pub fn import_content_asset(
         })
         .collect::<String>();
     let safe_name = safe_name.trim_matches('-');
-    let safe_name = if safe_name.is_empty() { "asset" } else { safe_name };
+    let safe_name = if safe_name.is_empty() {
+        "asset"
+    } else {
+        safe_name
+    };
     let id = Uuid::new_v4().to_string();
     let file_name = format!("{id}-{safe_name}");
     let relative = format!("assets/{file_name}");
@@ -718,7 +727,11 @@ pub fn derive_content_package(
         for asset in &media {
             let marker = format!("asset:{}", asset.id);
             if !base.contains(&marker) {
-                let prefix = if asset.kind == AssetKind::Image { "!" } else { "" };
+                let prefix = if asset.kind == AssetKind::Image {
+                    "!"
+                } else {
+                    ""
+                };
                 references.push(format!("{prefix}[{}]({marker})", asset.caption));
             }
         }
@@ -824,7 +837,10 @@ fn adapt_text(content: &ContentPackage, target: &DraftTarget) -> String {
         }
         ContentKind::Video => {
             if content.manifest.summary.trim().is_empty() {
-                format!("{}\n\n（来自 {} 的视频主稿）", content.manifest.title, target.platform_name)
+                format!(
+                    "{}\n\n（来自 {} 的视频主稿）",
+                    content.manifest.title, target.platform_name
+                )
             } else {
                 content.manifest.summary.clone()
             }
@@ -1133,11 +1149,7 @@ mod tests {
         )
         .unwrap();
         assert!(saved.body.is_empty());
-        assert!(!temp
-            .path()
-            .join(&saved.path)
-            .join("body.md")
-            .exists());
+        assert!(!temp.path().join(&saved.path).join("body.md").exists());
         let reopened = read_content_package(temp.path(), &package.manifest.id).unwrap();
         assert_eq!(reopened.manifest.summary, "视频简介");
         assert_eq!(reopened.manifest.media.len(), 1);
@@ -1367,8 +1379,7 @@ mod tests {
     #[test]
     fn video_drafts_copy_video_and_cover_metadata() {
         let temp = workspace();
-        let package =
-            create_content_package(temp.path(), ContentKind::Video, "视频主稿").unwrap();
+        let package = create_content_package(temp.path(), ContentKind::Video, "视频主稿").unwrap();
         let video = import_content_asset(
             temp.path(),
             &package.manifest.id,
@@ -1420,12 +1431,13 @@ mod tests {
         assert_eq!(draft.media[0].byte_size, video_bytes().len() as u64);
         assert_eq!(draft.cover.as_ref().unwrap().mime_type, "image/png");
         assert!(!draft.body.is_empty());
-        assert!(temp
-            .path()
-            .join("platform-drafts")
-            .join(&draft.id)
-            .join(&draft.media[0].file)
-            .is_file());
+        assert!(
+            temp.path()
+                .join("platform-drafts")
+                .join(&draft.id)
+                .join(&draft.media[0].file)
+                .is_file()
+        );
     }
 
     #[test]
@@ -1485,7 +1497,11 @@ mod tests {
         .unwrap();
         for draft in &drafts {
             assert_eq!(
-                draft.media.iter().map(|asset| asset.order).collect::<Vec<_>>(),
+                draft
+                    .media
+                    .iter()
+                    .map(|asset| asset.order)
+                    .collect::<Vec<_>>(),
                 vec![1, 2, 3]
             );
             assert_eq!(draft.cover.as_ref().unwrap().order, cover.order);
@@ -1524,8 +1540,7 @@ mod tests {
     #[test]
     fn derived_content_is_a_new_package_with_source_reference() {
         let temp = workspace();
-        let source =
-            create_content_package(temp.path(), ContentKind::Article, "原始文章").unwrap();
+        let source = create_content_package(temp.path(), ContentKind::Article, "原始文章").unwrap();
         let source = save_content_package(
             temp.path(),
             &source.manifest.id,

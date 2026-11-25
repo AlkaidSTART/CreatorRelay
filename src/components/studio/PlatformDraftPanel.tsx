@@ -1,22 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  AlertTriangle,
-  ArrowRight,
-  Check,
-  ChevronRight,
-  Save,
-  Sparkles,
-} from "../Icons";
+import { useNavigate } from "react-router";
+import { AlertTriangle, ArrowRight, Check, ChevronRight, Save, Sparkles } from "../Icons";
 import { usePlatformStore } from "../../stores/platformStore";
 import { usePluginStore } from "../../stores/pluginStore";
 import { useStudioStore } from "../../stores/studioStore";
 import { useUiStore } from "../../stores/uiStore";
+import { useOperationsStore } from "../../stores/operationsStore";
 import { buildDraftTargets } from "../../utils/contentTargets";
 import { evaluateContentChecks } from "../../utils/contentChecks";
 import { formatRelativeTime } from "../../utils/format";
 import { MediaThumb } from "./MediaAsset";
 
 export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void }) {
+  const navigate = useNavigate();
   const editor = useStudioStore((state) => state.editor);
   const drafts = useStudioStore((state) => state.drafts);
   const createDrafts = useStudioStore((state) => state.createDrafts);
@@ -29,6 +25,7 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
   const draftError = useStudioStore((state) => state.draftError);
   const acknowledgeDraftSource = useStudioStore((state) => state.acknowledgeDraftSource);
   const regenerateDraft = useStudioStore((state) => state.regenerateDraft);
+  const createPublishTasks = useOperationsStore((state) => state.createTasks);
   const accounts = usePlatformStore((state) => state.accounts);
   const initializePlatforms = usePlatformStore((state) => state.initialize);
   const plugins = usePluginStore((state) => state.plugins);
@@ -82,6 +79,30 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
     setDetailOpen(true);
   }
 
+  async function handleCreatePublishTask() {
+    if (!draftEditor) return;
+    const saved = await saveDraft();
+    if (!saved) return;
+    const tasks = await createPublishTasks({
+      sourceType: "platformDraft",
+      sourceId: draftEditor.id,
+      targets: [
+        {
+          platformId: draftEditor.platformId,
+          platformName: draftEditor.platformName,
+          accountId: draftEditor.accountId,
+          accountAlias: draftEditor.accountAlias,
+          adapterId: draftEditor.adapterId ?? null,
+        },
+      ],
+      scheduledAt: null,
+    });
+    if (tasks.length > 0) {
+      showToast(`已为 ${draftEditor.platformName} 创建发布任务，请预览最终内容包后确认`);
+      navigate("/publishing");
+    }
+  }
+
   if (detailOpen && draftEditor) {
     const check = evaluateContentChecks(
       {
@@ -115,7 +136,9 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
               <strong className="text-xs text-ink">{draftEditor.platformName}</strong>
               <span className="text-[10px] text-ink-muted">{draftEditor.accountAlias}</span>
             </div>
-            <p className="mt-0.5 text-[10px] text-ink-muted">生成于 {formatRelativeTime(draftEditor.generatedAt)}</p>
+            <p className="mt-0.5 text-[10px] text-ink-muted">
+              生成于 {formatRelativeTime(draftEditor.generatedAt)}
+            </p>
           </div>
 
           {draftEditor.sourceChanged && (
@@ -154,7 +177,9 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
           )}
 
           {draftError && (
-            <p className="rounded-lg bg-coral-bg px-2.5 py-2 text-[10.5px] text-coral-text">{draftError}</p>
+            <p className="rounded-lg bg-coral-bg px-2.5 py-2 text-[10.5px] text-coral-text">
+              {draftError}
+            </p>
           )}
 
           <label className="block text-[11px] text-ink-muted">
@@ -184,7 +209,9 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
 
           {draftEditor.media.length > 0 && (
             <div>
-              <span className="text-[11px] text-ink-muted">素材快照（{draftEditor.media.length}）</span>
+              <span className="text-[11px] text-ink-muted">
+                素材快照（{draftEditor.media.length}）
+              </span>
               <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                 {draftEditor.media.slice(0, 6).map((asset) => (
                   <div key={asset.id} className="rounded-lg border border-line p-1">
@@ -245,6 +272,15 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
               修改不会影响主稿或其他平台稿
             </p>
           )}
+          <button
+            type="button"
+            onClick={() => void handleCreatePublishTask()}
+            disabled={draftSaveState === "saving"}
+            className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-accent-border bg-accent-soft py-2 text-xs font-medium text-accent-deep disabled:opacity-50"
+          >
+            <ArrowRight size={12} />
+            创建发布任务并预览确认
+          </button>
         </div>
       </div>
     );
@@ -306,7 +342,8 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
                         className={`shrink-0 rounded px-1.5 py-0.5 text-[9.5px] font-medium ${
                           target.capability === "supported"
                             ? "bg-mint-bg text-mint-text"
-                            : target.capability === "experimental" || target.capability === "restricted"
+                            : target.capability === "experimental" ||
+                                target.capability === "restricted"
                               ? "bg-amber-100 text-amber-800"
                               : "bg-sidebar text-ink-muted"
                         }`}
@@ -317,7 +354,9 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
                     <span className="mt-0.5 block truncate text-[10px] text-ink-muted">
                       {target.source === "adapter" ? "Adapter 探测" : target.accountAlias}
                     </span>
-                    <p className="mt-1 text-[10px] leading-snug text-ink-secondary">{target.reason}</p>
+                    <p className="mt-1 text-[10px] leading-snug text-ink-secondary">
+                      {target.reason}
+                    </p>
                   </div>
                 </label>
               );

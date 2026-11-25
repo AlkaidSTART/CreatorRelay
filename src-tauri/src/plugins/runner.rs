@@ -291,19 +291,23 @@ fn handle_request(
             let submitted_media = input
                 .media
                 .iter()
-                .map(|media| json!({
-                  "assetId": media.asset_id,
-                  "kind": media.kind,
-                  "order": media.order,
-                  "role": media.role
-                }))
+                .map(|media| {
+                    json!({
+                      "assetId": media.asset_id,
+                      "kind": media.kind,
+                      "order": media.order,
+                      "role": media.role
+                    })
+                })
                 .collect::<Vec<_>>();
-            let submitted_cover = input.cover.as_ref().map(|cover| json!({
-              "assetId": cover.asset_id,
-              "kind": cover.kind,
-              "order": cover.order,
-              "role": cover.role
-            }));
+            let submitted_cover = input.cover.as_ref().map(|cover| {
+                json!({
+                  "assetId": cover.asset_id,
+                  "kind": cover.kind,
+                  "order": cover.order,
+                  "role": cover.role
+                })
+            });
             (
                 true,
                 json!({
@@ -396,7 +400,7 @@ fn handle_request(
                   "metrics": [
                     { "name": "文章阅读量", "value": 5200, "unit": "次", "definition": "平台后台文章阅读次数" }
                   ]
-                })
+                }),
             ];
             (
                 true,
@@ -467,8 +471,7 @@ fn test_publish_supported(manifest_id: &str, kind: ContentKind) -> bool {
         "creatorrelay.official.sync-adapter" | "creatorrelay.official.test-adapter" => {
             matches!(kind, ContentKind::ImageText | ContentKind::Article)
         }
-        "creatorrelay.official.fault-adapter"
-        | "creatorrelay.official.publish-timeout-adapter" => {
+        "creatorrelay.official.fault-adapter" | "creatorrelay.official.publish-timeout-adapter" => {
             matches!(kind, ContentKind::ImageText | ContentKind::Article)
         }
         _ => false,

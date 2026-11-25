@@ -121,9 +121,24 @@ describe("M6 operations filters", () => {
           comparable: false,
           comparabilityNote: "不聚合",
         },
+        {
+          key: "work::other",
+          workId: "work-1",
+          title: "作品",
+          platformId: "juejin",
+          platformName: "掘金",
+          accountAlias: "主号",
+          contentKind: "article",
+          metricName: "另一指标",
+          metricDefinition: "原始定义",
+          unit: "次",
+          points: [{ bucket: "2026-11-24", capturedAt: "2026-11-24T00:00:00Z", value: 15 }],
+          comparable: false,
+          comparabilityNote: "不聚合",
+        },
       ],
     });
-    expect(dataset.dates).toEqual(["2026-11-23", "2026-11-25"]);
-    expect(dataset.series[0].values).toEqual([10, null]);
+    expect(dataset.dates).toEqual(["2026-11-23", "2026-11-24", "2026-11-25"]);
+    expect(dataset.series[0].values).toEqual([10, null, 20]);
   });
 });

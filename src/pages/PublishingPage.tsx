@@ -247,7 +247,9 @@ export function PublishingPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <strong className="text-sm font-medium text-ink">{task.title}</strong>
-                        <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${meta.tone}`}>
+                        <span
+                          className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${meta.tone}`}
+                        >
                           {meta.label}
                         </span>
                         <span className="rounded-md bg-sidebar px-2 py-0.5 text-[11px] text-ink-secondary">
@@ -263,7 +265,9 @@ export function PublishingPage() {
                         {taskActionSummary(task)}
                       </p>
                       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-muted">
-                        <span>{task.platformName} · {task.accountAlias}</span>
+                        <span>
+                          {task.platformName} · {task.accountAlias}
+                        </span>
                         <span>{task.executionMode === "auto" ? "自动发布" : "人工发布"}</span>
                         <span>内容版本 {task.contentVersion.slice(0, 10)}</span>
                         <span>提交 {task.attemptCount} 次</span>
@@ -401,13 +405,19 @@ export function PublishingPage() {
           <div className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-line bg-surface p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-[11px] font-semibold tracking-[0.18em] text-accent">最终发布确认</p>
+                <p className="text-[11px] font-semibold tracking-[0.18em] text-accent">
+                  最终发布确认
+                </p>
                 <h2 className="mt-1 text-lg font-semibold text-ink">{preview.task.title}</h2>
                 <p className="mt-1 text-xs text-ink-secondary">
-                  {contentKindText(preview.task.contentKind)} · {preview.task.platformName} · {preview.task.accountAlias}
+                  {contentKindText(preview.task.contentKind)} · {preview.task.platformName} ·{" "}
+                  {preview.task.accountAlias}
                 </p>
               </div>
-              <button className="cursor-pointer text-ink-muted hover:text-ink" onClick={clearPreview}>
+              <button
+                className="cursor-pointer text-ink-muted hover:text-ink"
+                onClick={clearPreview}
+              >
                 <X size={18} />
               </button>
             </div>
@@ -447,29 +457,42 @@ export function PublishingPage() {
             <div className="mt-3 rounded-xl border border-line bg-canvas p-4">
               <h3 className="text-xs font-semibold text-ink">媒体顺序与封面</h3>
               <ol className="mt-2 space-y-1.5">
-                {[...preview.task.media]
-                  .sort((left, right) => left.order - right.order)
+                {preview.task.media
+                  .reduce<typeof preview.task.media>((ordered, asset) => {
+                    const index = ordered.findIndex((item) => item.order > asset.order);
+                    if (index < 0) ordered.push(asset);
+                    else ordered.splice(index, 0, asset);
+                    return ordered;
+                  }, [])
                   .map((asset) => (
-                    <li key={asset.id} className="flex items-center gap-2 text-xs text-ink-secondary">
+                    <li
+                      key={asset.id}
+                      className="flex items-center gap-2 text-xs text-ink-secondary"
+                    >
                       <span className="grid h-5 w-5 place-items-center rounded bg-surface text-[10px] text-ink-muted">
                         {asset.order}
                       </span>
                       <span className="min-w-0 flex-1 truncate">{asset.originalName}</span>
                       <span className="text-[10px] text-ink-muted">{asset.mimeType}</span>
                       {preview.task.cover?.id === asset.id && (
-                        <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] text-accent-deep">封面</span>
+                        <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] text-accent-deep">
+                          封面
+                        </span>
                       )}
                     </li>
                   ))}
               </ol>
               {!preview.task.media.length && (
-                <p className="text-xs text-ink-muted">此形态无媒体文件；正文和元数据将作为发布载荷。</p>
-              )}
-              {preview.task.cover && !preview.task.media.some((asset) => asset.id === preview.task.cover?.id) && (
-                <p className="mt-2 text-xs text-ink-secondary">
-                  独立封面：{preview.task.cover.originalName}
+                <p className="text-xs text-ink-muted">
+                  此形态无媒体文件；正文和元数据将作为发布载荷。
                 </p>
               )}
+              {preview.task.cover &&
+                !preview.task.media.some((asset) => asset.id === preview.task.cover?.id) && (
+                  <p className="mt-2 text-xs text-ink-secondary">
+                    独立封面：{preview.task.cover.originalName}
+                  </p>
+                )}
             </div>
 
             {preview.validation.issues.length > 0 && (
@@ -594,7 +617,9 @@ export function PublishingPage() {
               </button>
               <button
                 className="h-8 cursor-pointer rounded-xl border border-coral-border bg-coral-bg px-3 text-xs font-medium text-coral-text"
-                onClick={() => void handleResolve({ outcome: "failed", note: "平台后台未找到作品" })}
+                onClick={() =>
+                  void handleResolve({ outcome: "failed", note: "平台后台未找到作品" })
+                }
               >
                 确认未发布
               </button>

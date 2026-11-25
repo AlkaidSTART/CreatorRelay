@@ -6,11 +6,7 @@ import { PlatformLogo } from "../components/PlatformLogo";
 import { useOperationsStore, usePlatformStore } from "../stores";
 import type { AnalyticsGranularity, AnalyticsRange } from "../types/operations";
 import type { ContentKind } from "../types/content";
-import {
-  analyticsToTrendDataset,
-  contentKindText,
-  formatMetricNumber,
-} from "../utils/operations";
+import { analyticsToTrendDataset, contentKindText, formatMetricNumber } from "../utils/operations";
 
 const rangeOptions: Array<{ id: AnalyticsRange; label: string }> = [
   { id: "7d", label: "近 7 天" },
@@ -121,13 +117,13 @@ export function AnalyticsPage() {
             className="h-8 rounded-lg border border-line bg-surface px-2 text-xs text-ink-secondary"
           >
             <option value="">全部平台</option>
-            {Array.from(new Map(accounts.map((account) => [account.platformId, account.platformName]))).map(
-              ([id, name]) => (
-                <option key={id} value={id}>
-                  {name}
-                </option>
-              ),
-            )}
+            {Array.from(
+              new Map(accounts.map((account) => [account.platformId, account.platformName])),
+            ).map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
           </select>
           <select
             value={accountId}
@@ -203,9 +199,12 @@ export function AnalyticsPage() {
                     </div>
                     <div className="min-w-0">
                       <p className="text-[11px] text-ink-muted">{series.metricName}</p>
-                      <h3 className="mt-1 truncate text-sm font-semibold text-ink">{series.title}</h3>
+                      <h3 className="mt-1 truncate text-sm font-semibold text-ink">
+                        {series.title}
+                      </h3>
                       <p className="mt-0.5 truncate text-[11px] text-ink-secondary">
-                        {series.platformName} · {series.accountAlias} · {contentKindText(series.contentKind)}
+                        {series.platformName} · {series.accountAlias} ·{" "}
+                        {contentKindText(series.contentKind)}
                       </p>
                     </div>
                   </div>

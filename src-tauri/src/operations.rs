@@ -13,8 +13,8 @@ use crate::{
     content::{self, ContentAsset, ContentKind},
     platforms,
     plugins::{
-        self, CapabilityLevel, PluginRuntime, PublishInput, PublishMediaRef, PublishValidationResult,
-        validate_publish_payload,
+        self, CapabilityLevel, PluginRuntime, PublishInput, PublishMediaRef,
+        PublishValidationResult, validate_publish_payload,
     },
 };
 
@@ -414,7 +414,8 @@ fn task_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<TaskRow> {
     };
     Ok(TaskRow {
         id: row.get(0)?,
-        source_type: PublishSourceType::parse(&source_type).map_err(|error| parse_error(1, error))?,
+        source_type: PublishSourceType::parse(&source_type)
+            .map_err(|error| parse_error(1, error))?,
         source_id: row.get(2)?,
         content_id: row.get(3)?,
         content_version: row.get(4)?,
@@ -501,10 +502,7 @@ fn source_snapshot(
     }
 }
 
-fn validate_source_unchanged(
-    workspace: &Path,
-    task: &TaskRow,
-) -> Result<SourceSnapshot, String> {
+fn validate_source_unchanged(workspace: &Path, task: &TaskRow) -> Result<SourceSnapshot, String> {
     let snapshot = source_snapshot(workspace, task.source_type, &task.source_id)?;
     if snapshot.content_version != task.content_version {
         return Err("源内容版本已经变化，请重新创建发布任务以核对最新内容".to_string());
@@ -536,16 +534,14 @@ fn publish_input_from_task(task: &TaskRow) -> Result<PublishInput, String> {
             role: Some("media".to_string()),
         })
         .collect::<Vec<_>>();
-    let cover = task
-        .cover()?
-        .map(|asset| PublishMediaRef {
-            asset_id: asset.id,
-            kind: plugins::MediaKind::Image,
-            mime_type: asset.mime_type,
-            byte_size: asset.byte_size,
-            order: asset.order,
-            role: Some("cover".to_string()),
-        });
+    let cover = task.cover()?.map(|asset| PublishMediaRef {
+        asset_id: asset.id,
+        kind: plugins::MediaKind::Image,
+        mime_type: asset.mime_type,
+        byte_size: asset.byte_size,
+        order: asset.order,
+        role: Some("cover".to_string()),
+    });
     Ok(PublishInput {
         content_kind: plugin_content_kind(task.content_kind),
         title: task.title.clone(),
@@ -660,16 +656,9 @@ pub fn create_publish_tasks(
         }
         let now = Utc::now().to_rfc3339();
         let id = Uuid::new_v4().to_string();
-        let initial_status = if input.scheduled_at.is_some() {
-            PublishTaskStatus::Created
-        } else {
-            PublishTaskStatus::Created
-        };
+        let initial_status = PublishTaskStatus::Created;
         let error_code = validation.issues.first().map(|issue| issue.code.clone());
-        let error_message = validation
-            .issues
-            .first()
-            .map(|issue| issue.message.clone());
+        let error_message = validation.issues.first().map(|issue| issue.message.clone());
         tx.execute(
             "INSERT INTO publish_tasks(
                 id, source_type, source_id, content_id, content_version, content_kind,
@@ -838,22 +827,24 @@ pub fn prepare_publish_task(
     } else {
         PublishExecutionMode::Manual
     };
-    let confirmation_hash = digest(&serde_json::to_string(&serde_json::json!({
-        "taskId": task.id,
-        "title": task.title,
-        "body": task.body,
-        "tags": task.tags_json,
-        "cover": task.cover_json,
-        "media": task.media_json,
-        "contentKind": task.content_kind.as_str(),
-        "contentVersion": task.content_version,
-        "platformId": task.platform_id,
-        "accountId": task.account_id,
-        "adapterId": task.adapter_id,
-        "executionMode": execution_mode.as_str(),
-        "scheduledAt": task.scheduled_at,
-    }))
-    .map_err(|error| error.to_string())?);
+    let confirmation_hash = digest(
+        &serde_json::to_string(&serde_json::json!({
+            "taskId": task.id,
+            "title": task.title,
+            "body": task.body,
+            "tags": task.tags_json,
+            "cover": task.cover_json,
+            "media": task.media_json,
+            "contentKind": task.content_kind.as_str(),
+            "contentVersion": task.content_version,
+            "platformId": task.platform_id,
+            "accountId": task.account_id,
+            "adapterId": task.adapter_id,
+            "executionMode": execution_mode.as_str(),
+            "scheduledAt": task.scheduled_at,
+        }))
+        .map_err(|error| error.to_string())?,
+    );
     let token = if validation.ok {
         Some(Uuid::new_v4().to_string())
     } else {
@@ -908,9 +899,11 @@ pub fn prepare_publish_task(
             reason: if execution_mode == PublishExecutionMode::Auto {
                 None
             } else {
-                Some(capability_reason.clone().unwrap_or_else(|| {
-                    "未验证的自动发布能力不会显示为可用".to_string()
-                }))
+                Some(
+                    capability_reason
+                        .clone()
+                        .unwrap_or_else(|| "未验证的自动发布能力不会显示为可用".to_string()),
+                )
             },
         },
         PreviewAction {
@@ -980,7 +973,12 @@ fn update_task_failure(
         ],
     )
     .map_err(|error| format!("发布任务失败状态保存失败：{error}"))?;
-    insert_task_event(conn, task_id, status.as_str(), &format!("{code}: {message}"))?;
+    insert_task_event(
+        conn,
+        task_id,
+        status.as_str(),
+        &format!("{code}: {message}"),
+    )?;
     Ok(())
 }
 
@@ -1095,7 +1093,11 @@ pub fn confirm_publish_task(
     if task.confirmation_token.as_deref() != Some(confirmation_token) {
         return Err("发布确认令牌无效或已被使用".to_string());
     }
-    if task.confirmation_hash.as_deref().is_none_or(|value| value.len() != 64) {
+    if task
+        .confirmation_hash
+        .as_deref()
+        .is_none_or(|value| value.len() != 64)
+    {
         return Err("发布确认摘要缺失，请重新预览最终内容包".to_string());
     }
     let expires_at = task
@@ -1117,7 +1119,12 @@ pub fn confirm_publish_task(
         params![now, task.id],
     )
     .map_err(|error| format!("发布确认保存失败：{error}"))?;
-    insert_task_event(conn, &task.id, "CONFIRMED", "用户已确认最终内容包与目标账号")?;
+    insert_task_event(
+        conn,
+        &task.id,
+        "CONFIRMED",
+        "用户已确认最终内容包与目标账号",
+    )?;
     if task.execution_mode == PublishExecutionMode::Manual {
         conn.execute(
             "UPDATE publish_tasks
@@ -1235,7 +1242,11 @@ fn execute_auto_publish(
             "adapter={} contentKind={} mediaOrder={:?} cover={}",
             adapter_id,
             task.content_kind.as_str(),
-            input.media.iter().map(|media| media.order).collect::<Vec<_>>(),
+            input
+                .media
+                .iter()
+                .map(|media| media.order)
+                .collect::<Vec<_>>(),
             input
                 .cover
                 .as_ref()
@@ -1243,13 +1254,7 @@ fn execute_auto_publish(
                 .unwrap_or("none")
         ),
     )?;
-    match plugins::execute_plugin_publish(
-        conn,
-        runtime,
-        &adapter_id,
-        &task.account_id,
-        &input,
-    ) {
+    match plugins::execute_plugin_publish(conn, runtime, &adapter_id, &task.account_id, &input) {
         Ok(output) => {
             let expected_order = input
                 .media
@@ -1314,7 +1319,9 @@ fn execute_auto_publish(
                 "SUCCESS",
                 &format!(
                     "externalId={} mediaOrder={:?} cover={}",
-                    output.external_id, output.media_order, output.cover_asset_id.as_deref().unwrap_or("none")
+                    output.external_id,
+                    output.media_order,
+                    output.cover_asset_id.as_deref().unwrap_or("none")
                 ),
             )?;
         }
@@ -1394,7 +1401,10 @@ pub fn cancel_publish_task(
     reason: Option<&str>,
 ) -> Result<PublishTask, String> {
     let task = task_record(conn, task_id)?;
-    if matches!(task.status, PublishTaskStatus::Success | PublishTaskStatus::Publishing) {
+    if matches!(
+        task.status,
+        PublishTaskStatus::Success | PublishTaskStatus::Publishing
+    ) {
         return Err("已成功或正在提交的任务不能取消".to_string());
     }
     conn.execute(
@@ -1411,7 +1421,12 @@ pub fn cancel_publish_task(
         ],
     )
     .map_err(|error| format!("取消发布任务失败：{error}"))?;
-    insert_task_event(conn, task_id, "CANCELLED", reason.unwrap_or("用户取消发布任务"))?;
+    insert_task_event(
+        conn,
+        task_id,
+        "CANCELLED",
+        reason.unwrap_or("用户取消发布任务"),
+    )?;
     publish_task(conn, task_id)
 }
 
@@ -1868,7 +1883,7 @@ pub fn list_external_works(
         {
             continue;
         }
-        let published_date = parse_datetime(&published_at).map(|value| value.date_naive());
+        let published_date = parse_datetime(published_at).map(|value| value.date_naive());
         if from.is_some_and(|from| published_date.is_none_or(|date| date < from)) {
             continue;
         }
@@ -1891,10 +1906,7 @@ pub fn list_external_works(
     Ok(works)
 }
 
-pub fn external_work(
-    conn: &Connection,
-    work_id: &str,
-) -> Result<ExternalWork, String> {
+pub fn external_work(conn: &Connection, work_id: &str) -> Result<ExternalWork, String> {
     let row = conn
         .query_row(
             "SELECT id, source_key, account_id, platform_id, platform_name, account_alias,
@@ -2075,12 +2087,8 @@ pub fn sync_platform_works(
             let mut skipped_count = 0;
             let mut errors = output.errors;
             for work in &output.works {
-                let (work_id, inserted) = upsert_external_work(
-                    &tx,
-                    input,
-                    work,
-                    &started_at.to_rfc3339(),
-                )?;
+                let (work_id, inserted) =
+                    upsert_external_work(&tx, input, work, &started_at.to_rfc3339())?;
                 if inserted {
                     imported_count += 1;
                 } else {
@@ -2103,7 +2111,11 @@ pub fn sync_platform_works(
                 }
             }
             let error_count = errors.len() as u32;
-            let status = if error_count > 0 { "PARTIAL" } else { "SUCCESS" };
+            let status = if error_count > 0 {
+                "PARTIAL"
+            } else {
+                "SUCCESS"
+            };
             let message = if error_count > 0 {
                 format!(
                     "同步完成但有 {error_count} 项失败；已导入 {imported_count} 个、更新 {updated_count} 个作品"
@@ -2156,7 +2168,8 @@ pub fn sync_platform_works(
             })
         }
         Err(error) => {
-            let account_invalid = error.code == "AUTH_EXPIRED" || error.message.contains("AUTH_EXPIRED");
+            let account_invalid =
+                error.code == "AUTH_EXPIRED" || error.message.contains("AUTH_EXPIRED");
             if account_invalid {
                 mark_account_invalid(conn, &input.account_id)?;
             }
@@ -2177,7 +2190,11 @@ pub fn sync_platform_works(
                     input.account_id,
                     input.platform_id,
                     input.adapter_id,
-                    if account_invalid { "ACCOUNT_INVALID" } else { "FAILED" },
+                    if account_invalid {
+                        "ACCOUNT_INVALID"
+                    } else {
+                        "FAILED"
+                    },
                     message,
                     started_at.to_rfc3339(),
                     completed_at
@@ -2250,7 +2267,9 @@ pub fn export_manual_publish_package(
     let view = task.to_view()?;
     if !matches!(
         task.status,
-        PublishTaskStatus::Created | PublishTaskStatus::NeedsManualAction | PublishTaskStatus::Failed
+        PublishTaskStatus::Created
+            | PublishTaskStatus::NeedsManualAction
+            | PublishTaskStatus::Failed
     ) {
         return Err("当前任务状态不能导出人工发布包".to_string());
     }
@@ -2259,9 +2278,10 @@ pub fn export_manual_publish_package(
         .chars()
         .filter(|character| character.is_ascii_alphanumeric() || *character == '-')
         .collect::<String>();
-    let directory = workspace
-        .join("exports")
-        .join(format!("manual-{safe_id}-{}", Utc::now().format("%Y%m%d%H%M%S")));
+    let directory = workspace.join("exports").join(format!(
+        "manual-{safe_id}-{}",
+        Utc::now().format("%Y%m%d%H%M%S")
+    ));
     fs::create_dir_all(directory.join("assets"))
         .map_err(|error| format!("无法创建人工发布包目录：{error}"))?;
     let mut assets = Vec::new();
@@ -2272,12 +2292,18 @@ pub fn export_manual_publish_package(
         } else {
             "media"
         };
-        assets.push(copy_manual_asset(&directory, &task, asset, role, index + 1)?);
+        assets.push(copy_manual_asset(
+            &directory,
+            &task,
+            asset,
+            role,
+            index + 1,
+        )?);
     }
-    if let Some(cover) = task.cover()? {
-        if !task.media()?.iter().any(|asset| asset.id == cover.id) {
-            assets.push(copy_manual_asset(&directory, &task, cover, "cover", 0)?);
-        }
+    if let Some(cover) = task.cover()?
+        && !task.media()?.iter().any(|asset| asset.id == cover.id)
+    {
+        assets.push(copy_manual_asset(&directory, &task, cover, "cover", 0)?);
     }
     let body_path = directory.join("body.md");
     fs::write(&body_path, task.body.as_bytes())
@@ -2338,12 +2364,16 @@ fn copy_manual_asset(
     index: usize,
 ) -> Result<ManualPackageAsset, String> {
     let bytes = match task.source_type {
-        PublishSourceType::PlatformDraft => {
-            content::read_platform_draft_asset(&task_source_workspace(directory)?, &task.source_id, &asset.id)
-        }
-        PublishSourceType::Content => {
-            content::read_content_asset(&task_source_workspace(directory)?, &task.content_id, &asset.id)
-        }
+        PublishSourceType::PlatformDraft => content::read_platform_draft_asset(
+            &task_source_workspace(directory)?,
+            &task.source_id,
+            &asset.id,
+        ),
+        PublishSourceType::Content => content::read_content_asset(
+            &task_source_workspace(directory)?,
+            &task.content_id,
+            &asset.id,
+        ),
     };
     let content = bytes?;
     let extension = Path::new(&asset.file)
@@ -2355,7 +2385,11 @@ fn copy_manual_asset(
     } else {
         format!("{index:02}")
     };
-    let file_name = format!("{prefix}-{role}-{}.{}", safe_component(&asset.original_name), extension);
+    let file_name = format!(
+        "{prefix}-{role}-{}.{}",
+        safe_component(&asset.original_name),
+        extension
+    );
     let relative = format!("assets/{file_name}");
     fs::write(directory.join(&relative), content.bytes)
         .map_err(|error| format!("无法复制人工发布素材：{error}"))?;
@@ -2492,7 +2526,10 @@ fn analytics_bucket(value: DateTime<Utc>, granularity: AnalyticsGranularity) -> 
     }
 }
 
-pub fn analytics_trend(conn: &Connection, query: &AnalyticsQuery) -> Result<AnalyticsResult, String> {
+pub fn analytics_trend(
+    conn: &Connection,
+    query: &AnalyticsQuery,
+) -> Result<AnalyticsResult, String> {
     let days = range_days(&query.range)?;
     let to = Utc::now();
     let from = to - Duration::days(days - 1);
@@ -2757,6 +2794,3 @@ pub fn operations_dashboard(
         },
     })
 }
-
-
-

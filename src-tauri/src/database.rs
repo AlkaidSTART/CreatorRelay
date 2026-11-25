@@ -2,7 +2,7 @@ use chrono::Utc;
 use rusqlite::{Connection, params};
 use serde::Serialize;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 5;
+pub const CURRENT_SCHEMA_VERSION: i64 = 6;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -317,6 +317,73 @@ fn migration_sql(version: i64) -> Result<&'static str, String> {
             );
             CREATE INDEX IF NOT EXISTS sync_runs_account
                 ON sync_runs(account_id, completed_at DESC);"),
+        6 => Ok("CREATE TABLE IF NOT EXISTS assistant_threads(
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                provider_id TEXT,
+                provider_name TEXT NOT NULL,
+                model TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS assistant_messages(
+                id TEXT PRIMARY KEY,
+                thread_id TEXT NOT NULL REFERENCES assistant_threads(id) ON DELETE CASCADE,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                provider_name TEXT,
+                model TEXT,
+                tool_call_json TEXT,
+                result_status TEXT,
+                error_message TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS assistant_messages_thread
+                ON assistant_messages(thread_id, created_at, id);
+            CREATE TABLE IF NOT EXISTS mcp_tool_audit(
+                id TEXT PRIMARY KEY,
+                thread_id TEXT REFERENCES assistant_threads(id) ON DELETE SET NULL,
+                call_id TEXT NOT NULL UNIQUE,
+                server_id TEXT NOT NULL,
+                tool_name TEXT NOT NULL,
+                permission TEXT NOT NULL,
+                content_kind TEXT,
+                target_summary TEXT NOT NULL DEFAULT '',
+                parameter_summary TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL,
+                error_code TEXT,
+                error_message TEXT,
+                started_at TEXT NOT NULL,
+                completed_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS mcp_tool_audit_thread
+                ON mcp_tool_audit(thread_id, started_at DESC);
+            CREATE INDEX IF NOT EXISTS mcp_tool_audit_status
+                ON mcp_tool_audit(status, started_at DESC);
+            CREATE TABLE IF NOT EXISTS mcp_authorization_tokens(
+                token TEXT PRIMARY KEY,
+                call_id TEXT NOT NULL,
+                tool_name TEXT NOT NULL,
+                payload_hash TEXT NOT NULL,
+                permission TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                used_at TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS mcp_settings(
+                id INTEGER PRIMARY KEY CHECK(id = 1),
+                read_enabled INTEGER NOT NULL DEFAULT 1,
+                write_policy TEXT NOT NULL DEFAULT 'confirm',
+                external_policy TEXT NOT NULL DEFAULT 'confirm_each_time',
+                auto_restart INTEGER NOT NULL DEFAULT 1,
+                max_restarts INTEGER NOT NULL DEFAULT 3,
+                default_context_scope TEXT NOT NULL DEFAULT 'title_summary_media',
+                updated_at TEXT NOT NULL
+            );
+            INSERT OR IGNORE INTO mcp_settings(
+                id, read_enabled, write_policy, external_policy, auto_restart,
+                max_restarts, default_context_scope, updated_at
+            ) VALUES(1, 1, 'confirm', 'confirm_each_time', 1, 3, 'title_summary_media', '2026-11-25T00:00:00Z');"),
         _ => Err(format!("没有定义 schema v{version} 的迁移脚本")),
     }
 }
@@ -348,7 +415,7 @@ mod tests {
         let report = migrate(&mut conn).unwrap();
         assert_eq!(report.from_version, 0);
         assert_eq!(report.to_version, CURRENT_SCHEMA_VERSION);
-        assert_eq!(report.applied_versions, vec![1, 2, 3, 4]);
+        assert_eq!(report.applied_versions, vec![1, 2, 3, 4, 5, 6]);
         assert_eq!(current_version(&conn).unwrap(), CURRENT_SCHEMA_VERSION);
     }
 
@@ -358,8 +425,8 @@ mod tests {
         let mut conn = v1_fixture(&temp.path().join("legacy.sqlite3"));
         let report = migrate(&mut conn).unwrap();
         assert_eq!(report.from_version, 1);
-        assert_eq!(report.to_version, 4);
-        assert_eq!(report.applied_versions, vec![2, 3, 4]);
+        assert_eq!(report.to_version, CURRENT_SCHEMA_VERSION);
+        assert_eq!(report.applied_versions, vec![2, 3, 4, 5, 6]);
         let workspace: String = conn
             .query_row(
                 "SELECT value FROM app_settings WHERE key='workspace_path'",
@@ -406,8 +473,8 @@ mod tests {
         .unwrap();
         let report = migrate(&mut conn).unwrap();
         assert_eq!(report.from_version, 2);
-        assert_eq!(report.to_version, 4);
-        assert_eq!(report.applied_versions, vec![3, 4]);
+        assert_eq!(report.to_version, CURRENT_SCHEMA_VERSION);
+        assert_eq!(report.applied_versions, vec![3, 4, 5, 6]);
         let alias: String = conn
             .query_row(
                 "SELECT alias FROM platform_accounts WHERE id='account-m3'",
@@ -431,8 +498,8 @@ mod tests {
         let mut conn = Connection::open_in_memory().unwrap();
         migrate(&mut conn).unwrap();
         let report = migrate(&mut conn).unwrap();
-        assert_eq!(report.from_version, 4);
-        assert_eq!(report.to_version, 4);
+        assert_eq!(report.from_version, CURRENT_SCHEMA_VERSION);
+        assert_eq!(report.to_version, CURRENT_SCHEMA_VERSION);
         assert!(report.applied_versions.is_empty());
     }
 

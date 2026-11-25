@@ -151,10 +151,7 @@ export interface OperationsStore {
   retryTask: (taskId: string) => Promise<PublishTask | null>;
   runDueTasks: () => Promise<PublishTask[]>;
   exportManualPackage: (taskId: string) => Promise<ManualPublishPackage | null>;
-  completeManualTask: (
-    taskId: string,
-    input: ManualCompletionInput,
-  ) => Promise<PublishTask | null>;
+  completeManualTask: (taskId: string, input: ManualCompletionInput) => Promise<PublishTask | null>;
   resolveUncertainTask: (
     taskId: string,
     input: ResolveUncertainInput,
@@ -345,7 +342,12 @@ const createOperationsStoreState: StateCreator<OperationsStore> = (set, get) => 
         },
         actions: [
           { id: "auto_publish", label: "自动发布", available: false, reason: "需要桌面适配器" },
-          { id: "manual_package", label: "导出人工发布包", available: false, reason: "需要桌面工作区" },
+          {
+            id: "manual_package",
+            label: "导出人工发布包",
+            available: false,
+            reason: "需要桌面工作区",
+          },
           { id: "cancel", label: "取消任务", available: true },
         ],
       };

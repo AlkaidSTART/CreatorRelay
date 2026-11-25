@@ -49,7 +49,7 @@ export const PRD_ROUTES: RouteMeta[] = [
     priority: "P0",
     group: "primary",
     icon: LayoutDashboard,
-    availability: "planned",
+    availability: "available",
     milestone: "M6",
   },
   {
@@ -75,7 +75,7 @@ export const PRD_ROUTES: RouteMeta[] = [
     priority: "P0/P1",
     group: "primary",
     icon: Send,
-    availability: "planned",
+    availability: "available",
     milestone: "M6",
   },
   {
@@ -88,7 +88,7 @@ export const PRD_ROUTES: RouteMeta[] = [
     priority: "P0",
     group: "primary",
     icon: Library,
-    availability: "planned",
+    availability: "available",
     milestone: "M6",
   },
   {
@@ -101,7 +101,7 @@ export const PRD_ROUTES: RouteMeta[] = [
     priority: "P0",
     group: "primary",
     icon: BarChart3,
-    availability: "planned",
+    availability: "available",
     milestone: "M6",
   },
   {

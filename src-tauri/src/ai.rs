@@ -161,7 +161,9 @@ fn normalize_base_url(value: &str) -> Result<String, String> {
     Ok(value.trim_end_matches('/').to_string())
 }
 
-fn validate_provider_input(input: &AiProviderInput) -> Result<(String, String, String, String), String> {
+fn validate_provider_input(
+    input: &AiProviderInput,
+) -> Result<(String, String, String, String), String> {
     let name = input.name.trim();
     if name.is_empty() || name.chars().count() > 80 {
         return Err("供应商名称需为 1 至 80 个字符".to_string());
@@ -285,7 +287,10 @@ pub fn save_provider_with_vault(
     let has_secret = if api_key.is_some() {
         1
     } else {
-        existing.as_ref().map(|record| record.has_secret as i64).unwrap_or(0)
+        existing
+            .as_ref()
+            .map(|record| record.has_secret as i64)
+            .unwrap_or(0)
     };
     let is_default = input
         .is_default
@@ -313,7 +318,10 @@ pub fn save_provider_with_vault(
     Ok(provider_record(conn, &id)?.summary())
 }
 
-pub fn set_default_provider(conn: &Connection, provider_id: &str) -> Result<AiProviderSummary, String> {
+pub fn set_default_provider(
+    conn: &Connection,
+    provider_id: &str,
+) -> Result<AiProviderSummary, String> {
     let record = provider_record(conn, provider_id)?;
     if !record.has_secret {
         return Err("请先为该供应商保存 API Key".to_string());
@@ -336,14 +344,26 @@ pub fn delete_provider_with_vault(
 
 fn operation_instruction(operation: &str, kind: ContentKind) -> Result<&'static str, String> {
     match (operation, kind) {
-        ("title", ContentKind::Video | ContentKind::ImageText | ContentKind::ImageArticle | ContentKind::Article) => {
-            Ok("只生成一个可直接使用的中文标题，不要解释，不要引号。")
+        (
+            "title",
+            ContentKind::Video
+            | ContentKind::ImageText
+            | ContentKind::ImageArticle
+            | ContentKind::Article,
+        ) => Ok("只生成一个可直接使用的中文标题，不要解释，不要引号。"),
+        (
+            "summary",
+            ContentKind::ImageArticle
+            | ContentKind::Article
+            | ContentKind::Video
+            | ContentKind::ImageText,
+        ) => Ok("生成一段简洁的中文摘要或短文案，不要添加标题，不要解释。"),
+        ("description", ContentKind::Video) => {
+            Ok("生成一段视频简介，保留原意，不要使用 Markdown 标题。")
         }
-        ("summary", ContentKind::ImageArticle | ContentKind::Article | ContentKind::Video | ContentKind::ImageText) => {
-            Ok("生成一段简洁的中文摘要或短文案，不要添加标题，不要解释。")
+        ("shortCopy", ContentKind::ImageText) => {
+            Ok("生成适合图集发布的短文案，可包含少量 emoji，不要编造素材。")
         }
-        ("description", ContentKind::Video) => Ok("生成一段视频简介，保留原意，不要使用 Markdown 标题。"),
-        ("shortCopy", ContentKind::ImageText) => Ok("生成适合图集发布的短文案，可包含少量 emoji，不要编造素材。"),
         ("polish", _) => Ok("在不改变事实与结构的前提下润色文本，只返回润色后的正文。"),
         ("structure", ContentKind::ImageArticle | ContentKind::Article) => {
             Ok("重组文章结构并返回完整 Markdown 正文，保留事实与图片引用。")
@@ -367,7 +387,9 @@ fn kind_label(kind: ContentKind) -> &'static str {
 pub fn build_prompt(request: &AiGenerateRequest) -> Result<String, String> {
     let instruction = operation_instruction(&request.operation, request.content_kind)?;
     if request.context.chars().count() > MAX_CONTEXT_CHARS {
-        return Err(format!("发送给模型的正文不能超过 {MAX_CONTEXT_CHARS} 个字符"));
+        return Err(format!(
+            "发送给模型的正文不能超过 {MAX_CONTEXT_CHARS} 个字符"
+        ));
     }
     let media = request
         .media_metadata
@@ -376,11 +398,19 @@ pub fn build_prompt(request: &AiGenerateRequest) -> Result<String, String> {
             format!(
                 "- 类型：{}；原始文件名：{}；MIME：{}；大小：{} bytes；顺序：{}；说明：{}",
                 item.kind,
-                if item.file_name.is_empty() { "未命名" } else { &item.file_name },
+                if item.file_name.is_empty() {
+                    "未命名"
+                } else {
+                    &item.file_name
+                },
                 item.mime_type,
                 item.byte_size,
                 item.order,
-                if item.caption.is_empty() { "无" } else { &item.caption }
+                if item.caption.is_empty() {
+                    "无"
+                } else {
+                    &item.caption
+                }
             )
         })
         .collect::<Vec<_>>()
@@ -402,7 +432,11 @@ pub fn build_prompt(request: &AiGenerateRequest) -> Result<String, String> {
             request.title.trim()
         },
         request.context,
-        if media.is_empty() { "（无素材）" } else { &media }
+        if media.is_empty() {
+            "（无素材）"
+        } else {
+            &media
+        }
     ))
 }
 
@@ -455,7 +489,8 @@ pub fn chat_completion(
         .into_body()
         .read_to_string()
         .map_err(|_| "模型响应无法读取".to_string())?;
-    let value: Value = serde_json::from_str(&body).map_err(|_| "模型响应不是有效 JSON".to_string())?;
+    let value: Value =
+        serde_json::from_str(&body).map_err(|_| "模型响应不是有效 JSON".to_string())?;
     let content = value
         .pointer("/choices/0/message/content")
         .and_then(Value::as_str)
@@ -690,8 +725,12 @@ mod tests {
                     break;
                 }
                 collected.extend_from_slice(&buffer[..count]);
-                if let Some(header_end) = collected.windows(4).position(|window| window == b"\r\n\r\n") {
-                    let headers = String::from_utf8_lossy(&collected[..header_end + 4]).to_ascii_lowercase();
+                if let Some(header_end) = collected
+                    .windows(4)
+                    .position(|window| window == b"\r\n\r\n")
+                {
+                    let headers =
+                        String::from_utf8_lossy(&collected[..header_end + 4]).to_ascii_lowercase();
                     let content_length = headers
                         .lines()
                         .find_map(|line| line.strip_prefix("content-length:"))
@@ -730,11 +769,11 @@ mod tests {
     fn ai_provider_secret_never_enters_sqlite_and_success_audit_is_metadata_only() {
         let conn = db();
         let vault = MemoryVault::default();
-        let (base_url, server) = fixture_server(
-            r#"{"choices":[{"message":{"content":"生成的标题"}}]}"#,
-        );
-        let provider = save_provider_with_vault(&conn, &input(&base_url, "sk-secret-do-not-store"), &vault)
-            .unwrap();
+        let (base_url, server) =
+            fixture_server(r#"{"choices":[{"message":{"content":"生成的标题"}}]}"#);
+        let provider =
+            save_provider_with_vault(&conn, &input(&base_url, "sk-secret-do-not-store"), &vault)
+                .unwrap();
         assert!(provider.configured);
         let secret = "sk-secret-do-not-store";
         assert!(!audit_database_for_secret(&conn, secret).unwrap());
@@ -783,7 +822,8 @@ mod tests {
             &vault,
         )
         .unwrap();
-        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);").unwrap();
+        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+            .unwrap();
         drop(conn);
         let bytes = fs::read(&path).unwrap();
         assert!(!String::from_utf8_lossy(&bytes).contains(secret));
@@ -807,7 +847,9 @@ mod tests {
             let mut buffer = [0_u8; 4096];
             let _ = stream.read(&mut buffer);
             stream
-                .write_all(b"HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .write_all(
+                    b"HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
                 .unwrap();
         });
         let provider = save_provider_with_vault(
@@ -866,8 +908,7 @@ mod tests {
         let vault = MemoryVault::default();
         let (base_url_one, server_one) =
             fixture_server(r#"{"choices":[{"message":{"content":"OK"}}]}"#);
-        let (base_url_two, server_two) =
-            fixture_server(r#"{"choices":[{"message":{"content":"OK"}}]}"#);
+        let base_url_two = "https://api.example.com/v1".to_string();
         let first = save_provider_with_vault(
             &conn,
             &AiProviderInput {
@@ -903,7 +944,10 @@ mod tests {
         assert!(switched.is_default);
         let providers = list_providers(&conn).unwrap();
         assert_eq!(
-            providers.iter().filter(|provider| provider.is_default).count(),
+            providers
+                .iter()
+                .filter(|provider| provider.is_default)
+                .count(),
             1
         );
         assert_eq!(
@@ -915,7 +959,6 @@ mod tests {
             second.id
         );
         server_one.join().unwrap();
-        server_two.join().unwrap();
     }
 
     #[test]

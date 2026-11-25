@@ -673,10 +673,7 @@ fn list_platform_drafts(
     content_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Vec<content::PlatformDraft>, String> {
-    content::list_platform_drafts(
-        &require_active_workspace(&state)?,
-        content_id.as_deref(),
-    )
+    content::list_platform_drafts(&require_active_workspace(&state)?, content_id.as_deref())
 }
 
 #[tauri::command]
@@ -688,11 +685,7 @@ fn create_platform_drafts(
     if targets.len() > 12 {
         return Err("一次最多生成 12 个平台稿".to_string());
     }
-    content::create_platform_drafts(
-        &require_active_workspace(&state)?,
-        &content_id,
-        &targets,
-    )
+    content::create_platform_drafts(&require_active_workspace(&state)?, &content_id, &targets)
 }
 
 #[tauri::command]
@@ -734,11 +727,7 @@ fn read_platform_draft_asset(
     asset_id: String,
     state: State<'_, AppState>,
 ) -> Result<content::ContentAssetContent, String> {
-    content::read_platform_draft_asset(
-        &require_active_workspace(&state)?,
-        &draft_id,
-        &asset_id,
-    )
+    content::read_platform_draft_asset(&require_active_workspace(&state)?, &draft_id, &asset_id)
 }
 
 #[tauri::command]
@@ -2326,12 +2315,8 @@ fn prepare_publish_task(
         .lock()
         .map_err(|_| "数据库状态不可用".to_string())?;
     let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
-    let result = operations::prepare_publish_task(
-        &mut conn,
-        &state.plugin_runtime,
-        &workspace,
-        &task_id,
-    );
+    let result =
+        operations::prepare_publish_task(&mut conn, &state.plugin_runtime, &workspace, &task_id);
     log_command_outcome(
         &state,
         "publishing.prepare",

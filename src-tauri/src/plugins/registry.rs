@@ -1208,12 +1208,7 @@ pub fn plugin_publish_capability(
     let row = plugin_row(conn, plugin_id)?.ok_or_else(|| format!("未找到插件 `{plugin_id}`"))?;
     let mut checks = load_capability_checks(conn, plugin_id, Some(account_ref))?;
     if !checks.contains_key(&content_kind) {
-        let _ = probe_plugin_capabilities(
-            conn,
-            runtime,
-            plugin_id,
-            Some(account_ref.to_string()),
-        )?;
+        let _ = probe_plugin_capabilities(conn, runtime, plugin_id, Some(account_ref.to_string()))?;
         checks = load_capability_checks(conn, plugin_id, Some(account_ref))?;
     }
     let check = checks.get(&content_kind);

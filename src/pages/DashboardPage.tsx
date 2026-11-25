@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import {
   AlertTriangle,
   ArrowRight,
@@ -10,317 +11,322 @@ import {
   Plus,
   Send,
 } from "../components/Icons";
-import { useNavigate } from "react-router";
-import { OverviewTrendChart } from "../components/OverviewTrendChart";
 import { PageHeader } from "../components/PageHeader";
 import { PlatformLogo } from "../components/PlatformLogo";
-import { demoOverviewTrends, type TrendRange } from "../data/demoData";
-import { useContentStore, usePlatformStore, useUiStore, useWorkspaceStore } from "../stores";
-import { formatRelativeTime } from "../utils/format";
-import { getPlatformVisual } from "../utils/platformStyle";
+import { useOperationsStore, usePlatformStore, useUiStore, useWorkspaceStore } from "../stores";
+import type { ContentKind } from "../types/content";
+import type { AnalyticsRange } from "../types/operations";
+import {
+  computeDashboardView,
+  contentKindText,
+  formatMetricNumber,
+  primaryMetric,
+  PUBLISH_STATUS_META,
+  workStatusLabel,
+} from "../utils/operations";
+
+const kindOptions: Array<{ value: "ALL" | ContentKind; label: string }> = [
+  { value: "ALL", label: "全部形态" },
+  { value: "video", label: "视频" },
+  { value: "imageText", label: "图文" },
+  { value: "imageArticle", label: "图文文章" },
+  { value: "article", label: "纯文章" },
+];
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const [trendRange, setTrendRange] = useState<TrendRange>("7d");
-
   const documents = useWorkspaceStore((state) => state.documents);
   const selectDocumentSafely = useWorkspaceStore((state) => state.selectDocumentSafely);
   const setIsCreating = useUiStore((state) => state.setIsCreating);
+  const accounts = usePlatformStore((state) => state.accounts);
+  const initializeAccounts = usePlatformStore((state) => state.initialize);
+  const tasks = useOperationsStore((state) => state.tasks);
+  const works = useOperationsStore((state) => state.works);
+  const syncRuns = useOperationsStore((state) => state.syncRuns);
+  const backendDashboard = useOperationsStore((state) => state.dashboard);
+  const initializeOperations = useOperationsStore((state) => state.initialize);
+  const loadDashboard = useOperationsStore((state) => state.loadDashboard);
+  const [range, setRange] = useState<AnalyticsRange>("7d");
+  const [platformId, setPlatformId] = useState("");
+  const [accountId, setAccountId] = useState("");
+  const [contentKind, setContentKind] = useState<"ALL" | ContentKind>("ALL");
 
-  const platformAccounts = usePlatformStore((state) => state.accounts);
-  const publishedContents = useContentStore((state) => state.publishedContents);
-  const publishTasks = useContentStore((state) => state.publishTasks);
+  useEffect(() => {
+    void initializeAccounts();
+    void initializeOperations();
+  }, [initializeAccounts, initializeOperations]);
 
-  const activeAccounts = platformAccounts.filter((item) => item.status === "ACTIVE").length;
-  const issueAccounts = platformAccounts.filter((item) => item.status !== "ACTIVE");
-  const pendingTasks = publishTasks.filter(
-    (task) => task.status === "NEEDS_MANUAL_ACTION" || task.status === "SCHEDULED",
+  useEffect(() => {
+    void loadDashboard({
+      range,
+      platformId: platformId || null,
+      accountId: accountId || null,
+      contentKind: contentKind === "ALL" ? null : contentKind,
+    });
+  }, [accountId, contentKind, loadDashboard, platformId, range]);
+
+  const localDashboard = useMemo(
+    () =>
+      computeDashboardView({
+        works,
+        tasks,
+        accounts,
+        syncRuns,
+        filter: {
+          range,
+          platformId: platformId || null,
+          accountId: accountId || null,
+          contentKind: contentKind === "ALL" ? null : contentKind,
+        },
+      }),
+    [accountId, accounts, contentKind, platformId, range, syncRuns, tasks, works],
+  );
+  const dashboard = backendDashboard ?? localDashboard;
+  const issueAccounts = accounts.filter(
+    (account) => account.status !== "ACTIVE" || account.enabled === false,
   );
   const latestDoc = documents[0] ?? null;
+  const visibleAccounts = accounts.filter(
+    (account) => !platformId || account.platformId === platformId,
+  );
 
   return (
     <main className="flex h-full min-w-0 flex-col bg-canvas">
       <PageHeader
         eyebrow="DASHBOARD"
         title="运营总览"
-        description="本地写一稿，接力分发到多平台，并在同一块看板追踪各平台真实数据。"
+        description="从账号健康、发布任务、同步异常与真实作品指标出发，快速找到下一步要处理的事。"
         actions={
           <button
             className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.24)] transition-colors hover:bg-accent-hover"
             onClick={() => setIsCreating(true)}
           >
             <Plus size={13} />
-            新建文章
+            新建内容
           </button>
         }
       />
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-7 py-6">
-        {/* French Cream Macaron 3-Step Relay Pipeline Strip */}
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={range}
+            onChange={(event) => setRange(event.target.value as AnalyticsRange)}
+            className="h-8 rounded-lg border border-line bg-surface px-2 text-xs text-ink-secondary"
+          >
+            <option value="7d">近 7 天</option>
+            <option value="30d">近 30 天</option>
+            <option value="90d">近 90 天</option>
+          </select>
+          <select
+            value={platformId}
+            onChange={(event) => {
+              setPlatformId(event.target.value);
+              setAccountId("");
+            }}
+            className="h-8 rounded-lg border border-line bg-surface px-2 text-xs text-ink-secondary"
+          >
+            <option value="">全部平台</option>
+            {Array.from(
+              new Map(accounts.map((account) => [account.platformId, account.platformName])),
+            ).map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={accountId}
+            onChange={(event) => setAccountId(event.target.value)}
+            className="h-8 rounded-lg border border-line bg-surface px-2 text-xs text-ink-secondary"
+          >
+            <option value="">全部账号</option>
+            {visibleAccounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.alias}
+              </option>
+            ))}
+          </select>
+          <select
+            value={contentKind}
+            onChange={(event) => setContentKind(event.target.value as typeof contentKind)}
+            className="h-8 rounded-lg border border-line bg-surface px-2 text-xs text-ink-secondary"
+          >
+            {kindOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <span className="ml-auto text-[11px] text-ink-muted">
+            当前范围：{dashboard.filter.from.slice(0, 10)} 至 {dashboard.filter.to.slice(0, 10)}
+          </span>
+        </div>
+
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[
+            {
+              label: "平台 / 账号",
+              value: `${dashboard.platformCount} / ${dashboard.accountCount}`,
+              note: "筛选范围内的平台与账号",
+              icon: Globe2,
+              tone: "bg-accent-soft text-accent-deep",
+            },
+            {
+              label: "近期发布",
+              value: String(dashboard.recentPublishCount),
+              note: "成功归档的外部发布",
+              icon: Send,
+              tone: "bg-mint-bg text-mint-text",
+            },
+            {
+              label: "待处理任务",
+              value: String(dashboard.pendingTaskCount),
+              note: "确认、定时、人工或暂停任务",
+              icon: BookOpen,
+              tone: "bg-lemon-bg text-lemon-text",
+            },
+            {
+              label: "同步异常",
+              value: String(dashboard.syncErrorCount),
+              note: "失败、部分失败或账号失效",
+              icon: AlertTriangle,
+              tone: "bg-coral-bg text-coral-text",
+            },
+          ].map((card) => {
+            const Icon = card.icon;
+            return (
+              <article
+                key={card.label}
+                className="rounded-2xl border border-line bg-surface p-4 shadow-[0_2px_10px_rgba(74,58,48,0.03)]"
+              >
+                <div className={`grid h-8 w-8 place-items-center rounded-xl ${card.tone}`}>
+                  <Icon size={14} />
+                </div>
+                <p className="mt-3 text-[11px] text-ink-muted">{card.label}</p>
+                <strong className="mt-0.5 block text-2xl font-semibold tabular-nums text-ink">
+                  {card.value}
+                </strong>
+                <p className="mt-1 text-[11px] text-ink-secondary">{card.note}</p>
+              </article>
+            );
+          })}
+        </section>
+
         <section className="rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
-          <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-[15px] font-semibold tracking-tight text-ink">
-                写一次本地主稿，自动接力分发到 {platformAccounts.length} 个平台
-              </h2>
+              <h2 className="text-sm font-semibold text-ink">创作与分发接力</h2>
               <p className="mt-0.5 text-xs text-ink-secondary">
-                正文始终保存在本地 Markdown，一键拆分为各平台独立适配稿并回收阅读表现。
+                主稿保持本地，平台稿独立修改；发布前必须确认最终内容包。
               </p>
             </div>
             <div className="flex items-center gap-2">
               {latestDoc && (
                 <button
-                  type="button"
+                  className="inline-flex h-8 max-w-64 cursor-pointer items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-medium text-ink-secondary hover:bg-subtle"
                   onClick={async () => {
                     const ok = await selectDocumentSafely(latestDoc);
                     if (ok) navigate("/studio");
                   }}
-                  className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.22)] transition-colors hover:bg-accent-hover"
                 >
-                  <BookOpen size={14} />
-                  <span className="max-w-[200px] truncate">继续写：{latestDoc.title}</span>
+                  <FileText size={12} />
+                  <span className="truncate">继续写：{latestDoc.title}</span>
                 </button>
               )}
               <button
-                type="button"
+                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-on hover:bg-accent-hover"
                 onClick={() => navigate("/publishing")}
-                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-line-strong bg-surface-soft px-3 text-xs font-medium text-ink transition-colors hover:bg-subtle"
               >
-                <Send size={14} className="text-accent" />
-                发布队列 ({pendingTasks.length})
+                <Send size={12} /> 发布队列 ({dashboard.pendingTaskCount})
               </button>
             </div>
           </div>
-
-          {/* 3-Step Horizontal Workflow — Coordinated Taro / Rose / Mint Macaron Cards */}
-          <div className="grid grid-cols-1 gap-3 border-t border-line pt-4 md:grid-cols-3">
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
             <button
-              type="button"
+              className="rounded-xl border border-accent-border bg-accent-soft p-4 text-left"
               onClick={() => navigate("/studio")}
-              className="group flex cursor-pointer items-start justify-between gap-3 rounded-xl border border-accent-border bg-accent-soft p-3.5 text-left transition-all hover:border-accent hover:bg-accent-soft"
             >
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-accent-deep">
-                  <span>1. 本地写主稿</span>
-                </div>
-                <strong className="mt-1 block text-[13px] font-semibold text-ink">
-                  {documents.length} 篇 Markdown 主稿
-                </strong>
-                <span className="mt-0.5 block truncate text-[11px] text-ink-secondary">
-                  最新：{latestDoc?.title ?? "暂无草稿"}
-                </span>
-              </div>
-              <ArrowRight
-                size={13}
-                className="mt-0.5 shrink-0 text-accent-deep/60 transition-transform group-hover:translate-x-0.5 group-hover:text-accent-deep"
-              />
+              <span className="text-[11px] font-semibold text-accent-deep">01 · 主稿</span>
+              <strong className="mt-1 block text-sm text-ink">在 Studio 准备四类内容</strong>
+              <p className="mt-1 text-[11px] leading-relaxed text-ink-secondary">
+                视频、图文、图文文章和纯文章分别保留完整媒体与正文。
+              </p>
             </button>
-
             <button
-              type="button"
+              className="rounded-xl border border-line bg-canvas p-4 text-left"
               onClick={() => navigate("/publishing")}
-              className="group flex cursor-pointer items-start justify-between gap-3 rounded-xl border border-rose-border bg-rose-bg p-3.5 text-left transition-all hover:border-rose-border hover:bg-rose-bg"
             >
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-rose-text">
-                  <span>2. 多平台接力分发</span>
-                </div>
-                <strong className="mt-1 block text-[13px] font-semibold text-ink">
-                  {pendingTasks.length} 项待发 · {activeAccounts}/{platformAccounts.length} 账号在线
-                </strong>
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  {platformAccounts.slice(0, 5).map((acc) => {
-                    return (
-                      <span
-                        key={acc.id}
-                        className="inline-flex items-center gap-1 rounded-md bg-surface/90 px-1.5 py-0.5 text-[10px] font-medium text-ink-secondary ring-1 ring-line"
-                      >
-                        <PlatformLogo
-                          platformId={acc.platformId}
-                          platformName={acc.platformName}
-                          size={14}
-                        />
-                        {acc.platformName}
-                      </span>
-                    );
-                  })}
-                  {platformAccounts.length > 5 && (
-                    <span className="inline-flex items-center rounded-md bg-surface/90 px-1.5 py-0.5 text-[10px] font-medium text-ink-secondary ring-1 ring-line">
-                      +{platformAccounts.length - 5}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <ArrowRight
-                size={13}
-                className="mt-0.5 shrink-0 text-rose-text/60 transition-transform group-hover:translate-x-0.5 group-hover:text-rose-text"
-              />
+              <span className="text-[11px] font-semibold text-ink-secondary">02 · 确认</span>
+              <strong className="mt-1 block text-sm text-ink">预览最终内容包与目标</strong>
+              <p className="mt-1 text-[11px] leading-relaxed text-ink-secondary">
+                未确认账号、媒体顺序、封面或正文时不会执行外部发布。
+              </p>
             </button>
-
             <button
-              type="button"
+              className="rounded-xl border border-line bg-canvas p-4 text-left"
               onClick={() => navigate("/analytics")}
-              className="group flex cursor-pointer items-start justify-between gap-3 rounded-xl border border-mint-border bg-mint-bg p-3.5 text-left transition-all hover:border-mint-border hover:bg-mint-bg"
             >
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-mint-text">
-                  <span>3. 追踪全网表现</span>
-                </div>
-                <strong className="mt-1 block text-[13px] font-semibold text-ink">
-                  {publishedContents.length} 篇已同步外部作品
-                </strong>
-                <span className="mt-0.5 block truncate text-[11px] text-ink-secondary">
-                  近 7 天 Bilibili 5,120 播放 · 掘金 2,950 阅读
-                </span>
-              </div>
-              <ArrowRight
-                size={13}
-                className="mt-0.5 shrink-0 text-mint-text/60 transition-transform group-hover:translate-x-0.5 group-hover:text-mint-text"
-              />
+              <span className="text-[11px] font-semibold text-ink-secondary">03 · 复盘</span>
+              <strong className="mt-1 block text-sm text-ink">同步作品并保留原始指标</strong>
+              <p className="mt-1 text-[11px] leading-relaxed text-ink-secondary">
+                同名指标不跨平台相加；无采样时明确显示未知。
+              </p>
             </button>
           </div>
         </section>
 
-        {/* Clickable Metrics Row with Soft Macaron Icon Pills */}
-        <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-          {[
-            {
-              label: "已接入平台与账号",
-              value: platformAccounts.length,
-              unit: "个账号",
-              sub: `${activeAccounts} 个正常 · ${issueAccounts.length} 个需重连`,
-              icon: Globe2,
-              iconWrap: "bg-sky-bg text-sky-text",
-              path: "/platforms",
-            },
-            {
-              label: "本地主稿库",
-              value: documents.length,
-              unit: "篇主稿",
-              sub: "Markdown 文件实时同步",
-              icon: FileText,
-              iconWrap: "bg-accent-soft text-accent-deep",
-              path: "/studio",
-            },
-            {
-              label: "待处理发布任务",
-              value: pendingTasks.length,
-              unit: "项待办",
-              sub: "支持人工确认与定时排队",
-              icon: Send,
-              iconWrap: "bg-lemon-bg text-lemon-text",
-              path: "/publishing",
-            },
-            {
-              label: "已同步外部作品",
-              value: publishedContents.length,
-              unit: "篇作品",
-              sub: "保留各平台独立统计口径",
-              icon: BarChart3,
-              iconWrap: "bg-mint-bg text-mint-text",
-              path: "/content",
-            },
-          ].map((card) => {
-            const Icon = card.icon;
-            return (
-              <button
-                key={card.label}
-                type="button"
-                onClick={() => navigate(card.path)}
-                className="group flex cursor-pointer flex-col rounded-2xl border border-line bg-surface p-4.5 text-left shadow-[0_2px_10px_rgba(74,58,48,0.03)] transition-all hover:border-line-strong hover:shadow-[0_6px_18px_rgba(74,58,48,0.06)]"
-              >
-                <div className="flex w-full items-center justify-between text-xs text-ink-secondary">
-                  <span>{card.label}</span>
-                  <span
-                    className={`grid h-7 w-7 place-items-center rounded-lg transition-transform group-hover:scale-105 ${card.iconWrap}`}
-                  >
-                    <Icon size={14} />
-                  </span>
-                </div>
-                <div className="mt-2.5 flex items-baseline gap-1.5">
-                  <strong className="text-2xl font-semibold tracking-tight tabular-nums text-ink">
-                    {card.value}
-                  </strong>
-                  <span className="text-xs text-ink-muted">{card.unit}</span>
-                </div>
-                <p className="mt-1 text-[11.5px] text-ink-muted">{card.sub}</p>
-              </button>
-            );
-          })}
-        </section>
-
-        {/* Traffic Trends */}
-        <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
-          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-line px-5 py-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-ink">平台流量趋势</h2>
-                <span className="rounded-md bg-subtle px-2 py-0.5 text-[10.5px] text-ink-secondary">
-                  按各平台原始口径独立呈现
-                </span>
-              </div>
-            </div>
-            <div className="flex rounded-xl bg-sidebar p-0.5" aria-label="趋势时间范围">
-              {(
-                [
-                  ["7d", "近 7 天"],
-                  ["30d", "近 30 天"],
-                ] as const
-              ).map(([range, label]) => (
-                <button
-                  key={range}
-                  type="button"
-                  aria-pressed={trendRange === range}
-                  onClick={() => setTrendRange(range)}
-                  className={`h-7 cursor-pointer rounded-lg px-2.5 text-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-                    trendRange === range
-                      ? "bg-surface font-medium text-ink shadow-[0_1px_3px_rgba(74,58,48,0.08)]"
-                      : "text-ink-secondary hover:text-ink"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-1 items-stretch gap-3 px-4 pt-3 pb-4 xl:grid-cols-[minmax(0,1fr)_188px]">
-            <OverviewTrendChart dataset={demoOverviewTrends[trendRange]} height={264} />
-            <div className="grid grid-cols-2 gap-2 xl:grid-cols-1 xl:content-start">
-              {demoOverviewTrends[trendRange].series.map((series) => (
-                <div
-                  key={series.platformId}
-                  className="flex min-w-0 items-start gap-2.5 border-b border-line px-1.5 py-2 last:border-b-0"
-                >
-                  <PlatformLogo
-                    platformId={series.platformId}
-                    platformName={series.platformName}
-                    size={16}
-                    className="mt-0.5"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-xs font-medium text-ink">
-                        {series.platformName}
-                      </span>
-                      <strong className="text-xs font-semibold tabular-nums text-ink">
-                        {series.values[series.values.length - 1]?.toLocaleString("zh-CN") ?? "—"}
-                      </strong>
-                    </div>
-                    <div className="mt-0.5 truncate text-[10.5px] text-ink-muted">
-                      {series.metricLabel}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Two Column Cards */}
-        <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
           <article className="rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
             <div className="mb-3.5 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-ink">待处理提醒</h2>
+              <h2 className="text-sm font-semibold text-ink">近期外部作品</h2>
+              <button
+                className="cursor-pointer text-xs font-medium text-accent hover:text-accent-deep"
+                onClick={() => navigate("/content")}
+              >
+                查看全部作品
+              </button>
+            </div>
+            <div className="space-y-2">
+              {dashboard.recentWorks.slice(0, 5).map((work) => {
+                const metric = primaryMetric(work);
+                return (
+                  <div
+                    key={work.id}
+                    className="flex items-center gap-3 rounded-xl border border-line bg-canvas px-3.5 py-2.5"
+                  >
+                    <PlatformLogo platformName={work.platformName} size={20} />
+                    <div className="min-w-0 flex-1">
+                      <strong className="block truncate text-xs font-medium text-ink">
+                        {work.title}
+                      </strong>
+                      <small className="block truncate text-[11px] text-ink-muted">
+                        {work.platformName} · {work.accountAlias} ·{" "}
+                        {contentKindText(work.contentKind)} · {workStatusLabel(work)}
+                      </small>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <strong className="block text-xs tabular-nums text-ink">
+                        {metric ? `${formatMetricNumber(metric.value)} ${metric.unit}` : "无采样"}
+                      </strong>
+                      <small className="text-[10px] text-ink-muted">
+                        {metric?.metricName ?? "等待同步"}
+                      </small>
+                    </div>
+                  </div>
+                );
+              })}
+              {!dashboard.recentWorks.length && (
+                <div className="rounded-xl border border-dashed border-line px-3 py-10 text-center text-xs text-ink-muted">
+                  当前筛选范围内没有作品；不会展示伪造数据。
+                </div>
+              )}
+            </div>
+          </article>
+
+          <article className="rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
+            <div className="mb-3.5 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-ink">待处理与风险</h2>
               <button
                 className="cursor-pointer text-xs font-medium text-accent hover:text-accent-deep"
                 onClick={() => navigate("/platforms")}
@@ -329,7 +335,7 @@ export function DashboardPage() {
               </button>
             </div>
             <div className="space-y-2">
-              {issueAccounts.map((account) => (
+              {issueAccounts.slice(0, 3).map((account) => (
                 <div
                   key={account.id}
                   className="flex items-center gap-3 rounded-xl border border-lemon-border bg-lemon-bg/80 px-3.5 py-2.5"
@@ -340,143 +346,57 @@ export function DashboardPage() {
                       {account.platformName} · {account.alias}
                     </strong>
                     <small className="text-[11px] text-ink-secondary">
-                      需要重新授权 · 上次同步 {account.lastSyncedAt}
+                      {account.status} · {account.lastError ?? "需要重新授权或恢复"}
                     </small>
                   </div>
                   <button
-                    className="h-7 shrink-0 cursor-pointer rounded-lg border border-lemon-border bg-surface px-2.5 text-xs font-medium text-lemon-text hover:bg-lemon-bg"
+                    className="h-7 shrink-0 cursor-pointer rounded-lg border border-lemon-border bg-surface px-2.5 text-xs font-medium text-lemon-text"
                     onClick={() => navigate("/platforms")}
                   >
-                    去重连
+                    去处理
                   </button>
                 </div>
               ))}
-              {pendingTasks.map((task) => {
+              {dashboard.pendingTasks.slice(0, 4).map((task) => {
+                const meta = PUBLISH_STATUS_META[task.status];
                 return (
-                  <div
+                  <button
                     key={task.id}
-                    className="flex items-center gap-3 rounded-xl border border-line bg-canvas px-3.5 py-2.5"
+                    className="flex w-full items-center gap-3 rounded-xl border border-line bg-canvas px-3.5 py-2.5 text-left"
+                    onClick={() => navigate("/publishing")}
                   >
-                    <PlatformLogo platformName={task.platform} size={18} />
+                    <PlatformLogo platformName={task.platformName} size={18} />
                     <div className="min-w-0 flex-1">
                       <strong className="block truncate text-xs font-medium text-ink">
-                        [{task.platform}] {task.articleTitle}
+                        {task.title}
                       </strong>
                       <small className="block truncate text-[11px] text-ink-muted">
-                        {task.note}
+                        {task.platformName} · {task.accountAlias} · {meta.label}
                       </small>
                     </div>
-                    <button
-                      className="h-7 shrink-0 cursor-pointer rounded-lg border border-accent-border bg-surface px-2.5 text-xs font-medium text-accent-deep hover:bg-accent-soft"
-                      onClick={() => navigate("/publishing")}
-                    >
-                      去发布
-                    </button>
-                  </div>
+                    <ArrowRight size={12} className="shrink-0 text-ink-muted" />
+                  </button>
                 );
               })}
-              {issueAccounts.length === 0 && pendingTasks.length === 0 && (
+              {!issueAccounts.length && !dashboard.pendingTasks.length && (
                 <div className="flex items-center gap-2 rounded-xl border border-mint-border bg-mint-bg px-3.5 py-3 text-xs text-mint-text">
-                  <CheckCircle2 size={14} />
-                  <span>所有平台账号与发布任务均正常</span>
+                  <CheckCircle2 size={14} /> 当前筛选范围内没有账号或发布风险
                 </div>
               )}
             </div>
           </article>
-
-          <article className="rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
-            <div className="mb-3.5 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-ink">最近编辑的主稿</h2>
-              <button
-                className="cursor-pointer text-xs font-medium text-accent hover:text-accent-deep"
-                onClick={() => navigate("/studio")}
-              >
-                进入写作空间
-              </button>
-            </div>
-            <div className="space-y-2">
-              {documents.slice(0, 4).map((doc) => (
-                <button
-                  key={doc.id}
-                  onClick={async () => {
-                    const ok = await selectDocumentSafely(doc);
-                    if (ok) navigate("/studio");
-                  }}
-                  className="group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-line bg-canvas px-3.5 py-2.5 text-left transition-colors hover:border-accent-border hover:bg-accent-soft"
-                >
-                  <FileText size={14} className="shrink-0 text-ink-muted group-hover:text-accent" />
-                  <div className="min-w-0 flex-1">
-                    <strong className="block truncate text-xs font-medium text-ink">
-                      {doc.title}
-                    </strong>
-                    <small className="text-[11px] text-ink-muted">
-                      {formatRelativeTime(doc.updatedAt)} · {doc.charCount || doc.wordCount} 字
-                    </small>
-                  </div>
-                  <ArrowRight
-                    size={13}
-                    className="shrink-0 text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-accent"
-                  />
-                </button>
-              ))}
-            </div>
-          </article>
         </section>
 
-        {/* Recent Performance Table */}
-        <article className="rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
-          <div className="mb-3.5 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-ink">近期外部作品表现</h2>
-            <button
-              className="cursor-pointer text-xs font-medium text-accent hover:text-accent-deep"
-              onClick={() => navigate("/content")}
-            >
-              查看全部作品
-            </button>
-          </div>
-          <div className="divide-y divide-line">
-            <div className="grid grid-cols-[minmax(200px,2fr)_minmax(140px,1.2fr)_minmax(160px,1.3fr)_minmax(120px,1fr)] gap-4 pb-2.5 text-xs font-medium text-ink-muted">
-              <span>作品标题</span>
-              <span>平台 / 账号</span>
-              <span>主指标（按平台口径）</span>
-              <span>互动</span>
-            </div>
-            {publishedContents.map((item) => {
-              const visual = getPlatformVisual(item.platform);
-              return (
-                <div
-                  key={item.id}
-                  className="grid grid-cols-[minmax(200px,2fr)_minmax(140px,1.2fr)_minmax(160px,1.3fr)_minmax(120px,1fr)] items-center gap-4 py-3"
-                >
-                  <div className="min-w-0">
-                    <strong className="block truncate text-xs font-medium text-ink">
-                      {item.title}
-                    </strong>
-                    <small className="text-[11px] text-ink-muted">{item.publishedAt}</small>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium ${visual.badgeClass}`}
-                    >
-                      <PlatformLogo platformName={item.platform} size={14} />
-                      {item.platform}
-                    </span>
-                    <span className="truncate text-xs text-ink-secondary">{item.accountAlias}</span>
-                  </div>
-                  <div>
-                    <strong className="block text-xs font-semibold tabular-nums text-ink">
-                      {item.readsLabel}
-                    </strong>
-                    <small className="text-[11px] text-ink-muted">{item.readsMetric}</small>
-                  </div>
-                  <div className="text-xs text-ink-secondary">
-                    赞 {item.likes} · 评 {item.comments} · 藏 {item.favorites}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </article>
+        <div className="flex items-center justify-end gap-2 text-[11px] text-ink-muted">
+          <BarChart3 size={12} />
+          指标趋势与采集时间可在数据分析中逐作品核对。
+          <button
+            className="cursor-pointer font-medium text-accent"
+            onClick={() => navigate("/analytics")}
+          >
+            打开分析
+          </button>
+        </div>
       </div>
     </main>
   );

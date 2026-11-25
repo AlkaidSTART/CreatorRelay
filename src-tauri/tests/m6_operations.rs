@@ -5,9 +5,7 @@ use creatorrelay_lib::operations::{
     ExternalWorkFilter, ManualCompletionInput, PublishSourceType, PublishTargetInput,
     PublishTaskStatus, ResolveUncertainInput, SyncPlatformWorksInput, UncertainOutcome,
 };
-use creatorrelay_lib::plugins::{
-    self, PluginPermissionDecision, PluginRuntime, PluginStatus,
-};
+use creatorrelay_lib::plugins::{self, PluginPermissionDecision, PluginRuntime, PluginStatus};
 use rusqlite::Connection;
 use std::{fs, path::PathBuf};
 
@@ -24,7 +22,13 @@ fn fixture() -> Fixture {
     let mut conn = Connection::open(&database_path).unwrap();
     database::migrate(&mut conn).unwrap();
     let workspace = temp.path().join("workspace");
-    for directory in ["articles", "contents", "platform-drafts", "assets", "exports"] {
+    for directory in [
+        "articles",
+        "contents",
+        "platform-drafts",
+        "assets",
+        "exports",
+    ] {
         fs::create_dir_all(workspace.join(directory)).unwrap();
     }
     conn.execute(
@@ -62,13 +66,8 @@ fn enable_adapter(fixture: &mut Fixture, plugin_id: &str) {
             granted: permission.required,
         })
         .collect::<Vec<_>>();
-    plugins::set_plugin_permissions(
-        &mut fixture.conn,
-        &fixture.runtime,
-        plugin_id,
-        &decisions,
-    )
-    .unwrap();
+    plugins::set_plugin_permissions(&mut fixture.conn, &fixture.runtime, plugin_id, &decisions)
+        .unwrap();
     let enabled = plugins::enable_plugin(&mut fixture.conn, &fixture.runtime, plugin_id).unwrap();
     assert_eq!(enabled.status, PluginStatus::Enabled, "{plugin_id}");
 }
@@ -101,12 +100,9 @@ fn image_bytes(index: u8) -> Vec<u8> {
 }
 
 fn create_image_text(fixture: &Fixture, count: usize) -> ContentPackage {
-    let package = content::create_content_package(
-        &fixture.workspace,
-        ContentKind::ImageText,
-        "三图测试发布",
-    )
-    .unwrap();
+    let package =
+        content::create_content_package(&fixture.workspace, ContentKind::ImageText, "三图测试发布")
+            .unwrap();
     let mut media = Vec::new();
     for index in 1..=count {
         media.push(
@@ -121,10 +117,7 @@ fn create_image_text(fixture: &Fixture, count: usize) -> ContentPackage {
             .unwrap(),
         );
     }
-    let cover = media
-        .get(1)
-        .cloned()
-        .unwrap_or_else(|| media[0].clone());
+    let cover = media.get(1).cloned().unwrap_or_else(|| media[0].clone());
     content::save_content_package(
         &fixture.workspace,
         &package.manifest.id,
@@ -142,12 +135,9 @@ fn create_image_text(fixture: &Fixture, count: usize) -> ContentPackage {
 }
 
 fn create_article(fixture: &Fixture) -> ContentPackage {
-    let package = content::create_content_package(
-        &fixture.workspace,
-        ContentKind::Article,
-        "多目标文章",
-    )
-    .unwrap();
+    let package =
+        content::create_content_package(&fixture.workspace, ContentKind::Article, "多目标文章")
+            .unwrap();
     content::save_content_package(
         &fixture.workspace,
         &package.manifest.id,
@@ -165,12 +155,9 @@ fn create_article(fixture: &Fixture) -> ContentPackage {
 }
 
 fn create_video(fixture: &Fixture) -> ContentPackage {
-    let package = content::create_content_package(
-        &fixture.workspace,
-        ContentKind::Video,
-        "视频往返测试",
-    )
-    .unwrap();
+    let package =
+        content::create_content_package(&fixture.workspace, ContentKind::Video, "视频往返测试")
+            .unwrap();
     let video = content::import_content_asset(
         &fixture.workspace,
         &package.manifest.id,
@@ -241,10 +228,7 @@ fn create_tasks(
     .tasks
 }
 
-fn prepare_and_confirm(
-    fixture: &mut Fixture,
-    task_id: &str,
-) -> operations::PublishTask {
+fn prepare_and_confirm(fixture: &mut Fixture, task_id: &str) -> operations::PublishTask {
     let preview = operations::prepare_publish_task(
         &mut fixture.conn,
         &fixture.runtime,
@@ -267,7 +251,10 @@ fn prepare_and_confirm(
 fn m6_ac_01_03_05_06_13_multi_target_confirmation_timeout_and_video_roundtrip() {
     let mut fixture = fixture();
     enable_adapter(&mut fixture, "creatorrelay.official.test-adapter");
-    enable_adapter(&mut fixture, "creatorrelay.official.publish-timeout-adapter");
+    enable_adapter(
+        &mut fixture,
+        "creatorrelay.official.publish-timeout-adapter",
+    );
     enable_adapter(&mut fixture, "creatorrelay.official.video-adapter");
     let article = create_article(&fixture);
     let tasks = create_tasks(
@@ -292,7 +279,11 @@ fn m6_ac_01_03_05_06_13_multi_target_confirmation_timeout_and_video_roundtrip() 
         ],
     );
     assert_eq!(tasks.len(), 2);
-    assert!(tasks.iter().all(|task| task.status == PublishTaskStatus::Created));
+    assert!(
+        tasks
+            .iter()
+            .all(|task| task.status == PublishTaskStatus::Created)
+    );
     let success_task = tasks
         .iter()
         .find(|task| task.account_id == "adapter-success-account")
@@ -364,7 +355,10 @@ fn m6_ac_01_03_05_06_13_multi_target_confirmation_timeout_and_video_roundtrip() 
     )
     .unwrap();
     assert_eq!(resolved.status, PublishTaskStatus::Success);
-    assert_eq!(resolved.external_id.as_deref(), Some("manually-checked-001"));
+    assert_eq!(
+        resolved.external_id.as_deref(),
+        Some("manually-checked-001")
+    );
 
     let video = create_video(&fixture);
     let video_task = create_tasks(
@@ -437,7 +431,12 @@ fn m6_ac_02_04_07_to_12_and_14_capabilities_sync_analytics_dashboard_and_manual_
     .unwrap();
     assert!(image_preview.validation.ok);
     assert_eq!(
-        image_preview.task.media.iter().map(|asset| asset.order).collect::<Vec<_>>(),
+        image_preview
+            .task
+            .media
+            .iter()
+            .map(|asset| asset.order)
+            .collect::<Vec<_>>(),
         vec![1, 2, 3]
     );
     assert!(image_preview.task.cover.is_some());
@@ -475,7 +474,14 @@ fn m6_ac_02_04_07_to_12_and_14_capabilities_sync_analytics_dashboard_and_manual_
         video_preview.execution_mode,
         operations::PublishExecutionMode::Manual
     );
-    assert!(!video_preview.actions.iter().find(|action| action.id == "auto_publish").unwrap().available);
+    assert!(
+        !video_preview
+            .actions
+            .iter()
+            .find(|action| action.id == "auto_publish")
+            .unwrap()
+            .available
+    );
     assert!(video_preview.capability_reason.is_some());
 
     let todo = create_image_text(&fixture, 3);
@@ -507,9 +513,12 @@ fn m6_ac_02_04_07_to_12_and_14_capabilities_sync_analytics_dashboard_and_manual_
     .remove(0);
     let manual = prepare_and_confirm(&mut fixture, &manual_task.id);
     assert_eq!(manual.status, PublishTaskStatus::NeedsManualAction);
-    let package =
-        operations::export_manual_publish_package(&fixture.conn, &fixture.workspace, &manual_task.id)
-            .unwrap();
+    let package = operations::export_manual_publish_package(
+        &fixture.conn,
+        &fixture.workspace,
+        &manual_task.id,
+    )
+    .unwrap();
     let manifest: serde_json::Value =
         serde_json::from_slice(&fs::read(&package.manifest_path).unwrap()).unwrap();
     assert_eq!(manifest["mediaOrder"], serde_json::json!([1, 2, 3]));
@@ -521,7 +530,10 @@ fn m6_ac_02_04_07_to_12_and_14_capabilities_sync_analytics_dashboard_and_manual_
             .iter()
             .any(|asset| asset["role"] == "cover")
     );
-    assert_eq!(manifest["coverAssetId"], serde_json::json!(todo_draft.cover.as_ref().unwrap().id));
+    assert_eq!(
+        manifest["coverAssetId"],
+        serde_json::json!(todo_draft.cover.as_ref().unwrap().id)
+    );
     let completed = operations::complete_manual_publish_task(
         &mut fixture.conn,
         &manual_task.id,
@@ -532,6 +544,13 @@ fn m6_ac_02_04_07_to_12_and_14_capabilities_sync_analytics_dashboard_and_manual_
     )
     .unwrap();
     assert_eq!(completed.status, PublishTaskStatus::Success);
+    let cancelled = operations::cancel_publish_task(
+        &fixture.conn,
+        &video_task.id,
+        Some("用户在人工发布前取消"),
+    )
+    .unwrap();
+    assert_eq!(cancelled.status, PublishTaskStatus::Cancelled);
 
     let sync_input = SyncPlatformWorksInput {
         account_id: "account-sync".to_string(),
@@ -541,24 +560,25 @@ fn m6_ac_02_04_07_to_12_and_14_capabilities_sync_analytics_dashboard_and_manual_
         adapter_id: "creatorrelay.official.sync-adapter".to_string(),
         as_of: Some("2026-11-23T09:00:00Z".to_string()),
     };
-    let first_sync = operations::sync_platform_works(
-        &mut fixture.conn,
-        &fixture.runtime,
-        &sync_input,
-    )
-    .unwrap();
+    let first_sync =
+        operations::sync_platform_works(&mut fixture.conn, &fixture.runtime, &sync_input).unwrap();
     assert_eq!(first_sync.status, "SUCCESS");
     assert_eq!(first_sync.imported_count, 4);
-    let works = operations::list_external_works(&fixture.conn, &ExternalWorkFilter::default()).unwrap();
+    let works =
+        operations::list_external_works(&fixture.conn, &ExternalWorkFilter::default()).unwrap();
     let synced = works
         .iter()
-        .filter(|work| {
-            work.account_id.as_deref() == Some("account-sync") && work.source == "sync"
-        })
+        .filter(|work| work.account_id.as_deref() == Some("account-sync") && work.source == "sync")
         .collect::<Vec<_>>();
     assert_eq!(synced.len(), 4);
-    let video_work = synced.iter().find(|work| work.content_kind == "video").unwrap();
-    let article_work = synced.iter().find(|work| work.content_kind == "article").unwrap();
+    let video_work = synced
+        .iter()
+        .find(|work| work.content_kind == "video")
+        .unwrap();
+    let article_work = synced
+        .iter()
+        .find(|work| work.content_kind == "article")
+        .unwrap();
     assert_eq!(video_work.original_content_type, "video");
     assert_eq!(article_work.original_content_type, "文章");
     let video_views = video_work
@@ -587,6 +607,28 @@ fn m6_ac_02_04_07_to_12_and_14_capabilities_sync_analytics_dashboard_and_manual_
     assert_eq!(second_sync.status, "SUCCESS");
     assert_eq!(second_sync.imported_count, 0);
     assert_eq!(second_sync.updated_count, 4);
+    let repeated_same_day = operations::sync_platform_works(
+        &mut fixture.conn,
+        &fixture.runtime,
+        &SyncPlatformWorksInput {
+            as_of: Some("2026-11-24T18:00:00Z".to_string()),
+            ..sync_input.clone()
+        },
+    )
+    .unwrap();
+    assert_eq!(repeated_same_day.updated_count, 4);
+    for as_of in ["2026-11-17T09:00:00Z", "2026-10-30T09:00:00Z"] {
+        let run = operations::sync_platform_works(
+            &mut fixture.conn,
+            &fixture.runtime,
+            &SyncPlatformWorksInput {
+                as_of: Some(as_of.to_string()),
+                ..sync_input.clone()
+            },
+        )
+        .unwrap();
+        assert_eq!(run.status, "SUCCESS");
+    }
     let works_after =
         operations::list_external_works(&fixture.conn, &ExternalWorkFilter::default()).unwrap();
     assert_eq!(
@@ -612,6 +654,22 @@ fn m6_ac_02_04_07_to_12_and_14_capabilities_sync_analytics_dashboard_and_manual_
     .unwrap();
     assert_eq!(filtered.len(), 1);
     assert_eq!(filtered[0].external_id, "account-sync-image-text-001");
+    let latest_video = operations::external_work(&fixture.conn, &video_work.id).unwrap();
+    let video_views = latest_video
+        .metrics
+        .iter()
+        .find(|metric| metric.metric_name == "视频播放量")
+        .unwrap();
+    let video_view_count: i64 = fixture
+        .conn
+        .query_row(
+            "SELECT COUNT(*) FROM metric_snapshots WHERE work_id=?1 AND metric_name='视频播放量'",
+            [&video_work.id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(video_view_count, 4);
+    assert_eq!(video_views.value, 4200.0);
 
     let trend = operations::analytics_trend(
         &fixture.conn,
@@ -627,6 +685,32 @@ fn m6_ac_02_04_07_to_12_and_14_capabilities_sync_analytics_dashboard_and_manual_
     .unwrap();
     assert!(trend.series.iter().all(|series| series.points.len() >= 2));
     assert!(trend.series.iter().all(|series| !series.comparable));
+    let weekly = operations::analytics_trend(
+        &fixture.conn,
+        &AnalyticsQuery {
+            range: "30d".to_string(),
+            granularity: AnalyticsGranularity::Week,
+            platform_id: Some("juejin".to_string()),
+            account_id: Some("account-sync".to_string()),
+            content_kind: Some("video".to_string()),
+            work_id: Some(video_work.id.clone()),
+        },
+    )
+    .unwrap();
+    assert!(weekly.series.iter().all(|series| series.points.len() >= 2));
+    let monthly = operations::analytics_trend(
+        &fixture.conn,
+        &AnalyticsQuery {
+            range: "90d".to_string(),
+            granularity: AnalyticsGranularity::Month,
+            platform_id: Some("juejin".to_string()),
+            account_id: Some("account-sync".to_string()),
+            content_kind: Some("video".to_string()),
+            work_id: Some(video_work.id.clone()),
+        },
+    )
+    .unwrap();
+    assert!(monthly.series.iter().all(|series| series.points.len() >= 2));
     let missing = operations::analytics_trend(
         &fixture.conn,
         &AnalyticsQuery {
@@ -640,7 +724,12 @@ fn m6_ac_02_04_07_to_12_and_14_capabilities_sync_analytics_dashboard_and_manual_
     )
     .unwrap();
     assert!(missing.series.is_empty());
-    assert!(missing.warnings.iter().any(|warning| warning.contains("不会用 0")));
+    assert!(
+        missing
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("不会用 0"))
+    );
 
     let dashboard = operations::operations_dashboard(
         &fixture.conn,
@@ -654,8 +743,34 @@ fn m6_ac_02_04_07_to_12_and_14_capabilities_sync_analytics_dashboard_and_manual_
     .unwrap();
     assert_eq!(dashboard.account_count, 1);
     assert_eq!(dashboard.platform_count, 1);
-    assert!(dashboard.recent_works.iter().all(|work| work.account_id.as_deref() == Some("account-sync")));
-    assert!(dashboard.pending_tasks.iter().all(|task| task.account_id == "account-sync"));
+    assert!(
+        dashboard
+            .recent_works
+            .iter()
+            .all(|work| work.account_id.as_deref() == Some("account-sync"))
+    );
+    assert!(
+        dashboard
+            .pending_tasks
+            .iter()
+            .all(|task| task.account_id == "account-sync")
+    );
+    let video_dashboard = operations::operations_dashboard(
+        &fixture.conn,
+        &DashboardFilter {
+            range: Some("90d".to_string()),
+            platform_id: Some("juejin".to_string()),
+            account_id: Some("account-sync".to_string()),
+            content_kind: Some("video".to_string()),
+        },
+    )
+    .unwrap();
+    assert!(
+        video_dashboard
+            .recent_works
+            .iter()
+            .all(|work| work.content_kind == "video")
+    );
 
     let invalid_sync = operations::sync_platform_works(
         &mut fixture.conn,
@@ -741,4 +856,3 @@ fn m6_ac_12_account_invalidation_pauses_unfinished_dependent_tasks() {
     assert!(!resumed[0].paused);
     assert_eq!(resumed[0].status, PublishTaskStatus::Created);
 }
-

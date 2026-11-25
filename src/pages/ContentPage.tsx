@@ -64,9 +64,7 @@ export function ContentPage() {
       plugins.filter(
         (plugin) =>
           plugin.status === "ENABLED" &&
-          plugin.capabilities.some(
-            (capability) => capability.effectiveRead === "supported",
-          ),
+          plugin.capabilities.some((capability) => capability.effectiveRead === "supported"),
       ),
     [plugins],
   );
@@ -198,13 +196,13 @@ export function ContentPage() {
             className="h-8 rounded-lg border border-line bg-surface px-2 text-xs text-ink-secondary"
           >
             <option value="">全部平台</option>
-            {Array.from(new Map(accounts.map((account) => [account.platformId, account.platformName]))).map(
-              ([id, name]) => (
-                <option key={id} value={id}>
-                  {name}
-                </option>
-              ),
-            )}
+            {Array.from(
+              new Map(accounts.map((account) => [account.platformId, account.platformName])),
+            ).map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
           </select>
           <select
             value={accountId}
@@ -267,7 +265,9 @@ export function ContentPage() {
                   className="grid grid-cols-[minmax(220px,2fr)_minmax(160px,1.2fr)_minmax(180px,1.4fr)_minmax(80px,0.6fr)] items-center gap-4 py-3.5"
                 >
                   <div className="min-w-0">
-                    <strong className="block truncate text-xs font-medium text-ink">{item.title}</strong>
+                    <strong className="block truncate text-xs font-medium text-ink">
+                      {item.title}
+                    </strong>
                     <small className="text-[11px] text-ink-muted">
                       {item.externalId} · {formatDate(item.publishedAt)} · {workStatusLabel(item)}
                     </small>
@@ -334,14 +334,19 @@ export function ContentPage() {
                   {selectedWork.platformName} · {selectedWork.accountAlias}
                 </p>
               </div>
-              <button className="cursor-pointer text-ink-muted hover:text-ink" onClick={() => selectWork(null)}>
+              <button
+                className="cursor-pointer text-ink-muted hover:text-ink"
+                onClick={() => selectWork(null)}
+              >
                 <X size={18} />
               </button>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-2 text-xs">
               <div className="rounded-xl border border-line bg-canvas p-3">
                 <span className="text-[11px] text-ink-muted">外部作品 ID</span>
-                <strong className="mt-1 block break-all font-mono text-xs text-ink">{selectedWork.externalId}</strong>
+                <strong className="mt-1 block break-all font-mono text-xs text-ink">
+                  {selectedWork.externalId}
+                </strong>
               </div>
               <div className="rounded-xl border border-line bg-canvas p-3">
                 <span className="text-[11px] text-ink-muted">来源</span>
@@ -349,7 +354,9 @@ export function ContentPage() {
               </div>
               <div className="rounded-xl border border-line bg-canvas p-3">
                 <span className="text-[11px] text-ink-muted">映射形态</span>
-                <strong className="mt-1 block text-ink">{contentKindText(selectedWork.contentKind)}</strong>
+                <strong className="mt-1 block text-ink">
+                  {contentKindText(selectedWork.contentKind)}
+                </strong>
               </div>
               <div className="rounded-xl border border-line bg-canvas p-3">
                 <span className="text-[11px] text-ink-muted">平台原始类型</span>

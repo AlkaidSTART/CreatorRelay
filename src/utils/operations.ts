@@ -180,9 +180,7 @@ export function filterExternalWorks(
 export function primaryMetric(work: ExternalWork) {
   const preferred = /播放|阅读|浏览|曝光|查看|观看/;
   return (
-    work.metrics.find((metric) => preferred.test(metric.metricName)) ??
-    work.metrics[0] ??
-    null
+    work.metrics.find((metric) => preferred.test(metric.metricName)) ?? work.metrics[0] ?? null
   );
 }
 
@@ -220,9 +218,7 @@ export function computeDashboardView(input: {
     return true;
   });
   const pendingTasks = tasks.filter((task) =>
-    ["CREATED", "VALIDATING", "PENDING", "SCHEDULED", "NEEDS_MANUAL_ACTION"].includes(
-      task.status,
-    ),
+    ["CREATED", "VALIDATING", "PENDING", "SCHEDULED", "NEEDS_MANUAL_ACTION"].includes(task.status),
   );
   const recentPublishes = tasks.filter((task) => task.status === "SUCCESS");
   const syncRuns = input.syncRuns.filter((run) => {
@@ -255,12 +251,17 @@ export function computeDashboardView(input: {
 
 const ANALYTICS_COLORS = ["#6B9ED4", "#E38AA6", "#68B692", "#E39472", "#9D89C8", "#5DAAA8"];
 
-export function analyticsToTrendDataset(
-  analytics: AnalyticsResult,
-): OverviewTrendDataset & { series: Array<OverviewTrendDataset["series"][number] & { title: string }> } {
+export function analyticsToTrendDataset(analytics: AnalyticsResult): OverviewTrendDataset & {
+  series: Array<OverviewTrendDataset["series"][number] & { title: string }>;
+} {
   const dates = Array.from(
     new Set(analytics.series.flatMap((series) => series.points.map((point) => point.bucket))),
-  ).sort();
+  ).reduce<string[]>((ordered, value) => {
+    const index = ordered.findIndex((item) => item > value);
+    if (index < 0) ordered.push(value);
+    else ordered.splice(index, 0, value);
+    return ordered;
+  }, []);
   const series = analytics.series
     .filter((item) => item.points.length > 0)
     .map((item, index) => {
@@ -299,4 +300,3 @@ export function taskActionSummary(task: PublishTask): string {
   if (task.errorMessage) return task.errorMessage;
   return PUBLISH_STATUS_META[task.status].description;
 }
-
