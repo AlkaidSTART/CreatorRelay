@@ -23,24 +23,24 @@
 
 ## 命令与结果
 
-| 检查 | 命令 | 结果 |
-| --- | --- | --- |
-| Rust 格式 | `cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check` | pass |
-| Rust Clippy | `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings` | pass |
-| Rust 全量测试 | `cargo test --manifest-path src-tauri/Cargo.toml --all-targets` | pass：73 个 lib 测试 + M4 9 + M6 5 + M7 8 + M8 6 |
-| M8 集成测试 | `cargo test --manifest-path src-tauri/Cargo.toml --test m8_ecosystem` | pass，6/6 |
-| 数据库迁移 | `cargo test --manifest-path src-tauri/Cargo.toml --lib database::tests` | pass；含 v6 四类内容/账号/任务/指标 → v7，以及失败迁移回滚 |
-| Adapter 回归 | `cargo test --manifest-path src-tauri/Cargo.toml --test m4_runtime` | pass，9/9；含崩溃/超时隔离和版本回退 |
-| M6/M7 回归 | `cargo test --manifest-path src-tauri/Cargo.toml --test m6_operations && cargo test --manifest-path src-tauri/Cargo.toml --test m7_mcp` | pass，5/5 + 8/8 |
-| 前端测试 | `pnpm test` | pass，11 个测试文件、44 项测试 |
-| 前端类型检查 | `pnpm typecheck` | pass |
-| 前端 Lint | `pnpm lint` | pass |
-| 前端构建 | `pnpm build` | pass；仅既有 chunk > 500 kB 警告 |
-| M8 前端格式 | `pnpm exec prettier --check src/components/EcosystemPanel.tsx src/stores/ecosystemStore.ts src/types/ecosystem.ts src/pages/PlatformsPage.tsx src/stores/index.ts src/types/operations.ts src/stores/operationsStore.ts src/utils/operations.test.ts` | pass |
-| 全仓库格式 | `pnpm format:check` | fail；M8 范围外既有文件 `StudioWorkspaceEmpty.tsx`、`StudioPage.css` 未格式化 |
-| Tauri Debug 打包 | `pnpm tauri build --debug --bundles app --no-sign` | pass；`src-tauri/target/debug/bundle/macos/creatorrelay.app`（52.50 MiB） |
-| JSON 文件 | `python3 -m json.tool <admissions/marketplace/schema files>` | pass |
-| 官方来源可达性 | 对准入登记中的 13 个官方入口执行 `curl -L -sS --max-time 15 -o /dev/null -w '%{http_code}'` | 12 个返回 200；`https://open.zhihu.com/` 返回 422，登记中明确记录为入口异常且不声明 API 可用 |
+| 检查             | 命令                                                                                                                                                                                                                                                  | 结果                                                                                         |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Rust 格式        | `cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check`                                                                                                                                                                                     | pass                                                                                         |
+| Rust Clippy      | `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings`                                                                                                                                                                      | pass                                                                                         |
+| Rust 全量测试    | `cargo test --manifest-path src-tauri/Cargo.toml --all-targets`                                                                                                                                                                                       | pass：73 个 lib 测试 + M4 9 + M6 5 + M7 8 + M8 6                                             |
+| M8 集成测试      | `cargo test --manifest-path src-tauri/Cargo.toml --test m8_ecosystem`                                                                                                                                                                                 | pass，6/6                                                                                    |
+| 数据库迁移       | `cargo test --manifest-path src-tauri/Cargo.toml --lib database::tests`                                                                                                                                                                               | pass；含 v6 四类内容/账号/任务/指标 → v7，以及失败迁移回滚                                   |
+| Adapter 回归     | `cargo test --manifest-path src-tauri/Cargo.toml --test m4_runtime`                                                                                                                                                                                   | pass，9/9；含崩溃/超时隔离和版本回退                                                         |
+| M6/M7 回归       | `cargo test --manifest-path src-tauri/Cargo.toml --test m6_operations && cargo test --manifest-path src-tauri/Cargo.toml --test m7_mcp`                                                                                                               | pass，5/5 + 8/8                                                                              |
+| 前端测试         | `pnpm test`                                                                                                                                                                                                                                           | pass，11 个测试文件、44 项测试                                                               |
+| 前端类型检查     | `pnpm typecheck`                                                                                                                                                                                                                                      | pass                                                                                         |
+| 前端 Lint        | `pnpm lint`                                                                                                                                                                                                                                           | pass                                                                                         |
+| 前端构建         | `pnpm build`                                                                                                                                                                                                                                          | pass；仅既有 chunk > 500 kB 警告                                                             |
+| M8 前端格式      | `pnpm exec prettier --check src/components/EcosystemPanel.tsx src/stores/ecosystemStore.ts src/types/ecosystem.ts src/pages/PlatformsPage.tsx src/stores/index.ts src/types/operations.ts src/stores/operationsStore.ts src/utils/operations.test.ts` | pass                                                                                         |
+| 全仓库格式       | `pnpm format:check`                                                                                                                                                                                                                                   | fail；M8 范围外既有文件 `StudioWorkspaceEmpty.tsx`、`StudioPage.css` 未格式化                |
+| Tauri Debug 打包 | `pnpm tauri build --debug --bundles app --no-sign`                                                                                                                                                                                                    | pass；`src-tauri/target/debug/bundle/macos/creatorrelay.app`（52.50 MiB）                    |
+| JSON 文件        | `python3 -m json.tool <admissions/marketplace/schema files>`                                                                                                                                                                                          | pass                                                                                         |
+| 官方来源可达性   | 对准入登记中的 13 个官方入口执行 `curl -L -sS --max-time 15 -o /dev/null -w '%{http_code}'`                                                                                                                                                           | 12 个返回 200；`https://open.zhihu.com/` 返回 422，登记中明确记录为入口异常且不声明 API 可用 |
 
 ### 官方来源检查输出
 
@@ -87,17 +87,17 @@
 
 ## M8 AC 快照
 
-| 验收标准 | 结果 | 证据 |
-| --- | --- | --- |
-| M8-AC-01 平台准入 | pass | 10 个平台均有官方来源、HTTP 检查结果、验证日期、账号类型、未支持事项和四形态结果；`m8_admission_registry_is_traceable_and_covers_every_content_kind`；未验证能力保持 experimental/restricted/unsupported |
-| M8-AC-02 兼容性 | pass | `m8_embedded_adapter_contract_and_payload_regression_passes_together`；6 个内嵌 Adapter 通过身份唯一、v1 合约、四形态和共享载荷检查；M4 崩溃/超时隔离 9/9 |
-| M8-AC-03 能力呈现 | pass | `m8_expired_account_degrades_platform_and_account_capabilities`；`m8_mcp_returns_platform_and_account_capability_matrix`；UI 账号级能力与降级原因截图 |
-| M8-AC-04 平台数据差异 | pass | `m8_platform_sync_preserves_raw_fields_content_mapping_and_metric_provenance`；四类作品映射、原始内容类型、rawFields、指标定义/单位/source 均保留 |
-| M8-AC-05 版本升级 | pass | `m8_upgrade_from_v6_preserves_content_accounts_tasks_and_metrics`；四类内容包、Markdown、账号、任务和历史指标恢复；`failed_migration_rolls_back_and_preserves_database` |
-| M8-AC-06 权限治理 | pass | `m8_plugin_upgrade_requires_review_of_new_permission_and_denial_is_effective`；新权限待审查，用户拒绝后 `network.request` 返回 `PERMISSION_DENIED` |
-| M8-AC-07 发布安全 | pass | `m8_unverified_platform_forces_manual_publish_even_when_adapter_claims_support`；Adapter 声明支持仍只进入人工发布；UI 显示自动发布关闭 |
-| M8-AC-08 插件市场决策 | pass | `m8_marketplace_policy_stays_closed_until_all_gates_pass`；ADR-003 明确六项门禁，当前市场 closed、第三方安装和受控试点均禁止 |
-| M8-AC-09 内容形态覆盖 | pass | 准入 Schema 要求每个平台恰好四种形态；10 × 4 个读取/发布结果均为显式状态；未完成真实账号验证的形态不在 UI/MCP 显示 supported |
+| 验收标准              | 结果 | 证据                                                                                                                                                                                                     |
+| --------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M8-AC-01 平台准入     | pass | 10 个平台均有官方来源、HTTP 检查结果、验证日期、账号类型、未支持事项和四形态结果；`m8_admission_registry_is_traceable_and_covers_every_content_kind`；未验证能力保持 experimental/restricted/unsupported |
+| M8-AC-02 兼容性       | pass | `m8_embedded_adapter_contract_and_payload_regression_passes_together`；6 个内嵌 Adapter 通过身份唯一、v1 合约、四形态和共享载荷检查；M4 崩溃/超时隔离 9/9                                                |
+| M8-AC-03 能力呈现     | pass | `m8_expired_account_degrades_platform_and_account_capabilities`；`m8_mcp_returns_platform_and_account_capability_matrix`；UI 账号级能力与降级原因截图                                                    |
+| M8-AC-04 平台数据差异 | pass | `m8_platform_sync_preserves_raw_fields_content_mapping_and_metric_provenance`；四类作品映射、原始内容类型、rawFields、指标定义/单位/source 均保留                                                        |
+| M8-AC-05 版本升级     | pass | `m8_upgrade_from_v6_preserves_content_accounts_tasks_and_metrics`；四类内容包、Markdown、账号、任务和历史指标恢复；`failed_migration_rolls_back_and_preserves_database`                                  |
+| M8-AC-06 权限治理     | pass | `m8_plugin_upgrade_requires_review_of_new_permission_and_denial_is_effective`；新权限待审查，用户拒绝后 `network.request` 返回 `PERMISSION_DENIED`                                                       |
+| M8-AC-07 发布安全     | pass | `m8_unverified_platform_forces_manual_publish_even_when_adapter_claims_support`；Adapter 声明支持仍只进入人工发布；UI 显示自动发布关闭                                                                   |
+| M8-AC-08 插件市场决策 | pass | `m8_marketplace_policy_stays_closed_until_all_gates_pass`；ADR-003 明确六项门禁，当前市场 closed、第三方安装和受控试点均禁止                                                                             |
+| M8-AC-09 内容形态覆盖 | pass | 准入 Schema 要求每个平台恰好四种形态；10 × 4 个读取/发布结果均为显式状态；未完成真实账号验证的形态不在 UI/MCP 显示 supported                                                                             |
 
 ## 未覆盖项与剩余风险
 
@@ -140,4 +140,3 @@ pnpm build
 - **接口检查：** 抖音开放平台 `upload_video`、`upload_image`、`create_video`、`create_image_text`、`video_list`、`video_data` 路径返回平台 JSON；无有效 token 时为 `access_token无效`。这只证明路径可达，不证明应用资格或发布成功。
 - **未完成：** 10 个平台的账号级 OAuth/应用审核、真实作品回读、媒体上传、发布和指标往返仍未验证；小红书/掘金/CSDN/知乎没有已核实的官方内容发布 API，继续人工网页交接。
 - **结论：** 平台 MCP 实现与自动化回归通过，但 M8 阶段仍为 `implementation in progress / acceptance blocked`，不创建 `M8-acceptance.md`。
-

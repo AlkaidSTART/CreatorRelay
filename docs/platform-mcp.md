@@ -58,20 +58,20 @@ src-tauri/src/mcp/
 
 每个平台模块实现一个 `profile() -> PlatformMcpProfile`：
 
-| 字段 | 说明 |
-| --- | --- |
-| `serverName` | 逻辑 MCP 名称，例如 `douyin_mcp`、`xiaohongshu_mcp` |
-| `platformId` | Core 平台 ID |
-| `authMode` | OAuth、浏览器 Cookie、公众号 AppID/AppSecret 或人工网页 |
-| `admissionStatus` | 当前为 `evaluation_only`，不能当作发布授权 |
-| `autoPublishAllowed` | 当前全部为 `false` |
-| `publishDispatch` | 当前全部为 `manual_only` |
-| `nativeWorkIdField` | 平台作品主键字段名 |
-| `interfaces` | 官方接口/人工网页、方法、路径、鉴权、验证状态与来源 |
-| `tools` | 平台专属工具名称与输入 Schema |
-| `fieldMappings` | 统一字段 ↔ 平台字段及读写方向 |
-| `contentRules` | 各内容形态的媒体、封面、标题/正文/标签约束 |
-| `handoff` | 人工发布、作品管理与数据页入口 |
+| 字段                 | 说明                                                    |
+| -------------------- | ------------------------------------------------------- |
+| `serverName`         | 逻辑 MCP 名称，例如 `douyin_mcp`、`xiaohongshu_mcp`     |
+| `platformId`         | Core 平台 ID                                            |
+| `authMode`           | OAuth、浏览器 Cookie、公众号 AppID/AppSecret 或人工网页 |
+| `admissionStatus`    | 当前为 `evaluation_only`，不能当作发布授权              |
+| `autoPublishAllowed` | 当前全部为 `false`                                      |
+| `publishDispatch`    | 当前全部为 `manual_only`                                |
+| `nativeWorkIdField`  | 平台作品主键字段名                                      |
+| `interfaces`         | 官方接口/人工网页、方法、路径、鉴权、验证状态与来源     |
+| `tools`              | 平台专属工具名称与输入 Schema                           |
+| `fieldMappings`      | 统一字段 ↔ 平台字段及读写方向                           |
+| `contentRules`       | 各内容形态的媒体、封面、标题/正文/标签约束              |
+| `handoff`            | 人工发布、作品管理与数据页入口                          |
 
 `verification` 明确区分：
 
@@ -84,12 +84,12 @@ src-tauri/src/mcp/
 
 每个平台注册四个只读工具：
 
-| 工具后缀 | 权限 | 行为 |
-| --- | --- | --- |
-| `<platform>_account_get_info` | Read | 读取 Core 中该平台的脱敏账号、状态和能力 |
-| `<platform>_work_list` | Read | 按平台原生作品 ID、形态、时间和关键词查询本地已同步作品 |
-| `<platform>_analytics_get_trend` | Read | 读取本地指标趋势，可选按平台指标名过滤 |
-| `<platform>_publish_validate` | Read | 校验本地内容包的形态/媒体/封面，并返回平台字段映射和人工交接信息 |
+| 工具后缀                         | 权限 | 行为                                                             |
+| -------------------------------- | ---- | ---------------------------------------------------------------- |
+| `<platform>_account_get_info`    | Read | 读取 Core 中该平台的脱敏账号、状态和能力                         |
+| `<platform>_work_list`           | Read | 按平台原生作品 ID、形态、时间和关键词查询本地已同步作品          |
+| `<platform>_analytics_get_trend` | Read | 读取本地指标趋势，可选按平台指标名过滤                           |
+| `<platform>_publish_validate`    | Read | 校验本地内容包的形态/媒体/封面，并返回平台字段映射和人工交接信息 |
 
 例如：
 
@@ -114,18 +114,18 @@ xiaohongshu_publish_validate   # 返回 title/content/topics/images/cover 映射
 
 ## 5. 平台接口矩阵
 
-| server | 主要接口来源 | 鉴权 | 原生作品 ID | 发布方式 | 当前验证 |
-| --- | --- | --- | --- | --- | --- |
-| `douyin_mcp` | 抖音开放平台 OAuth、video/image upload、create、list、data | OAuth + 应用审核 | `itemId` | 人工网页 / 待开放平台验收 | 接口入口可达；账号与发布未验证 |
-| `xiaohongshu_mcp` | 创作中心发布页、笔记管理、创作者数据；开放平台仅商家/电商入口 | 人工登录会话 | `noteId` | 人工网页 | 无已核实的个人笔记发布 API |
-| `bilibili_mcp` | `x/web-interface/nav` 身份；投稿/专栏人工页面 | 浏览器 Cookie（身份已验证） | `bvid` | 人工网页 | 身份已验证；发布未验证 |
-| `youtube_mcp` | Data API `videos.list` / `videos.insert`、Analytics API | OAuth 2.0 | `videoId` | 人工 Studio / 待 OAuth 验收 | 文档存在；OAuth 未配置 |
-| `wechat_mcp` | `stable_token`、素材、`draft/add`、`freepublish/submit`、datacube | AppID/AppSecret + IP 白名单 | `msgId` | 人工后台 / 待公众号验收 | 文档存在；账号权限未验证 |
-| `weibo_mcp` | `statuses/share`、媒体上传、`statuses/show` | OAuth access_token | `statusId` | 人工主站 / 待 OAuth 验收 | 分享接口字段与 140 字限制有官方文档 |
-| `kuaishou_mcp` | 开放平台 OAuth、photo 上传/发布 | OAuth + 应用审核 | `photoId` | 人工创作者中心 | 入口存在；接口未账号级验证 |
-| `juejin_mcp` | 文章编辑器、文章管理、创作者数据 | 人工登录会话 | `articleId` | 人工网页 | 无已核实的官方文章发布 API |
-| `csdn_mcp` | 创作中心编辑器、文章管理 | 人工登录会话 | `articleId` | 人工网页 | 无已核实的官方文章发布 API |
-| `zhihu_mcp` | 专栏编辑器、创作者中心；开放平台入口 | 人工登录会话 | `articleId` | 人工网页 | 无已核实的官方专栏发布 API |
+| server            | 主要接口来源                                                      | 鉴权                        | 原生作品 ID | 发布方式                    | 当前验证                            |
+| ----------------- | ----------------------------------------------------------------- | --------------------------- | ----------- | --------------------------- | ----------------------------------- |
+| `douyin_mcp`      | 抖音开放平台 OAuth、video/image upload、create、list、data        | OAuth + 应用审核            | `itemId`    | 人工网页 / 待开放平台验收   | 接口入口可达；账号与发布未验证      |
+| `xiaohongshu_mcp` | 创作中心发布页、笔记管理、创作者数据；开放平台仅商家/电商入口     | 人工登录会话                | `noteId`    | 人工网页                    | 无已核实的个人笔记发布 API          |
+| `bilibili_mcp`    | `x/web-interface/nav` 身份；投稿/专栏人工页面                     | 浏览器 Cookie（身份已验证） | `bvid`      | 人工网页                    | 身份已验证；发布未验证              |
+| `youtube_mcp`     | Data API `videos.list` / `videos.insert`、Analytics API           | OAuth 2.0                   | `videoId`   | 人工 Studio / 待 OAuth 验收 | 文档存在；OAuth 未配置              |
+| `wechat_mcp`      | `stable_token`、素材、`draft/add`、`freepublish/submit`、datacube | AppID/AppSecret + IP 白名单 | `msgId`     | 人工后台 / 待公众号验收     | 文档存在；账号权限未验证            |
+| `weibo_mcp`       | `statuses/share`、媒体上传、`statuses/show`                       | OAuth access_token          | `statusId`  | 人工主站 / 待 OAuth 验收    | 分享接口字段与 140 字限制有官方文档 |
+| `kuaishou_mcp`    | 开放平台 OAuth、photo 上传/发布                                   | OAuth + 应用审核            | `photoId`   | 人工创作者中心              | 入口存在；接口未账号级验证          |
+| `juejin_mcp`      | 文章编辑器、文章管理、创作者数据                                  | 人工登录会话                | `articleId` | 人工网页                    | 无已核实的官方文章发布 API          |
+| `csdn_mcp`        | 创作中心编辑器、文章管理                                          | 人工登录会话                | `articleId` | 人工网页                    | 无已核实的官方文章发布 API          |
+| `zhihu_mcp`       | 专栏编辑器、创作者中心；开放平台入口                              | 人工登录会话                | `articleId` | 人工网页                    | 无已核实的官方专栏发布 API          |
 
 抖音接口检查（2026-11-25）确认以下开放平台路径返回平台 JSON 错误而不是 HTML 404；无有效 `access_token` 时返回 `access_token无效`：
 
@@ -142,29 +142,29 @@ xiaohongshu_publish_validate   # 返回 title/content/topics/images/cover 映射
 
 ### 抖音
 
-| 统一字段 | 抖音字段 | 方向 | 说明 |
-| --- | --- | --- | --- |
-| `media.video` | `video_id` | write | 先上传，再创建作品 |
-| `media.image` | `image_list` | write | 图文图片列表 |
-| `title` / `body` | `text` | write | 视频文案/图文标题语义 |
-| `cover` | `cover_tsp` | write | 封面时间点，不传本地路径 |
-| `externalId` | `item_id` | read | 作品回读主键 |
-| `metrics.play` | `play_count` | read | 播放数 |
-| `metrics.like` | `digg_count` | read | 点赞数 |
+| 统一字段         | 抖音字段     | 方向  | 说明                     |
+| ---------------- | ------------ | ----- | ------------------------ |
+| `media.video`    | `video_id`   | write | 先上传，再创建作品       |
+| `media.image`    | `image_list` | write | 图文图片列表             |
+| `title` / `body` | `text`       | write | 视频文案/图文标题语义    |
+| `cover`          | `cover_tsp`  | write | 封面时间点，不传本地路径 |
+| `externalId`     | `item_id`    | read  | 作品回读主键             |
+| `metrics.play`   | `play_count` | read  | 播放数                   |
+| `metrics.like`   | `digg_count` | read  | 点赞数                   |
 
 ### 小红书
 
-| 统一字段 | 小红书字段 | 方向 | 说明 |
-| --- | --- | --- | --- |
-| `title` | `title` | write | 笔记标题 |
-| `body` / `summary` | `content` | write | 笔记正文 |
-| `tags` | `topics` | write | 话题选择 |
-| `media.image` | `images` | write | 图片顺序即展示顺序 |
-| `media.video` | `video` | write | 视频笔记 |
-| `cover` | `cover` | write | 首图或视频封面 |
-| `externalId` | `note_id` | read | 笔记回读主键 |
-| `metrics.like` | `liked_count` | read | 点赞数 |
-| `metrics.collect` | `collected_count` | read | 收藏数 |
+| 统一字段           | 小红书字段        | 方向  | 说明               |
+| ------------------ | ----------------- | ----- | ------------------ |
+| `title`            | `title`           | write | 笔记标题           |
+| `body` / `summary` | `content`         | write | 笔记正文           |
+| `tags`             | `topics`          | write | 话题选择           |
+| `media.image`      | `images`          | write | 图片顺序即展示顺序 |
+| `media.video`      | `video`           | write | 视频笔记           |
+| `cover`            | `cover`           | write | 首图或视频封面     |
+| `externalId`       | `note_id`         | read  | 笔记回读主键       |
+| `metrics.like`     | `liked_count`     | read  | 点赞数             |
+| `metrics.collect`  | `collected_count` | read  | 收藏数             |
 
 ## 7. 新增平台步骤
 
