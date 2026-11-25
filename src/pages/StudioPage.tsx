@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -145,7 +147,6 @@ export function StudioPage() {
     });
     if (!target) return;
     try {
-      const { writeTextFile } = await import("@tauri-apps/plugin-fs");
       await writeTextFile(target, content);
       showToast("Markdown 已导出");
     } catch (cause) {

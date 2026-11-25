@@ -755,6 +755,37 @@ fn read_document(path: String, state: State<'_, AppState>) -> Result<DocumentCon
 }
 
 #[tauri::command]
+fn import_markdown(source_path: String, state: State<'_, AppState>) -> Result<Document, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+    let source = PathBuf::from(&source_path);
+    if source.extension().and_then(|extension| extension.to_str()) != Some("md")
+        && source.extension().and_then(|extension| extension.to_str()) != Some("markdown")
+    {
+        return Err("请选择 Markdown 文件".to_string());
+    }
+    let metadata = fs::symlink_metadata(&source).map_err(|e| e.to_string())?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("导入源必须是普通文件，不能是符号链接".to_string());
+    }
+    let content = fs::read_to_string(&source).map_err(|e| e.to_string())?;
+    let id = Uuid::new_v4().to_string();
+    let relative = format!("articles/{id}/article.md");
+    let target = resolve_document(&workspace, &relative)?;
+    atomic_write(&target, &content)?;
+    let history = open_history_repository(&state.history_root, &workspace)?;
+    commit_document_content(&history, &relative, &content, "导入 Markdown", None)?;
+    let title = title_for(&content, &target);
+    let database_path = database_document_path(&workspace, &relative)?;
+    conn.execute(
+        "INSERT INTO documents(id, path, title, updated_at, content_hash) VALUES(?1, ?2, ?3, ?4, ?5)",
+        params![id, database_path, title, Utc::now().to_rfc3339(), digest(&content)],
+    )
+    .map_err(|e| e.to_string())?;
+    document_from_file(id, &target, &workspace)
+}
+
+#[tauri::command]
 fn create_document(title: String, state: State<'_, AppState>) -> Result<Document, String> {
     let title = title.trim();
     if title.is_empty() {
@@ -934,6 +965,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             let path = app_db_path(app.handle()).map_err(std::io::Error::other)?;
             let conn = Connection::open(path).map_err(std::io::Error::other)?;
@@ -945,11 +977,6 @@ pub fn run() {
                  CREATE TABLE IF NOT EXISTS documents(
                     id TEXT PRIMARY KEY, path TEXT NOT NULL UNIQUE, title TEXT NOT NULL,
                     updated_at TEXT NOT NULL, content_hash TEXT NOT NULL
-                 );
-                 CREATE TABLE IF NOT EXISTS revisions(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL,
-                    content TEXT NOT NULL, content_hash TEXT NOT NULL, label TEXT NOT NULL,
-                    created_at TEXT NOT NULL, FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE CASCADE
                  );",
             )
             .map_err(std::io::Error::other)?;
@@ -975,6 +1002,7 @@ pub fn run() {
             list_documents,
             rebuild_workspace_index,
             read_document,
+            import_markdown,
             create_document,
             save_document,
             list_revisions,
