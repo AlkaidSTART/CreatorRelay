@@ -1157,6 +1157,24 @@ mod tests {
     }
 
     #[test]
+    fn imported_media_bytes_can_be_read_for_preview() {
+        let temp = workspace();
+        let package = create_content_package(temp.path(), ContentKind::Video, "预览").unwrap();
+        let video = import_content_asset(
+            temp.path(),
+            &package.manifest.id,
+            "media",
+            "clip.mp4",
+            "video/mp4",
+            video_bytes(),
+        )
+        .unwrap();
+        let content = read_content_asset(temp.path(), &package.manifest.id, &video.id).unwrap();
+        assert_eq!(content.mime_type, "video/mp4");
+        assert_eq!(content.bytes, video_bytes());
+    }
+
+    #[test]
     fn image_order_cover_and_captions_persist() {
         let temp = workspace();
         let package = create_content_package(temp.path(), ContentKind::ImageText, "图集").unwrap();

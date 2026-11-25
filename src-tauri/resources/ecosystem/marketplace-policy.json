@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "decision": "closed",
+  "reviewedAt": "2026-11-25",
+  "rationale": "第三方插件市场必须同时满足威胁评估、来源/签名、强隔离、更新回滚、权限撤销和应急下架要求；当前未满足，因此仅允许随应用分发的官方适配器。",
+  "gates": [
+    {
+      "id": "threat_assessment",
+      "label": "威胁评估",
+      "required": true,
+      "passed": true,
+      "evidence": "docs/adr/ADR-002-adapter-runtime.md；docs/ecosystem-security.md"
+    },
+    {
+      "id": "source_signature",
+      "label": "安装来源与签名校验",
+      "required": true,
+      "passed": false,
+      "evidence": "当前只加载内嵌官方 Manifest 并校验哈希；未建立第三方发布签名链"
+    },
+    {
+      "id": "strong_isolation",
+      "label": "强隔离",
+      "required": true,
+      "passed": false,
+      "evidence": "macOS 有 sandbox-exec；Windows/Linux 仅有进程隔离，禁止第三方代码"
+    },
+    {
+      "id": "update_rollback",
+      "label": "更新与回滚",
+      "required": true,
+      "passed": true,
+      "evidence": "插件版本更新、回退和权限交集迁移有自动化测试"
+    },
+    {
+      "id": "permission_revocation",
+      "label": "权限撤销",
+      "required": true,
+      "passed": true,
+      "evidence": "逐项权限审查和 Core hostCall 拒绝路径有自动化测试"
+    },
+    {
+      "id": "emergency_takedown",
+      "label": "应急下架",
+      "required": true,
+      "passed": false,
+      "evidence": "没有远程签名撤销列表和强制执行链"
+    }
+  ],
+  "allowedDistribution": "bundled_official_only",
+  "thirdPartyInstallAllowed": false,
+  "controlledPilotAllowed": false
+}

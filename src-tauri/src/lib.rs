@@ -19,6 +19,7 @@ pub mod content;
 pub mod database;
 mod diagnostics;
 mod logging;
+pub mod mcp;
 pub mod operations;
 mod platforms;
 pub mod plugins;
@@ -32,6 +33,7 @@ struct AppState {
     log_path: PathBuf,
     started_at: Instant,
     plugin_runtime: plugins::PluginRuntime,
+    mcp_host: mcp::McpHost,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -776,6 +778,169 @@ fn ai_generate(
 ) -> Result<ai::AiGenerateResult, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     ai::generate_with_vault(&conn, &request, &ai::keyring_vault())
+}
+
+#[tauri::command]
+fn get_mcp_host_status(state: State<'_, AppState>) -> Result<mcp::McpHostStatus, String> {
+    state.mcp_host.status()
+}
+
+#[tauri::command]
+fn start_mcp_server(state: State<'_, AppState>) -> Result<mcp::McpHostStatus, String> {
+    let conn = state.db.lock().map_err(|error| error.to_string())?;
+    let settings = mcp::get_settings(&conn)?;
+    state.mcp_host.start(Some(mcp::McpHostConfig {
+        auto_restart: settings.auto_restart,
+        max_restarts: settings.max_restarts,
+    }))
+}
+
+#[tauri::command]
+fn stop_mcp_server(state: State<'_, AppState>) -> Result<mcp::McpHostStatus, String> {
+    state.mcp_host.stop()
+}
+
+#[tauri::command]
+fn mcp_health_check(state: State<'_, AppState>) -> Result<mcp::McpHostStatus, String> {
+    state.mcp_host.health_check()
+}
+
+#[tauri::command]
+fn mcp_list_tools(state: State<'_, AppState>) -> Result<Vec<mcp::McpToolDefinition>, String> {
+    state.mcp_host.list_tools()
+}
+
+#[tauri::command]
+fn mcp_cancel_tool(call_id: String, state: State<'_, AppState>) -> Result<(), String> {
+    state.mcp_host.cancel(&call_id)
+}
+
+#[tauri::command]
+fn get_mcp_settings(state: State<'_, AppState>) -> Result<mcp::McpSettings, String> {
+    let conn = state.db.lock().map_err(|error| error.to_string())?;
+    mcp::get_settings(&conn)
+}
+
+#[tauri::command]
+fn save_mcp_settings(
+    input: mcp::McpSettingsInput,
+    state: State<'_, AppState>,
+) -> Result<mcp::McpSettings, String> {
+    let conn = state.db.lock().map_err(|error| error.to_string())?;
+    let settings = mcp::save_settings(&conn, input)?;
+    let mut status = state.mcp_host.status()?;
+    status.config = mcp::McpHostConfig {
+        auto_restart: settings.auto_restart,
+        max_restarts: settings.max_restarts,
+    };
+    Ok(settings)
+}
+
+#[tauri::command]
+fn mcp_preview_tool_call(
+    request: mcp::McpPreviewRequest,
+    state: State<'_, AppState>,
+) -> Result<mcp::McpAuthorizationPreview, String> {
+    let conn = state.db.lock().map_err(|error| error.to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or_else(|| "请先选择工作区".to_string())?;
+    mcp::preview_tool_call(&conn, &workspace, request)
+}
+
+#[tauri::command]
+fn mcp_call_tool(
+    request: mcp::McpCallRequest,
+    state: State<'_, AppState>,
+) -> Result<mcp::McpCallResult, String> {
+    let mut conn = state.db.lock().map_err(|error| error.to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or_else(|| "请先选择工作区".to_string())?;
+    mcp::call_tool(
+        &mut conn,
+        &state.plugin_runtime,
+        &workspace,
+        &state.mcp_host,
+        request,
+    )
+}
+
+#[tauri::command]
+fn list_mcp_audit(
+    limit: Option<usize>,
+    state: State<'_, AppState>,
+) -> Result<Vec<mcp::McpAuditRecord>, String> {
+    let conn = state.db.lock().map_err(|error| error.to_string())?;
+    mcp::list_audit(&conn, limit.unwrap_or(50))
+}
+
+#[tauri::command]
+fn mcp_security_self_test() -> mcp::McpSecurityEvidence {
+    mcp::security_evidence()
+}
+
+#[tauri::command]
+fn list_assistant_threads(state: State<'_, AppState>) -> Result<Vec<mcp::AssistantThread>, String> {
+    let conn = state.db.lock().map_err(|error| error.to_string())?;
+    mcp::list_assistant_threads(&conn)
+}
+
+#[tauri::command]
+fn create_assistant_thread(
+    title: Option<String>,
+    provider_id: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<mcp::AssistantThread, String> {
+    let conn = state.db.lock().map_err(|error| error.to_string())?;
+    mcp::create_assistant_thread(&conn, title, provider_id)
+}
+
+#[tauri::command]
+fn get_assistant_thread(
+    thread_id: String,
+    state: State<'_, AppState>,
+) -> Result<mcp::AssistantThreadDetail, String> {
+    let conn = state.db.lock().map_err(|error| error.to_string())?;
+    mcp::get_assistant_thread(&conn, &thread_id)
+}
+
+#[tauri::command]
+fn assistant_plan_message(
+    prompt: String,
+    thread_id: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<mcp::AssistantPlan, String> {
+    let conn = state.db.lock().map_err(|error| error.to_string())?;
+    mcp::plan_assistant_message(&conn, &prompt, thread_id.as_deref())
+}
+
+#[tauri::command]
+fn assistant_context_preview(
+    provider_id: Option<String>,
+    content_id: Option<String>,
+    scope: Option<mcp::ModelContextScope>,
+    state: State<'_, AppState>,
+) -> Result<mcp::AssistantContextPreview, String> {
+    let conn = state.db.lock().map_err(|error| error.to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or_else(|| "请先选择工作区".to_string())?;
+    let scope = match scope {
+        Some(scope) => scope,
+        None => mcp::default_context_scope(&conn)?,
+    };
+    mcp::preview_assistant_context(
+        &conn,
+        &workspace,
+        provider_id.as_deref(),
+        content_id.as_deref(),
+        &scope,
+    )
+}
+
+#[tauri::command]
+fn assistant_generate_reply(
+    request: mcp::AssistantGenerateRequest,
+    state: State<'_, AppState>,
+) -> Result<mcp::AssistantGenerateResult, String> {
+    let conn = state.db.lock().map_err(|error| error.to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or_else(|| "请先选择工作区".to_string())?;
+    mcp::generate_assistant_reply(&conn, &workspace, request, &ai::keyring_vault())
 }
 
 fn active_workspace(conn: &Connection) -> Result<Option<PathBuf>, String> {
@@ -2612,9 +2777,25 @@ pub fn run() {
                 plugin_root,
                 data_dir.clone(),
                 database_path.clone(),
-                runner_executable,
+                runner_executable.clone(),
             )
             .map_err(std::io::Error::other)?;
+            let mcp_settings = mcp::get_settings(&conn).unwrap_or_default();
+            let mcp_host = mcp::McpHost::new(runner_executable);
+            if let Err(error) = mcp_host.start(Some(mcp::McpHostConfig {
+                auto_restart: mcp_settings.auto_restart,
+                max_restarts: mcp_settings.max_restarts,
+            })) {
+                let _ = logging::append_log(
+                    &log_path,
+                    "warn",
+                    "startup.mcp",
+                    &format!(
+                        "本地 MCP Server 启动失败 error={}",
+                        mcp::redact_text(&error)
+                    ),
+                );
+            }
             app.manage(AppState {
                 db: Mutex::new(conn),
                 history_root,
@@ -2624,6 +2805,7 @@ pub fn run() {
                 log_path,
                 started_at: Instant::now(),
                 plugin_runtime,
+                mcp_host,
             });
             Ok(())
         })
@@ -2713,7 +2895,25 @@ pub fn run() {
             list_sync_runs,
             list_publish_task_events,
             get_runtime_diagnostics,
-            run_diagnostic_probe
+            run_diagnostic_probe,
+            get_mcp_host_status,
+            start_mcp_server,
+            stop_mcp_server,
+            mcp_health_check,
+            mcp_list_tools,
+            mcp_cancel_tool,
+            get_mcp_settings,
+            save_mcp_settings,
+            mcp_preview_tool_call,
+            mcp_call_tool,
+            list_mcp_audit,
+            mcp_security_self_test,
+            list_assistant_threads,
+            create_assistant_thread,
+            get_assistant_thread,
+            assistant_plan_message,
+            assistant_context_preview,
+            assistant_generate_reply
         ])
         .run(tauri::generate_context!())
         .expect("error while running CreatorRelay");

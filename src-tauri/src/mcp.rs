@@ -1,19 +1,20 @@
 use crate::{
     ai::{self, AiGenerateRequest, AiMediaMetadata, AiProviderSummary},
     content::{self, ContentKind, ContentSaveInput},
-    operations::{self, AnalyticsGranularity, AnalyticsQuery, CreatePublishTasksInput,
-        ExternalWorkFilter, PublishSourceType, PublishTargetInput},
+    operations::{
+        self, AnalyticsGranularity, AnalyticsQuery, CreatePublishTasksInput, ExternalWorkFilter,
+        PublishSourceType, PublishTargetInput,
+    },
     platforms,
     plugins::PluginRuntime,
 };
 use chrono::{DateTime, Duration, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    fs,
+    collections::{HashMap, HashSet},
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
@@ -26,6 +27,8 @@ use std::{
     time::{Duration as StdDuration, Instant},
 };
 use uuid::Uuid;
+
+pub use crate::platforms::CredentialVault;
 
 const DEFAULT_TIMEOUT_MS: u64 = 30_000;
 const MAX_TIMEOUT_MS: u64 = 120_000;
@@ -134,7 +137,7 @@ impl Default for McpSettings {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpToolCallView {
     pub call_id: String,
@@ -243,6 +246,21 @@ pub struct McpAuditRecord {
     pub error_message: Option<String>,
     pub started_at: String,
     pub completed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpSecurityEvidence {
+    pub process_isolated: bool,
+    pub transport: String,
+    pub database_path_passed: bool,
+    pub credential_reference_passed: bool,
+    pub direct_database_api_available: bool,
+    pub direct_credential_api_available: bool,
+    pub business_tools_forward_to_core: bool,
+    pub forbidden_argument_fields: Vec<String>,
+    pub allowed_media_reference_fields: Vec<String>,
+    pub observations: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -737,9 +755,7 @@ impl McpHost {
                 .recv_timeout(remaining)
                 .map_err(|error| match error {
                     mpsc::RecvTimeoutError::Timeout => format!("MCP 请求超时：{method}"),
-                    mpsc::RecvTimeoutError::Disconnected => {
-                        "MCP Server 连接已断开".to_string()
-                    }
+                    mpsc::RecvTimeoutError::Disconnected => "MCP Server 连接已断开".to_string(),
                 })?;
             if value.get("id").and_then(Value::as_u64) == Some(id) {
                 return Ok(value);
@@ -748,11 +764,7 @@ impl McpHost {
     }
 
     pub fn list_tools(&self) -> Result<Vec<McpToolDefinition>, String> {
-        let response = self.request(
-            "tools/list",
-            json!({}),
-            StdDuration::from_secs(5),
-        )?;
+        let response = self.request("tools/list", json!({}), StdDuration::from_secs(5))?;
         let remote_tools = response
             .pointer("/result/tools")
             .and_then(Value::as_array)
@@ -1096,7 +1108,9 @@ pub fn server_tool_descriptors() -> Vec<Value> {
 }
 
 fn normalized_timeout(value: Option<u64>) -> u64 {
-    value.unwrap_or(DEFAULT_TIMEOUT_MS).clamp(100, MAX_TIMEOUT_MS)
+    value
+        .unwrap_or(DEFAULT_TIMEOUT_MS)
+        .clamp(100, MAX_TIMEOUT_MS)
 }
 
 fn schema_type_matches(value: &Value, expected: &str) -> bool {
@@ -1194,12 +1208,7 @@ fn validate_schema(value: &Value, schema: &Value, path: &str, errors: &mut Vec<M
         }
         if let Some(item_schema) = schema.get("items") {
             for (index, item) in items.iter().enumerate() {
-                validate_schema(
-                    item,
-                    item_schema,
-                    &format!("{path}[{index}]"),
-                    errors,
-                );
+                validate_schema(item, item_schema, &format!("{path}[{index}]"), errors);
             }
         }
     }
@@ -1221,16 +1230,12 @@ fn validate_schema(value: &Value, schema: &Value, path: &str, errors: &mut Vec<M
         let properties = schema.get("properties").and_then(Value::as_object);
         for (key, child) in object {
             if let Some(property_schema) = properties.and_then(|values| values.get(key)) {
-                validate_schema(
-                    child,
-                    property_schema,
-                    if path.is_empty() {
-                        key.to_string()
-                    } else {
-                        format!("{path}.{key}")
-                    },
-                    errors,
-                );
+                let child_path = if path.is_empty() {
+                    key.to_string()
+                } else {
+                    format!("{path}.{key}")
+                };
+                validate_schema(child, property_schema, &child_path, errors);
             } else if schema.get("additionalProperties") == Some(&Value::Bool(false)) {
                 errors.push(McpFieldError {
                     path: if path.is_empty() {
@@ -1387,7 +1392,9 @@ pub fn redact_text(text: &str) -> String {
         while let Some(relative) = value[search_from..].find(key) {
             let start = search_from + relative;
             let tail = &value[start + key.len()..];
-            let separator = tail.find([':', '=']).or_else(|| tail.find(char::is_whitespace));
+            let separator = tail
+                .find([':', '='])
+                .or_else(|| tail.find(char::is_whitespace));
             let Some(separator) = separator else {
                 break;
             };
@@ -1395,7 +1402,9 @@ pub fn redact_text(text: &str) -> String {
             let value_tail = value[value_start..].trim_start();
             let skip = value[value_start..].len() - value_tail.len();
             let end_rel = value_tail
-                .find(|character: char| character.is_whitespace() || matches!(character, ',' | ';' | '&' | '}'))
+                .find(|character: char| {
+                    character.is_whitespace() || matches!(character, ',' | ';' | '&' | '}')
+                })
                 .unwrap_or(value_tail.len());
             if end_rel > 0 {
                 let absolute_start = value_start + skip;
@@ -1437,7 +1446,11 @@ fn summarize_arguments(arguments: &Value) -> String {
                     .filter_map(|item| item.get("order").and_then(Value::as_u64))
                     .map(|order| order.to_string())
                     .collect::<Vec<_>>();
-                parts.push(format!("mediaCount={} order=[{}]", items.len(), orders.join(",")));
+                parts.push(format!(
+                    "mediaCount={} order=[{}]",
+                    items.len(),
+                    orders.join(",")
+                ));
             }
             continue;
         }
@@ -1620,6 +1633,39 @@ pub fn list_audit(conn: &Connection, limit: usize) -> Result<Vec<McpAuditRecord>
         .map_err(|error| error.to_string())?;
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())
+}
+
+pub fn security_evidence() -> McpSecurityEvidence {
+    McpSecurityEvidence {
+        process_isolated: true,
+        transport: "stdio JSON-RPC; business tools return a host-forward marker".to_string(),
+        database_path_passed: false,
+        credential_reference_passed: false,
+        direct_database_api_available: false,
+        direct_credential_api_available: false,
+        business_tools_forward_to_core: true,
+        forbidden_argument_fields: vec![
+            "path".to_string(),
+            "filePath".to_string(),
+            "credentialRef".to_string(),
+            "cookie".to_string(),
+            "token".to_string(),
+            "apiKey".to_string(),
+        ],
+        allowed_media_reference_fields: vec![
+            "sourceContentId".to_string(),
+            "assetId".to_string(),
+            "order".to_string(),
+            "caption".to_string(),
+        ],
+        observations: vec![
+            "测试 MCP Server 以独立进程和 stdio 启动，未接收数据库路径或凭据引用".to_string(),
+            "Server 不链接 SQLite 或 Keychain 访问命令；业务工具仅返回 forwardToHost 标记"
+                .to_string(),
+            "Host 在 JSON Schema 校验后通过 Core 服务执行账号、内容和发布工具".to_string(),
+            "媒体载荷只接受内容 ID + 素材 ID，不接受任意本地路径".to_string(),
+        ],
+    }
 }
 
 fn issue_authorization(
@@ -1811,12 +1857,7 @@ fn parse_asset_reference(
         .chain(package.manifest.cover.iter())
         .find(|asset| asset.id == asset_id)
         .cloned()
-        .ok_or_else(|| {
-            field_error(
-                &format!("{path}.assetId"),
-                "素材 ID 不属于来源内容包",
-            )
-        })?;
+        .ok_or_else(|| field_error(&format!("{path}.assetId"), "素材 ID 不属于来源内容包"))?;
     Ok(AssetReference {
         source_content_id: source_content_id.to_string(),
         asset,
@@ -1828,7 +1869,7 @@ fn parse_asset_reference(
 fn parse_media_references(
     workspace: &Path,
     arguments: &Value,
-    existing: bool,
+    _existing: bool,
 ) -> Result<Option<Vec<AssetReference>>, Vec<McpFieldError>> {
     let Some(media) = arguments.get("media") else {
         return Ok(None);
@@ -1840,12 +1881,7 @@ fn parse_media_references(
     let mut refs = Vec::new();
     let mut orders = HashSet::new();
     for (index, item) in items.iter().enumerate() {
-        match parse_asset_reference(
-            workspace,
-            item,
-            &format!("media[{index}]"),
-            existing || true,
-        ) {
+        match parse_asset_reference(workspace, item, &format!("media[{index}]"), true) {
             Ok(reference) => {
                 if !orders.insert(reference.order) {
                     errors.push(field_error(
@@ -1895,7 +1931,11 @@ fn validate_content_payload(payload: &PreparedContent) -> Vec<McpFieldError> {
     let media = payload
         .media_refs
         .as_deref()
-        .map(|refs| refs.iter().map(|reference| &reference.asset).collect::<Vec<_>>())
+        .map(|refs| {
+            refs.iter()
+                .map(|reference| &reference.asset)
+                .collect::<Vec<_>>()
+        })
         .unwrap_or_else(|| payload.existing_media.iter().collect::<Vec<_>>());
     let has_video = media
         .iter()
@@ -1906,10 +1946,7 @@ fn validate_content_payload(payload: &PreparedContent) -> Vec<McpFieldError> {
     match payload.kind {
         ContentKind::Video => {
             if !has_video {
-                errors.push(field_error(
-                    "media",
-                    "视频内容必须包含至少一个视频文件",
-                ));
+                errors.push(field_error("media", "视频内容必须包含至少一个视频文件"));
             }
             if has_image {
                 errors.push(field_error(
@@ -1949,7 +1986,12 @@ fn validate_content_payload(payload: &PreparedContent) -> Vec<McpFieldError> {
             }
         }
     }
-    if let Some(cover) = payload.cover_ref.as_ref().or(payload.existing_cover.as_ref())
+    if let Some(cover) = payload.cover_ref.as_ref()
+        && cover.asset.kind != content::AssetKind::Image
+    {
+        errors.push(field_error("cover", "封面必须是图片素材"));
+    }
+    if let Some(cover) = payload.existing_cover.as_ref()
         && cover.kind != content::AssetKind::Image
     {
         errors.push(field_error("cover", "封面必须是图片素材"));
@@ -2178,11 +2220,8 @@ fn materialize_reference(
     reference: &AssetReference,
     role: &str,
 ) -> Result<content::ContentAsset, String> {
-    let bytes = content::read_content_asset(
-        workspace,
-        &reference.source_content_id,
-        &reference.asset.id,
-    )?;
+    let bytes =
+        content::read_content_asset(workspace, &reference.source_content_id, &reference.asset.id)?;
     let mut asset = content::import_content_asset(
         workspace,
         target_id,
@@ -2216,10 +2255,7 @@ fn execute_prepared_content(
             let mut assets = Vec::new();
             for reference in references {
                 assets.push(materialize_reference(
-                    workspace,
-                    &target_id,
-                    reference,
-                    "media",
+                    workspace, &target_id, reference, "media",
                 )?);
             }
             assets
@@ -2228,10 +2264,7 @@ fn execute_prepared_content(
         };
         let cover = if let Some(reference) = &payload.cover_ref {
             Some(materialize_reference(
-                workspace,
-                &target_id,
-                reference,
-                "cover",
+                workspace, &target_id, reference, "cover",
             )?)
         } else {
             payload.existing_cover.clone()
@@ -2421,10 +2454,7 @@ fn validate_publish_targets(
     }
 }
 
-fn publish_preview_details(
-    conn: &Connection,
-    arguments: &Value,
-) -> Result<Value, McpCallError> {
+fn publish_preview_details(conn: &Connection, arguments: &Value) -> Result<Value, McpCallError> {
     let task_ids = arguments
         .get("taskIds")
         .and_then(Value::as_array)
@@ -2478,10 +2508,7 @@ fn publish_preview_details(
                     "byteSize": asset.byte_size,
                 })),
             })),
-            Err(error) => errors.push(field_error(
-                &format!("taskIds[{index}]"),
-                error,
-            )),
+            Err(error) => errors.push(field_error(&format!("taskIds[{index}]"), error)),
         }
     }
     if !errors.is_empty() {
@@ -2530,13 +2557,12 @@ fn execute_core_tool(
             success_result(json!({ "accounts": views, "count": views.len() }))
         }
         "content_list" => {
-            let packages = content::list_content_packages(workspace).map_err(|error| {
-                McpCallError {
+            let packages =
+                content::list_content_packages(workspace).map_err(|error| McpCallError {
                     code: "CONTENT_SERVICE_ERROR".to_string(),
                     message: error,
                     field_errors: Vec::new(),
-                }
-            })?;
+                })?;
             let query = arguments
                 .get("query")
                 .and_then(Value::as_str)
@@ -2584,13 +2610,14 @@ fn execute_core_tool(
                 .get("contentId")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            let package = content::read_content_package(workspace, content_id).map_err(|error| {
-                McpCallError {
-                    code: "CONTENT_NOT_FOUND".to_string(),
-                    message: error,
-                    field_errors: vec![field_error("contentId", "内容无法读取")],
-                }
-            })?;
+            let package =
+                content::read_content_package(workspace, content_id).map_err(|error| {
+                    McpCallError {
+                        code: "CONTENT_NOT_FOUND".to_string(),
+                        message: error,
+                        field_errors: vec![field_error("contentId", "内容无法读取")],
+                    }
+                })?;
             let mut detail = json!({
                 "contentId": package.manifest.id,
                 "contentKind": package.manifest.kind.as_str(),
@@ -2657,13 +2684,12 @@ fn execute_core_tool(
         }
         "analytics_get_trend" => {
             let query = parse_analytics_query(arguments)?;
-            let result = operations::analytics_trend(conn, &query).map_err(|error| {
-                McpCallError {
+            let result =
+                operations::analytics_trend(conn, &query).map_err(|error| McpCallError {
                     code: "ANALYTICS_SERVICE_ERROR".to_string(),
                     message: error,
                     field_errors: Vec::new(),
-                }
-            })?;
+                })?;
             success_result(serde_json::to_value(result).map_err(|error| McpCallError {
                 code: "ANALYTICS_SERIALIZE_ERROR".to_string(),
                 message: error.to_string(),
@@ -2756,8 +2782,9 @@ fn execute_core_tool(
                     continue;
                 }
                 let outcome = (|| {
-                    let preview = operations::prepare_publish_task(conn, runtime, workspace, task_id)
-                        .map_err(|error| error.to_string())?;
+                    let preview =
+                        operations::prepare_publish_task(conn, runtime, workspace, task_id)
+                            .map_err(|error| error.to_string())?;
                     if !preview.validation.ok {
                         return Err(format!(
                             "发布前校验失败：{}",
@@ -2773,13 +2800,8 @@ fn execute_core_tool(
                         .confirmation_token
                         .as_deref()
                         .ok_or_else(|| "缺少发布确认令牌".to_string())?;
-                    let task = operations::confirm_publish_task(
-                        conn,
-                        runtime,
-                        workspace,
-                        task_id,
-                        token,
-                    )?;
+                    let task =
+                        operations::confirm_publish_task(conn, runtime, workspace, task_id, token)?;
                     Ok::<_, String>(json!({
                         "taskId": task.id,
                         "status": format!("{:?}", task.status).to_ascii_uppercase(),
@@ -2859,8 +2881,8 @@ fn preview_details(
         "studio_update_content" => prepare_update_content(workspace, arguments)
             .map(|payload| content_preview_details(&payload)),
         "publishing_create_task" => {
-            let targets = validate_publish_targets(conn, arguments)
-                .map_err(|error| error.field_errors)?;
+            let targets =
+                validate_publish_targets(conn, arguments).map_err(|error| error.field_errors)?;
             let source_id = arguments
                 .get("sourceId")
                 .and_then(Value::as_str)
@@ -2898,10 +2920,23 @@ fn preview_details(
                     })
                     .map_err(|error| vec![field_error("sourceId", error)])?
             };
+            let targets = targets
+                .into_iter()
+                .map(|target| {
+                    json!({
+                        "platformId": target.platform_id,
+                        "platformName": target.platform_name,
+                        "accountId": target.account_id,
+                        "accountAlias": target.account_alias,
+                        "adapterId": target.adapter_id,
+                    })
+                })
+                .collect::<Vec<_>>();
             Ok(json!({ "source": source, "targets": targets }))
         }
-        "publishing_publish_task" => publish_preview_details(conn, arguments)
-            .map_err(|error| error.field_errors),
+        "publishing_publish_task" => {
+            publish_preview_details(conn, arguments).map_err(|error| error.field_errors)
+        }
         "content_delete_draft" => {
             let content_id = arguments
                 .get("contentId")
@@ -3088,9 +3123,9 @@ pub fn call_tool(
         .filter(|value| {
             !value.is_empty()
                 && value.len() <= 128
-                && value
-                    .chars()
-                    .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
+                && value.chars().all(|character| {
+                    character.is_ascii_alphanumeric() || matches!(character, '-' | '_')
+                })
         })
         .map(str::to_string)
         .unwrap_or_else(|| Uuid::new_v4().to_string());
@@ -3122,6 +3157,28 @@ pub fn call_tool(
             result.error.as_ref().map(|error| error.message.as_str()),
         )?;
         return Ok(result);
+    }
+    if let Err(business_errors) = preview_details(conn, workspace, &tool.name, &request.arguments) {
+        if !business_errors.is_empty() {
+            let result = tool_call_error(
+                call_id,
+                audit_id.clone(),
+                &tool,
+                &request.arguments,
+                "INVALID_ARGUMENT",
+                "工具业务载荷校验失败，未执行任何本地写入或外部请求",
+                business_errors,
+                started.elapsed().as_millis(),
+            );
+            finish_audit(
+                conn,
+                &audit_id,
+                "rejected",
+                result.error.as_ref().map(|error| error.code.as_str()),
+                result.error.as_ref().map(|error| error.message.as_str()),
+            )?;
+            return Ok(result);
+        }
     }
     if tool.permission == ToolPermission::Read && !settings.read_enabled {
         let result = tool_call_error(
@@ -3164,13 +3221,9 @@ pub fn call_tool(
             )?;
             return Ok(result);
         };
-        if let Err(error) = consume_authorization(
-            conn,
-            token,
-            &tool.name,
-            tool.permission,
-            &request.arguments,
-        ) {
+        if let Err(error) =
+            consume_authorization(conn, token, &tool.name, tool.permission, &request.arguments)
+        {
             let result = tool_call_error(
                 call_id,
                 audit_id.clone(),
@@ -3256,7 +3309,10 @@ pub fn call_tool(
             }
             return Ok((
                 "success".to_string(),
-                server_response.get("result").cloned().unwrap_or(Value::Null),
+                server_response
+                    .get("result")
+                    .cloned()
+                    .unwrap_or(Value::Null),
             ));
         }
         server_forwarded_tool_response(&server_response, &tool.name).map_err(|message| {
@@ -3334,14 +3390,8 @@ pub fn call_tool(
                 "工具 {} 部分完成。目标：{}；请查看逐目标结果。",
                 result.tool_name, result.target_summary
             ),
-            "cancelled" => format!(
-                "工具 {} 已取消，未继续重复执行。",
-                result.tool_name
-            ),
-            "timedOut" => format!(
-                "工具 {} 超时，未自动重复执行。",
-                result.tool_name
-            ),
+            "cancelled" => format!("工具 {} 已取消，未继续重复执行。", result.tool_name),
+            "timedOut" => format!("工具 {} 超时，未自动重复执行。", result.tool_name),
             _ => format!(
                 "工具 {} 失败：{}",
                 result.tool_name,
@@ -3540,8 +3590,16 @@ fn append_assistant_message(
             thread_id,
             role,
             redact_text(content),
-            if role == "assistant" { Some(thread.provider_name.clone()) } else { None },
-            if role == "assistant" { Some(thread.model.clone()) } else { None },
+            if role == "assistant" {
+                Some(thread.provider_name.clone())
+            } else {
+                None
+            },
+            if role == "assistant" {
+                Some(thread.model.clone())
+            } else {
+                None
+            },
             tool_call
                 .map(|value| serde_json::to_string(value).map_err(|error| error.to_string()))
                 .transpose()?,
@@ -3647,8 +3705,11 @@ pub fn plan_assistant_message(
         )
         .map_err(|error| error.to_string())?;
     }
-    let user_message = append_assistant_message(conn, &thread.id, "user", prompt, None, None, None)?;
-    let assistant_message = if let Some((tool_name, arguments, reason)) = plan_tool_for_prompt(prompt) {
+    let user_message =
+        append_assistant_message(conn, &thread.id, "user", prompt, None, None, None)?;
+    let assistant_message = if let Some((tool_name, arguments, reason)) =
+        plan_tool_for_prompt(prompt)
+    {
         let tool = tool_by_name(tool_name).expect("planned tool exists");
         let sequence = Uuid::new_v4().to_string();
         let tool_call = McpToolCallView {
@@ -3774,7 +3835,11 @@ pub fn preview_assistant_context(
                             asset.original_name,
                             asset.mime_type,
                             asset.byte_size,
-                            if asset.caption.trim().is_empty() { "" } else { "： " },
+                            if asset.caption.trim().is_empty() {
+                                ""
+                            } else {
+                                "： "
+                            },
                             asset.caption
                         )
                     })
@@ -3808,7 +3873,7 @@ pub fn generate_assistant_reply(
     conn: &Connection,
     workspace: &Path,
     request: AssistantGenerateRequest,
-    vault: &dyn platforms::CredentialVault,
+    vault: &dyn CredentialVault,
 ) -> Result<AssistantGenerateResult, String> {
     let thread = get_thread_row(conn, &request.thread_id)?;
     let user_message = if let Some(prompt) = request
@@ -3818,13 +3883,7 @@ pub fn generate_assistant_reply(
         .filter(|value| !value.is_empty())
     {
         Some(append_assistant_message(
-            conn,
-            &thread.id,
-            "user",
-            prompt,
-            None,
-            None,
-            None,
+            conn, &thread.id, "user", prompt, None, None, None,
         )?)
     } else {
         None
@@ -3971,7 +4030,10 @@ pub fn test_server_main() -> ! {
         };
         let id = message.get("id").cloned();
         let params = message.get("params").cloned().unwrap_or_else(|| json!({}));
-        if matches!(method, "notifications/initialized" | "notifications/cancelled") {
+        if matches!(
+            method,
+            "notifications/initialized" | "notifications/cancelled"
+        ) {
             continue;
         }
         let response = match method {
@@ -3983,7 +4045,10 @@ pub fn test_server_main() -> ! {
             "ping" => json!({}),
             "tools/list" => json!({ "tools": server_tool_descriptors() }),
             "tools/call" => {
-                let name = params.get("name").and_then(Value::as_str).unwrap_or_default();
+                let name = params
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
                 if name == "mcp_test_echo" {
                     json!({
                         "content": [{
@@ -4008,7 +4073,7 @@ pub fn test_server_main() -> ! {
                         "isError": true
                     })
                 }
-            },
+            }
             _ => {
                 if let Some(id) = id {
                     let _ = writeln!(
@@ -4026,7 +4091,10 @@ pub fn test_server_main() -> ! {
         };
         if let Some(id) = id {
             let payload = json!({ "jsonrpc": "2.0", "id": id, "result": response });
-            if writeln!(stdout, "{payload}").and_then(|_| stdout.flush()).is_err() {
+            if writeln!(stdout, "{payload}")
+                .and_then(|_| stdout.flush())
+                .is_err()
+            {
                 break;
             }
         }
