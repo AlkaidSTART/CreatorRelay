@@ -8,14 +8,10 @@ import {
   Plus,
   RefreshCw,
   ShieldAlert,
-  ShieldCheck,
   Trash2,
   X,
 } from "../components/Icons";
 import { PageHeader } from "../components/PageHeader";
-import { EcosystemPanel } from "../components/EcosystemPanel";
-import { PluginManager } from "../components/PluginManager";
-import { CreatorCentersPanel } from "../components/CreatorCentersPanel";
 import { PlatformLogo } from "../components/PlatformLogo";
 import { PLATFORM_CATEGORIES } from "../data/demoData";
 import { usePlatformStore, useUiStore } from "../stores";
@@ -175,9 +171,6 @@ export function PlatformsPage() {
   const [manualPrompt, setManualPrompt] = useState<ManualPrompt | null>(null);
   const [deleteState, setDeleteState] = useState<DeleteState | null>(null);
   const [busyAccountId, setBusyAccountId] = useState("");
-  const [managementView, setManagementView] = useState<
-    "accounts" | "adapters" | "ecosystem" | "creator-centers"
-  >("accounts");
 
   useEffect(() => {
     void initialize();

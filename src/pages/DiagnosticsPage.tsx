@@ -1,0 +1,213 @@
+import { useEffect, useState } from "react";
+import { invoke, isTauri } from "@tauri-apps/api/core";
+import { AlertTriangle, Plug, RefreshCw, Server, Shield, Terminal } from "../components/Icons";
+import { PageHeader } from "../components/PageHeader";
+import { useUiStore } from "../stores";
+
+type RuntimeDiagnostics = {
+  appVersion: string;
+  dataDir: string;
+  databasePath: string;
+  logPath: string;
+  schemaVersion: number;
+  targetSchemaVersion: number;
+  workspacePath?: string | null;
+  logAvailable: boolean;
+  databaseIntegrity: string;
+  uptimeSeconds: number;
+};
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function DiagnosticsPage() {
+  const showToast = useUiStore((state) => state.showToast);
+  const setError = useUiStore((state) => state.setError);
+  const [diagnostics, setDiagnostics] = useState<RuntimeDiagnostics | null>(null);
+  const [diagnosticsError, setDiagnosticsError] = useState("");
+  const [diagnosticsBusy, setDiagnosticsBusy] = useState("");
+
+  async function refreshDiagnostics() {
+    if (!isTauri()) return;
+    try {
+      setDiagnostics(await invoke<RuntimeDiagnostics>("get_runtime_diagnostics"));
+      setDiagnosticsError("");
+    } catch (cause) {
+      setDiagnosticsError(errorMessage(cause));
+    }
+  }
+
+  useEffect(() => {
+    void refreshDiagnostics();
+  }, []);
+
+  async function runProbe(probe: "ipc_payload" | "database_error" | "invalid_path") {
+    if (!isTauri()) {
+      showToast("诊断探针仅在桌面应用中运行");
+      return;
+    }
+    setDiagnosticsBusy(probe);
+    setError("");
+    try {
+      if (probe === "invalid_path") {
+        await invoke("set_workspace_path", {
+          path: "/__creatorrelay_missing_m1_ipc_probe__",
+        });
+        setError("诊断失败：非法路径探针未返回预期错误");
+      } else {
+        await invoke("run_diagnostic_probe", { probe });
+        setError("诊断失败：错误探针未返回预期错误");
+      }
+    } catch (cause) {
+      setError(errorMessage(cause));
+      await refreshDiagnostics();
+    } finally {
+      setDiagnosticsBusy("");
+    }
+  }
+
+  return (
+    <main className="flex h-full min-w-0 flex-col bg-canvas">
+      <PageHeader
+        eyebrow="DIAGNOSTICS"
+        title="运行时诊断"
+        description="查看桌面端数据库 schema、脱敏日志路径、扩展运行时边界，并执行 IPC 与数据库诊断探针。"
+        actions={
+          <button
+            type="button"
+            onClick={() => void refreshDiagnostics()}
+            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3 text-xs font-medium text-ink-secondary hover:bg-subtle"
+          >
+            <RefreshCw size={11} />
+            刷新状态
+          </button>
+        }
+      />
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
+        <div className="max-w-4xl space-y-5">
+          <article className="rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent-deep">
+                <Terminal size={15} />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-ink">M1 运行时诊断</h2>
+                <small className="text-xs text-ink-muted">
+                  验证 schema、数据库完整性、日志路径以及 IPC/数据库错误反馈
+                </small>
+              </div>
+            </div>
+
+            {diagnostics ? (
+              <div className="grid gap-2 text-[11px] sm:grid-cols-2">
+                <div className="rounded-xl border border-line bg-canvas px-3 py-2.5">
+                  <span className="block text-ink-muted">应用版本 / 运行时长</span>
+                  <strong className="mt-0.5 block font-mono text-ink">
+                    {diagnostics.appVersion} · {diagnostics.uptimeSeconds}s
+                  </strong>
+                </div>
+                <div className="rounded-xl border border-line bg-canvas px-3 py-2.5">
+                  <span className="block text-ink-muted">Schema / 完整性</span>
+                  <strong className="mt-0.5 block font-mono text-mint-text">
+                    v{diagnostics.schemaVersion} / v{diagnostics.targetSchemaVersion} ·{" "}
+                    {diagnostics.databaseIntegrity}
+                  </strong>
+                </div>
+                <div className="rounded-xl border border-line bg-canvas px-3 py-2.5">
+                  <span className="block text-ink-muted">数据库</span>
+                  <strong className="mt-0.5 block break-all font-mono text-ink">
+                    {diagnostics.databasePath}
+                  </strong>
+                </div>
+                <div className="rounded-xl border border-line bg-canvas px-3 py-2.5">
+                  <span className="block text-ink-muted">脱敏日志</span>
+                  <strong className="mt-0.5 block break-all font-mono text-ink">
+                    {diagnostics.logPath}
+                    {diagnostics.logAvailable ? " · available" : " · missing"}
+                  </strong>
+                </div>
+                <div className="rounded-xl border border-line bg-canvas px-3 py-2.5 sm:col-span-2">
+                  <span className="block text-ink-muted">应用数据目录 / 当前工作区</span>
+                  <strong className="mt-0.5 block break-all font-mono text-ink">
+                    {diagnostics.dataDir}
+                    {" · "}
+                    {diagnostics.workspacePath ?? "未设置工作区"}
+                  </strong>
+                </div>
+              </div>
+            ) : diagnosticsError ? (
+              <p className="rounded-xl bg-coral-bg px-3 py-2 text-[11px] text-coral-text">
+                {diagnosticsError}
+              </p>
+            ) : (
+              <p className="rounded-xl bg-sidebar px-3 py-2 text-[11px] text-ink-muted">
+                {isTauri() ? "正在读取运行时诊断..." : "浏览器预览不连接本地数据库和日志。"}
+              </p>
+            )}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={Boolean(diagnosticsBusy)}
+                onClick={() => void runProbe("invalid_path")}
+                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3 text-xs font-medium text-ink-secondary hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <AlertTriangle size={11} />
+                测试非法参数 IPC
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(diagnosticsBusy)}
+                onClick={() => void runProbe("ipc_payload")}
+                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3 text-xs font-medium text-ink-secondary hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Shield size={11} />
+                测试日志脱敏
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(diagnosticsBusy)}
+                onClick={() => void runProbe("database_error")}
+                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3 text-xs font-medium text-ink-secondary hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Terminal size={11} />
+                测试数据库错误
+              </button>
+            </div>
+            <p className="mt-3 rounded-xl bg-sidebar px-3 py-2 text-[10.5px] leading-relaxed text-ink-muted">
+              三个探针会返回可识别的错误并在顶部显示；应用保持运行。日志脱敏探针使用固定的模拟
+              password/cookie/token，不读取任何真实凭据。
+            </p>
+          </article>
+
+          <article className="rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
+            <div className="mb-3 flex items-center gap-3">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-rose-bg text-rose-text">
+                <Server size={15} />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-ink">MCP Server 与扩展边界</h2>
+                <small className="text-[11px] text-ink-muted">
+                  外部 MCP 扩展接入、独立进程隔离与权限边界说明
+                </small>
+              </div>
+            </div>
+            <p className="mb-4 text-xs leading-relaxed text-ink-secondary">
+              内置 MCP 工具与安全审计已在「AI 助手」页面提供；外部自定义 MCP Server
+              的独立进程托管将在后续阶段开放。
+            </p>
+            <button
+              disabled
+              className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-xl border border-line bg-sidebar px-3 text-xs font-medium text-ink-muted"
+            >
+              <Plug size={12} />
+              外部扩展规划中
+            </button>
+          </article>
+        </div>
+      </div>
+    </main>
+  );
+}

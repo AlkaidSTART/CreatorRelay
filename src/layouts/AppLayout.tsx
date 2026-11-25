@@ -11,9 +11,8 @@ import {
 import { NavLink, useLocation, useNavigate, useOutlet } from "react-router";
 import {
   findRouteByPathname,
-  PRIMARY_ROUTES,
+  NAV_GROUPS,
   routeAvailabilityLabel,
-  SECONDARY_ROUTES,
 } from "../routes/navigation";
 import { usePlatformStore, useStudioStore, useUiStore, useWorkspaceStore } from "../stores";
 import { CONTENT_KIND_META } from "../types/content";
@@ -263,7 +262,7 @@ export function AppLayout() {
 
         {/* Navigation */}
         <div
-          className={`mt-5 min-h-0 flex-1 overflow-hidden ${sidebarOpen ? "px-3" : "flex flex-col items-center"}`}
+          className={`mt-4 min-h-0 flex-1 overflow-hidden ${sidebarOpen ? "px-3" : "flex flex-col items-center"}`}
         >
           <AnimatePresence mode="wait" initial={false}>
             {sidebarOpen ? (
@@ -275,129 +274,84 @@ export function AppLayout() {
                 transition={{ duration: reducedMotion ? 0 : 0.14 }}
                 className="flex h-full min-h-0 flex-col"
               >
-                <div className="mb-1.5 px-2.5 text-[10px] font-medium tracking-wider text-ink-muted uppercase">
-                  工作区
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-0.5 pb-3">
+                  {NAV_GROUPS.map((group, groupIndex) => (
+                    <section
+                      key={group.id}
+                      className={groupIndex > 0 ? "border-t border-line pt-3" : undefined}
+                    >
+                      <div className="mb-1.5 px-2.5 text-[10px] font-medium tracking-wider text-ink-muted uppercase">
+                        {group.label}
+                      </div>
+                      <nav className="flex flex-col gap-0.5" aria-label={group.label}>
+                        {group.routes.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <NavLink
+                              key={item.id}
+                              to={item.path}
+                              end={item.exact}
+                              className={({ isActive }) =>
+                                `group relative flex h-8 items-center gap-2.5 rounded-xl px-2.5 text-[12.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                                  isActive
+                                    ? "font-medium text-ink"
+                                    : "text-ink-secondary hover:bg-hover/80 hover:text-ink"
+                                }`
+                              }
+                            >
+                              {({ isActive }) => (
+                                <>
+                                  {isActive && (
+                                    <motion.span
+                                      layoutId="sidebar-active-pill"
+                                      transition={
+                                        reducedMotion ? { duration: 0 } : SIDEBAR_PILL_TRANSITION
+                                      }
+                                      className="pointer-events-none absolute inset-0 rounded-xl bg-surface shadow-[0_2px_6px_rgba(91,72,136,0.08)] ring-1 ring-line"
+                                    />
+                                  )}
+                                  <Icon
+                                    size={13}
+                                    className={`relative z-10 shrink-0 transition-colors ${
+                                      isActive
+                                        ? "text-accent"
+                                        : "text-ink-muted group-hover:text-ink-secondary"
+                                    }`}
+                                  />
+                                  <span className="relative z-10 truncate">{item.label}</span>
+                                  {item.availability !== "available" && (
+                                    <span
+                                      className={`relative z-10 ml-auto rounded-md px-1.5 py-0.5 text-[9.5px] font-medium ${
+                                        item.availability === "development"
+                                          ? "bg-lemon-bg text-lemon-text"
+                                          : "bg-sidebar text-ink-muted"
+                                      }`}
+                                    >
+                                      {routeAvailabilityLabel(item)}
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </NavLink>
+                          );
+                        })}
+                      </nav>
+                    </section>
+                  ))}
                 </div>
-                <nav className="flex flex-col gap-0.5" aria-label="主导航">
-                  {PRIMARY_ROUTES.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <NavLink
-                        key={item.id}
-                        to={item.path}
-                        className={({ isActive }) =>
-                          `group relative flex h-8.5 items-center gap-2.5 rounded-xl px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-                            isActive
-                              ? "font-medium text-ink"
-                              : "text-ink-secondary hover:bg-hover/80 hover:text-ink"
-                          }`
-                        }
-                      >
-                        {({ isActive }) => (
-                          <>
-                            {isActive && (
-                              <motion.span
-                                layoutId="sidebar-active-pill"
-                                transition={
-                                  reducedMotion ? { duration: 0 } : SIDEBAR_PILL_TRANSITION
-                                }
-                                className="pointer-events-none absolute inset-0 rounded-xl bg-surface shadow-[0_2px_6px_rgba(91,72,136,0.08)] ring-1 ring-line"
-                              />
-                            )}
-                            <Icon
-                              size={14}
-                              className={`relative z-10 shrink-0 transition-colors ${
-                                isActive
-                                  ? "text-accent"
-                                  : "text-ink-muted group-hover:text-ink-secondary"
-                              }`}
-                            />
-                            <span className="relative z-10 truncate">{item.label}</span>
-                            {item.availability !== "available" && (
-                              <span
-                                className={`relative z-10 ml-auto rounded-md px-1.5 py-0.5 text-[9.5px] font-medium ${
-                                  item.availability === "development"
-                                    ? "bg-lemon-bg text-lemon-text"
-                                    : "bg-sidebar text-ink-muted"
-                                }`}
-                              >
-                                {routeAvailabilityLabel(item)}
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </NavLink>
-                    );
-                  })}
-                </nav>
 
-                <div className="mt-auto flex flex-col gap-0.5 border-t border-line pt-3">
-                  <div className="mb-1.5 px-2.5 text-[10px] font-medium tracking-wider text-ink-muted uppercase">
-                    工具与连接
+                <button
+                  onClick={() => navigate("/settings")}
+                  className="mt-1 flex shrink-0 cursor-pointer items-center gap-2.5 border-t border-line px-1.5 pt-3 text-left transition-opacity hover:opacity-80"
+                >
+                  <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-rose-border bg-rose-bg text-xs font-medium text-rose-text">
+                    林
                   </div>
-                  {SECONDARY_ROUTES.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <NavLink
-                        key={item.id}
-                        to={item.path}
-                        className={({ isActive }) =>
-                          `group relative flex h-8 items-center gap-2.5 rounded-xl px-2.5 text-[12.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-                            isActive
-                              ? "font-medium text-ink"
-                              : "text-ink-secondary hover:bg-hover/80 hover:text-ink"
-                          }`
-                        }
-                      >
-                        {({ isActive }) => (
-                          <>
-                            {isActive && (
-                              <motion.span
-                                layoutId="sidebar-active-pill"
-                                transition={
-                                  reducedMotion ? { duration: 0 } : SIDEBAR_PILL_TRANSITION
-                                }
-                                className="pointer-events-none absolute inset-0 rounded-xl bg-surface shadow-[0_2px_6px_rgba(91,72,136,0.08)] ring-1 ring-line"
-                              />
-                            )}
-                            <Icon
-                              size={14}
-                              className={`relative z-10 shrink-0 transition-colors ${
-                                isActive
-                                  ? "text-accent"
-                                  : "text-ink-muted group-hover:text-ink-secondary"
-                              }`}
-                            />
-                            <span className="relative z-10 truncate">{item.label}</span>
-                            {item.availability !== "available" && (
-                              <span
-                                className={`relative z-10 ml-auto rounded-md px-1.5 py-0.5 text-[9.5px] font-medium ${
-                                  item.availability === "development"
-                                    ? "bg-lemon-bg text-lemon-text"
-                                    : "bg-sidebar text-ink-muted"
-                                }`}
-                              >
-                                {routeAvailabilityLabel(item)}
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </NavLink>
-                    );
-                  })}
-                  <button
-                    onClick={() => navigate("/settings")}
-                    className="mt-2 flex cursor-pointer items-center gap-2.5 border-t border-line px-1.5 pt-3 text-left transition-opacity hover:opacity-80"
-                  >
-                    <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-rose-border bg-rose-bg text-xs font-medium text-rose-text">
-                      林
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <strong className="truncate text-xs font-medium text-ink">创作者</strong>
-                      <small className="truncate text-[10px] text-ink-muted">本地优先模式</small>
-                    </div>
-                  </button>
-                </div>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <strong className="truncate text-xs font-medium text-ink">创作者</strong>
+                    <small className="truncate text-[10px] text-ink-muted">本地优先模式</small>
+                  </div>
+                </button>
               </motion.div>
             ) : (
               <motion.nav
@@ -406,40 +360,52 @@ export function AppLayout() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={reducedMotion ? undefined : { opacity: 0, y: -4 }}
                 transition={{ duration: reducedMotion ? 0 : 0.12 }}
-                className="mx-auto flex h-full min-h-0 w-10 flex-col items-center gap-1 overflow-y-auto"
+                className="mx-auto flex h-full min-h-0 w-10 flex-col items-center gap-1 overflow-y-auto pb-2"
                 aria-label="快捷导航"
               >
-                {[...PRIMARY_ROUTES, ...SECONDARY_ROUTES].map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <NavLink
-                      key={item.id}
-                      to={item.path}
-                      title={`${item.label} (${item.enLabel})`}
-                      aria-label={item.label}
-                      className={({ isActive }) =>
-                        `relative grid h-9 w-10 place-items-center rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-                          isActive
-                            ? "text-accent"
-                            : "text-ink-secondary hover:bg-hover/80 hover:text-ink"
-                        }`
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          {isActive && (
-                            <motion.span
-                              layoutId="sidebar-collapsed-active-pill"
-                              transition={reducedMotion ? { duration: 0 } : SIDEBAR_PILL_TRANSITION}
-                              className="pointer-events-none absolute inset-0 rounded-xl bg-surface shadow-[0_2px_6px_rgba(91,72,136,0.08)] ring-1 ring-line"
-                            />
+                {NAV_GROUPS.map((group, groupIndex) => (
+                  <div
+                    key={group.id}
+                    className={`flex w-full flex-col items-center gap-1 ${
+                      groupIndex > 0 ? "mt-1 border-t border-line pt-2" : ""
+                    }`}
+                  >
+                    {group.routes.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <NavLink
+                          key={item.id}
+                          to={item.path}
+                          end={item.exact}
+                          title={`${item.label} (${item.enLabel})`}
+                          aria-label={item.label}
+                          className={({ isActive }) =>
+                            `relative grid h-8.5 w-10 place-items-center rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                              isActive
+                                ? "text-accent"
+                                : "text-ink-secondary hover:bg-hover/80 hover:text-ink"
+                            }`
+                          }
+                        >
+                          {({ isActive }) => (
+                            <>
+                              {isActive && (
+                                <motion.span
+                                  layoutId="sidebar-collapsed-active-pill"
+                                  transition={
+                                    reducedMotion ? { duration: 0 } : SIDEBAR_PILL_TRANSITION
+                                  }
+                                  className="pointer-events-none absolute inset-0 rounded-xl bg-surface shadow-[0_2px_6px_rgba(91,72,136,0.08)] ring-1 ring-line"
+                                />
+                              )}
+                              <Icon size={14} className="relative z-10" />
+                            </>
                           )}
-                          <Icon size={15} className="relative z-10" />
-                        </>
-                      )}
-                    </NavLink>
-                  );
-                })}
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                ))}
               </motion.nav>
             )}
           </AnimatePresence>

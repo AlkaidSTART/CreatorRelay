@@ -1,14 +1,19 @@
 import { HashRouter, Navigate, Route, Routes } from "react-router";
 import { AppLayout } from "./layouts/AppLayout";
+import { AdaptersPage } from "./pages/AdaptersPage";
+import { AiSettingsPage } from "./pages/AiSettingsPage";
+import { AnalyticsPage } from "./pages/AnalyticsPage";
+import { AssistantPage } from "./pages/AssistantPage";
+import { ContentPage } from "./pages/ContentPage";
+import { ContentStudioPage } from "./pages/ContentStudioPage";
+import { CreatorCentersPage } from "./pages/CreatorCentersPage";
+import { DashboardPage } from "./pages/DashboardPage";
+import { DiagnosticsPage } from "./pages/DiagnosticsPage";
+import { EcosystemPage } from "./pages/EcosystemPage";
 import { PlatformsPage } from "./pages/PlatformsPage";
+import { PublishingPage } from "./pages/PublishingPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { StudioPage } from "./pages/StudioPage";
-import { ContentStudioPage } from "./pages/ContentStudioPage";
-import { AssistantPage } from "./pages/AssistantPage";
-import { DashboardPage } from "./pages/DashboardPage";
-import { PublishingPage } from "./pages/PublishingPage";
-import { ContentPage } from "./pages/ContentPage";
-import { AnalyticsPage } from "./pages/AnalyticsPage";
 
 function App() {
   return (
@@ -24,7 +29,12 @@ function App() {
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/platforms" element={<PlatformsPage />} />
+          <Route path="/adapters" element={<AdaptersPage />} />
+          <Route path="/creator-centers" element={<CreatorCentersPage />} />
+          <Route path="/ecosystem" element={<EcosystemPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/ai" element={<AiSettingsPage />} />
+          <Route path="/settings/diagnostics" element={<DiagnosticsPage />} />
           <Route path="*" element={<Navigate to="/studio" replace />} />
         </Route>
       </Routes>
