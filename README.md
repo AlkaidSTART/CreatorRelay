@@ -27,3 +27,5 @@ This template should help get you started developing with Tauri, React and Types
 - 可选：`KEYCHAIN_PASSWORD`
 
 Windows 安装包当前未配置代码签名；如未签名，SmartScreen 可能显示警告。
+
+如果 Release 步骤出现权限错误，请在仓库 `Settings → Actions → General → Workflow permissions` 中选择 “Read and write permissions”。
