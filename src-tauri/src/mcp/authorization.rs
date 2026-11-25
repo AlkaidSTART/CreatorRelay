@@ -1,5 +1,5 @@
-use super::*;
 use super::security::payload_hash;
+use super::*;
 
 pub(super) fn issue_authorization(
     conn: &Connection,
@@ -118,4 +118,3 @@ pub(super) fn consume_authorization(
     }
     Ok(())
 }
-

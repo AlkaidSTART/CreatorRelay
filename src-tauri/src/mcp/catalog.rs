@@ -1,5 +1,5 @@
-use super::*;
 use super::schema::{cover_ref_schema, media_ref_schema, object_schema, string_array_schema, tool};
+use super::*;
 
 pub fn tool_catalog() -> Vec<McpToolDefinition> {
     vec![
@@ -223,4 +223,3 @@ pub fn server_tool_descriptors() -> Vec<Value> {
         })
         .collect()
 }
-

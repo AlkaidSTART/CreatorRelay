@@ -1,6 +1,6 @@
-use super::*;
 use super::audit::{summarize_arguments, target_summary_for};
 use super::security::tool_by_name;
+use super::*;
 
 fn provider_for_thread(
     conn: &Connection,
@@ -607,4 +607,3 @@ pub fn default_context_scope(conn: &Connection) -> Result<ModelContextScope, Str
         &get_settings(conn)?.default_context_scope,
     ))
 }
-

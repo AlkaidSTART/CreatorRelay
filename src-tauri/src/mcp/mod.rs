@@ -29,7 +29,6 @@ use std::{
 };
 use uuid::Uuid;
 
-
 const DEFAULT_TIMEOUT_MS: u64 = 30_000;
 const MAX_TIMEOUT_MS: u64 = 120_000;
 const AUTH_TTL_MINUTES: i64 = 10;
@@ -366,8 +365,8 @@ pub struct AssistantGenerateResult {
     pub context_preview: AssistantContextPreview,
 }
 
-
 mod account_tools;
+mod analytics_tools;
 mod assistant;
 mod audit;
 mod authorization;
@@ -376,7 +375,6 @@ mod content_tools;
 mod core;
 mod host;
 mod outcome;
-mod analytics_tools;
 mod publishing_tools;
 mod schema;
 mod security;
@@ -385,8 +383,8 @@ mod settings;
 
 pub mod platform_mcp;
 
-pub use assistant::*;
 pub use crate::platforms::CredentialVault;
+pub use assistant::*;
 pub use audit::list_audit;
 pub use catalog::{server_tool_descriptors, tool_catalog};
 pub use core::{call_tool, preview_tool_call};

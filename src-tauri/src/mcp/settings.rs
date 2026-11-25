@@ -68,4 +68,3 @@ pub fn save_settings(conn: &Connection, input: McpSettingsInput) -> Result<McpSe
     .map_err(|error| error.to_string())?;
     get_settings(conn)
 }
-

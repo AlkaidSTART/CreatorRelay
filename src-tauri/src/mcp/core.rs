@@ -1,16 +1,14 @@
-use super::*;
+use super::assistant::append_assistant_message;
 use super::audit::{
     content_kind_from_arguments, finish_audit, insert_audit_start, summarize_arguments,
     target_summary_for,
 };
 use super::authorization::{consume_authorization, issue_authorization};
 use super::content_tools::field_error;
-use super::schema::{normalized_timeout, validate_tool_arguments};
 use super::outcome::CoreToolExecution;
+use super::schema::{normalized_timeout, validate_tool_arguments};
 use super::security::{tool_by_name, truncate_json};
-use super::assistant::append_assistant_message;
-
-
+use super::*;
 
 fn execute_core_tool(
     conn: &mut Connection,
@@ -520,4 +518,3 @@ pub fn call_tool(
     }
     Ok(result)
 }
-

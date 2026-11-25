@@ -1,5 +1,5 @@
-use super::*;
 use super::security::{redact_json, sensitive_key};
+use super::*;
 
 pub(super) fn summarize_arguments(arguments: &Value) -> String {
     let Some(object) = arguments.as_object() else {
@@ -217,4 +217,3 @@ pub fn list_audit(conn: &Connection, limit: usize) -> Result<Vec<McpAuditRecord>
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())
 }
-

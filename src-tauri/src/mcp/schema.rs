@@ -61,7 +61,6 @@ pub(super) fn tool(
     }
 }
 
-
 pub(super) fn normalized_timeout(value: Option<u64>) -> u64 {
     value
         .unwrap_or(DEFAULT_TIMEOUT_MS)
@@ -205,9 +204,11 @@ fn validate_schema(value: &Value, schema: &Value, path: &str, errors: &mut Vec<M
     }
 }
 
-pub(super) fn validate_tool_arguments(tool: &McpToolDefinition, arguments: &Value) -> Vec<McpFieldError> {
+pub(super) fn validate_tool_arguments(
+    tool: &McpToolDefinition,
+    arguments: &Value,
+) -> Vec<McpFieldError> {
     let mut errors = Vec::new();
     validate_schema(arguments, &tool.input_schema, "", &mut errors);
     errors
 }
-

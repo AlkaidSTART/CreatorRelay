@@ -1,6 +1,6 @@
+use super::content_tools::field_error;
 use super::outcome::{CoreToolExecution, success_result};
 use super::*;
-use super::content_tools::field_error;
 
 pub(super) fn parse_analytics_query(arguments: &Value) -> Result<AnalyticsQuery, McpCallError> {
     let granularity = match arguments
@@ -44,8 +44,6 @@ pub(super) fn parse_analytics_query(arguments: &Value) -> Result<AnalyticsQuery,
             .map(str::to_string),
     })
 }
-
-
 
 pub(super) fn execute_analytics_tool(
     conn: &Connection,
@@ -104,11 +102,13 @@ pub(super) fn execute_analytics_tool(
                 field_errors: Vec::new(),
             })?)
         }
-        _ => return Err(McpCallError {
-            code: "TOOL_NOT_FOUND".to_string(),
-            message: format!("未注册数据工具：{tool_name}"),
-            field_errors: Vec::new(),
-        }),
+        _ => {
+            return Err(McpCallError {
+                code: "TOOL_NOT_FOUND".to_string(),
+                message: format!("未注册数据工具：{tool_name}"),
+                field_errors: Vec::new(),
+            });
+        }
     };
     Ok(result)
 }

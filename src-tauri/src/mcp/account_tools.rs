@@ -19,8 +19,6 @@ pub(super) fn account_view(account: &platforms::PlatformAccount) -> Value {
     })
 }
 
-
-
 pub(super) fn execute_account_tool(
     conn: &Connection,
     tool_name: &str,
@@ -77,11 +75,13 @@ pub(super) fn execute_account_tool(
                 "autoPublishDefault": "manual_only"
             }))
         }
-        _ => return Err(McpCallError {
-            code: "TOOL_NOT_FOUND".to_string(),
-            message: format!("未注册账号工具：{tool_name}"),
-            field_errors: Vec::new(),
-        }),
+        _ => {
+            return Err(McpCallError {
+                code: "TOOL_NOT_FOUND".to_string(),
+                message: format!("未注册账号工具：{tool_name}"),
+                field_errors: Vec::new(),
+            });
+        }
     };
     Ok(result)
 }

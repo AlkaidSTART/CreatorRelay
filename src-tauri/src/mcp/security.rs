@@ -103,7 +103,6 @@ pub fn redact_text(text: &str) -> String {
     value
 }
 
-
 pub fn security_evidence() -> McpSecurityEvidence {
     McpSecurityEvidence {
         process_isolated: true,
@@ -137,7 +136,6 @@ pub fn security_evidence() -> McpSecurityEvidence {
     }
 }
 
-
 pub(super) fn truncate_json(value: Value, max_chars: usize) -> Value {
     let rendered = value.to_string();
     if rendered.chars().count() <= max_chars {
@@ -149,4 +147,3 @@ pub(super) fn truncate_json(value: Value, max_chars: usize) -> Value {
         "message": "工具结果超过传输上限，已截断；请使用更精确的筛选参数"
     })
 }
-

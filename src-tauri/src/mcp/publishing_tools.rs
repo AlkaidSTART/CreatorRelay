@@ -1,6 +1,6 @@
+use super::content_tools::field_error;
 use super::outcome::{CoreToolExecution, success_result};
 use super::*;
-use super::content_tools::field_error;
 
 pub(super) fn validate_publish_targets(
     conn: &Connection,
@@ -76,7 +76,10 @@ pub(super) fn validate_publish_targets(
     }
 }
 
-pub(super) fn publish_preview_details(conn: &Connection, arguments: &Value) -> Result<Value, McpCallError> {
+pub(super) fn publish_preview_details(
+    conn: &Connection,
+    arguments: &Value,
+) -> Result<Value, McpCallError> {
     let task_ids = arguments
         .get("taskIds")
         .and_then(Value::as_array)
@@ -143,8 +146,6 @@ pub(super) fn publish_preview_details(conn: &Connection, arguments: &Value) -> R
     }
     Ok(json!({ "targets": targets }))
 }
-
-
 
 pub(super) fn execute_publishing_tool(
     conn: &mut Connection,
@@ -291,11 +292,13 @@ pub(super) fn execute_publishing_tool(
                 }),
             }
         }
-        _ => return Err(McpCallError {
-            code: "TOOL_NOT_FOUND".to_string(),
-            message: format!("未注册发布工具：{tool_name}"),
-            field_errors: Vec::new(),
-        }),
+        _ => {
+            return Err(McpCallError {
+                code: "TOOL_NOT_FOUND".to_string(),
+                message: format!("未注册发布工具：{tool_name}"),
+                field_errors: Vec::new(),
+            });
+        }
     };
     Ok(result)
 }

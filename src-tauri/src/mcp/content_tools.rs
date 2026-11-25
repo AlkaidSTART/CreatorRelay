@@ -538,8 +538,6 @@ pub(super) fn execute_prepared_content(
     }
 }
 
-
-
 pub(super) fn execute_content_tool(
     workspace: &Path,
     tool_name: &str,
@@ -672,11 +670,13 @@ pub(super) fn execute_content_tool(
             })?;
             success_result(json!({ "contentId": content_id, "deleted": true }))
         }
-        _ => return Err(McpCallError {
-            code: "TOOL_NOT_FOUND".to_string(),
-            message: format!("未注册内容工具：{tool_name}"),
-            field_errors: Vec::new(),
-        }),
+        _ => {
+            return Err(McpCallError {
+                code: "TOOL_NOT_FOUND".to_string(),
+                message: format!("未注册内容工具：{tool_name}"),
+                field_errors: Vec::new(),
+            });
+        }
     };
     Ok(result)
 }

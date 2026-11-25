@@ -1,5 +1,5 @@
-use super::*;
 use super::schema::normalized_timeout;
+use super::*;
 
 struct ServerProcess {
     child: Child,
@@ -477,4 +477,3 @@ impl McpHost {
             .remove(call_id);
     }
 }
-
