@@ -2,7 +2,7 @@ use chrono::Utc;
 use rusqlite::{Connection, params};
 use serde::Serialize;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 4;
+pub const CURRENT_SCHEMA_VERSION: i64 = 5;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -211,6 +211,112 @@ fn migration_sql(version: i64) -> Result<&'static str, String> {
                 created_at TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS ai_call_audit_provider_id ON ai_call_audit(provider_id, created_at);"),
+        5 => Ok("CREATE TABLE IF NOT EXISTS publish_tasks(
+                id TEXT PRIMARY KEY,
+                source_type TEXT NOT NULL,
+                source_id TEXT NOT NULL,
+                content_id TEXT NOT NULL,
+                content_version TEXT NOT NULL,
+                content_kind TEXT NOT NULL,
+                platform_id TEXT NOT NULL,
+                platform_name TEXT NOT NULL,
+                account_id TEXT NOT NULL,
+                account_alias TEXT NOT NULL,
+                adapter_id TEXT,
+                title TEXT NOT NULL,
+                body TEXT NOT NULL DEFAULT '',
+                tags_json TEXT NOT NULL DEFAULT '[]',
+                cover_json TEXT,
+                media_json TEXT NOT NULL DEFAULT '[]',
+                execution_mode TEXT NOT NULL DEFAULT 'manual',
+                status TEXT NOT NULL,
+                is_paused INTEGER NOT NULL DEFAULT 0,
+                pause_reason TEXT,
+                scheduled_at TEXT,
+                confirmation_token TEXT,
+                confirmation_hash TEXT,
+                confirmation_expires_at TEXT,
+                confirmed_at TEXT,
+                external_id TEXT,
+                external_url TEXT,
+                error_code TEXT,
+                error_message TEXT,
+                next_action TEXT,
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS publish_tasks_account_id
+                ON publish_tasks(account_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS publish_tasks_platform_status
+                ON publish_tasks(platform_id, status, created_at DESC);
+            CREATE TABLE IF NOT EXISTS publish_task_events(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id TEXT NOT NULL REFERENCES publish_tasks(id) ON DELETE CASCADE,
+                action TEXT NOT NULL,
+                detail TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS publish_task_events_task_id
+                ON publish_task_events(task_id, id);
+            CREATE TABLE IF NOT EXISTS external_works(
+                id TEXT PRIMARY KEY,
+                source_key TEXT NOT NULL UNIQUE,
+                account_id TEXT,
+                platform_id TEXT NOT NULL,
+                platform_name TEXT NOT NULL,
+                account_alias TEXT NOT NULL,
+                external_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                content_kind TEXT NOT NULL,
+                original_content_type TEXT NOT NULL,
+                url TEXT,
+                published_at TEXT NOT NULL,
+                source TEXT NOT NULL,
+                synced_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(platform_id, account_id, external_id)
+            );
+            CREATE INDEX IF NOT EXISTS external_works_filter
+                ON external_works(platform_id, content_kind, published_at DESC);
+            CREATE INDEX IF NOT EXISTS external_works_account
+                ON external_works(account_id, published_at DESC);
+            CREATE TABLE IF NOT EXISTS metric_snapshots(
+                id TEXT PRIMARY KEY,
+                work_id TEXT NOT NULL REFERENCES external_works(id) ON DELETE CASCADE,
+                metric_name TEXT NOT NULL,
+                metric_definition TEXT NOT NULL DEFAULT '',
+                unit TEXT NOT NULL DEFAULT '',
+                value REAL NOT NULL,
+                captured_at TEXT NOT NULL,
+                snapshot_day TEXT NOT NULL,
+                source TEXT NOT NULL,
+                canonical_key TEXT,
+                comparable INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(work_id, metric_name, snapshot_day)
+            );
+            CREATE INDEX IF NOT EXISTS metric_snapshots_work
+                ON metric_snapshots(work_id, captured_at);
+            CREATE INDEX IF NOT EXISTS metric_snapshots_time
+                ON metric_snapshots(captured_at);
+            CREATE TABLE IF NOT EXISTS sync_runs(
+                id TEXT PRIMARY KEY,
+                account_id TEXT NOT NULL,
+                platform_id TEXT NOT NULL,
+                adapter_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                message TEXT NOT NULL,
+                imported_count INTEGER NOT NULL DEFAULT 0,
+                updated_count INTEGER NOT NULL DEFAULT 0,
+                skipped_count INTEGER NOT NULL DEFAULT 0,
+                error_count INTEGER NOT NULL DEFAULT 0,
+                started_at TEXT NOT NULL,
+                completed_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS sync_runs_account
+                ON sync_runs(account_id, completed_at DESC);"),
         _ => Err(format!("没有定义 schema v{version} 的迁移脚本")),
     }
 }

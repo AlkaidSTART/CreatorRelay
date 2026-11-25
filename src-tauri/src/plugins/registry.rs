@@ -21,8 +21,10 @@ use super::{
     runtime::{HostAccessObservation, IsolationSummary, PluginRuntime, SecuritySelfTestResult},
 };
 
-pub const EMBEDDED_MANIFEST_SOURCES: [&str; 3] = [
+pub const EMBEDDED_MANIFEST_SOURCES: [&str; 5] = [
     include_str!("../../resources/plugins/test-adapter/manifest.json"),
+    include_str!("../../resources/plugins/video-adapter/manifest.json"),
+    include_str!("../../resources/plugins/sync-adapter/manifest.json"),
     include_str!("../../resources/plugins/fault-adapter/manifest.json"),
     include_str!("../../resources/plugins/probe-failure-adapter/manifest.json"),
 ];
@@ -232,6 +234,66 @@ pub struct PluginPublishValidationResult {
     pub capability: Option<CapabilityLevel>,
     pub adapter_checked: bool,
     pub adapter_message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginCapabilityStatus {
+    pub level: CapabilityLevel,
+    pub reason: Option<String>,
+    pub checked_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdapterPublishOutput {
+    pub external_id: String,
+    pub external_url: Option<String>,
+    pub content_kind: ContentKind,
+    pub media_order: Vec<u32>,
+    pub cover_asset_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdapterSyncMetric {
+    pub name: String,
+    pub value: f64,
+    pub unit: String,
+    pub definition: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdapterSyncWork {
+    pub external_id: String,
+    pub title: String,
+    pub content_type: String,
+    pub content_kind: Option<ContentKind>,
+    pub url: Option<String>,
+    pub published_at: String,
+    pub captured_at: Option<String>,
+    pub metrics: Vec<AdapterSyncMetric>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdapterSyncOutput {
+    pub works: Vec<AdapterSyncWork>,
+    pub errors: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AdapterOperationError {
+    pub code: String,
+    pub message: String,
+    pub uncertain: bool,
+}
+
+impl std::fmt::Display for AdapterOperationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{}: {}", self.code, self.message)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1133,6 +1195,325 @@ pub fn validate_plugin_publish_input(
             })
         }
     }
+}
+
+pub fn plugin_publish_capability(
+    conn: &mut Connection,
+    runtime: &PluginRuntime,
+    plugin_id: &str,
+    account_ref: &str,
+    content_kind: ContentKind,
+) -> Result<PluginCapabilityStatus, String> {
+    let row = plugin_row(conn, plugin_id)?.ok_or_else(|| format!("未找到插件 `{plugin_id}`"))?;
+    let mut checks = load_capability_checks(conn, plugin_id, Some(account_ref))?;
+    if !checks.contains_key(&content_kind) {
+        let _ = probe_plugin_capabilities(
+            conn,
+            runtime,
+            plugin_id,
+            Some(account_ref.to_string()),
+        )?;
+        checks = load_capability_checks(conn, plugin_id, Some(account_ref))?;
+    }
+    let check = checks.get(&content_kind);
+    let declaration = row.manifest.capability(content_kind);
+    Ok(PluginCapabilityStatus {
+        level: check
+            .map(|check| check.publish)
+            .or_else(|| declaration.map(|item| item.publish))
+            .unwrap_or(CapabilityLevel::Unavailable),
+        reason: check
+            .and_then(|check| check.reason.clone())
+            .or_else(|| declaration.and_then(|item| item.note.clone())),
+        checked_at: check.map(|check| check.checked_at.clone()),
+    })
+}
+
+pub fn execute_plugin_publish(
+    conn: &mut Connection,
+    runtime: &PluginRuntime,
+    plugin_id: &str,
+    account_ref: &str,
+    input: &PublishInput,
+) -> Result<AdapterPublishOutput, AdapterOperationError> {
+    let validation = validate_plugin_publish_input(
+        conn,
+        runtime,
+        plugin_id,
+        Some(account_ref.to_string()),
+        input,
+    )
+    .map_err(|message| AdapterOperationError {
+        code: "ADAPTER_PREFLIGHT_FAILED".to_string(),
+        message,
+        uncertain: false,
+    })?;
+    if !validation.ok {
+        return Err(AdapterOperationError {
+            code: validation
+                .payload
+                .issues
+                .first()
+                .map(|issue| issue.code.clone())
+                .unwrap_or_else(|| "ADAPTER_REJECTED".to_string()),
+            message: validation
+                .adapter_message
+                .or_else(|| {
+                    validation
+                        .payload
+                        .issues
+                        .first()
+                        .map(|issue| issue.message.clone())
+                })
+                .unwrap_or_else(|| "Adapter 拒绝发布载荷".to_string()),
+            uncertain: false,
+        });
+    }
+    let row = plugin_row(conn, plugin_id)
+        .map_err(|message| AdapterOperationError {
+            code: "PLUGIN_LOOKUP_FAILED".to_string(),
+            message,
+            uncertain: false,
+        })?
+        .ok_or_else(|| AdapterOperationError {
+            code: "PLUGIN_NOT_FOUND".to_string(),
+            message: format!("未找到插件 `{plugin_id}`"),
+            uncertain: false,
+        })?;
+    if row.status != PluginStatus::Enabled || !runtime.is_running(plugin_id) {
+        return Err(AdapterOperationError {
+            code: "PLUGIN_NOT_ENABLED".to_string(),
+            message: "插件未启用，不能执行外部发布".to_string(),
+            uncertain: false,
+        });
+    }
+    let grants = load_grants(conn, plugin_id).map_err(|message| AdapterOperationError {
+        code: "PLUGIN_GRANTS_FAILED".to_string(),
+        message,
+        uncertain: false,
+    })?;
+    let value = runtime
+        .request(
+            &row.manifest,
+            "publish",
+            json!({ "input": input }),
+            &granted_set(&grants),
+            active_workspace(conn),
+            Some(account_ref.to_string()),
+        )
+        .map_err(|message| AdapterOperationError {
+            code: if message.contains("超时") {
+                "RESULT_UNCERTAIN".to_string()
+            } else {
+                "ADAPTER_PUBLISH_FAILED".to_string()
+            },
+            message,
+            uncertain: message.contains("超时"),
+        })?;
+    parse_adapter_publish_output(&value, input.content_kind).map_err(|message| {
+        AdapterOperationError {
+            code: "INVALID_ADAPTER_RESPONSE".to_string(),
+            message,
+            uncertain: true,
+        }
+    })
+}
+
+fn parse_adapter_publish_output(
+    value: &Value,
+    content_kind: ContentKind,
+) -> Result<AdapterPublishOutput, String> {
+    let external_id = value
+        .get("externalId")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| "Adapter 发布结果缺少 externalId".to_string())?
+        .to_string();
+    let returned_kind = value
+        .get("contentKind")
+        .and_then(Value::as_str)
+        .and_then(ContentKind::parse)
+        .ok_or_else(|| "Adapter 发布结果缺少有效 contentKind".to_string())?;
+    if returned_kind != content_kind {
+        return Err(format!(
+            "Adapter 发布结果内容形态不一致：期望 {}，实际 {}",
+            content_kind.as_str(),
+            returned_kind.as_str()
+        ));
+    }
+    let media_order = value
+        .get("submittedMedia")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.get("order").and_then(Value::as_u64))
+                .filter_map(|order| u32::try_from(order).ok())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let cover_asset_id = value
+        .get("submittedCover")
+        .and_then(|cover| cover.get("assetId"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    Ok(AdapterPublishOutput {
+        external_id,
+        external_url: value
+            .get("externalUrl")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        content_kind,
+        media_order,
+        cover_asset_id,
+    })
+}
+
+pub fn execute_plugin_sync(
+    conn: &mut Connection,
+    runtime: &PluginRuntime,
+    plugin_id: &str,
+    account_ref: &str,
+    as_of: Option<&str>,
+) -> Result<AdapterSyncOutput, AdapterOperationError> {
+    let row = plugin_row(conn, plugin_id)
+        .map_err(|message| AdapterOperationError {
+            code: "PLUGIN_LOOKUP_FAILED".to_string(),
+            message,
+            uncertain: false,
+        })?
+        .ok_or_else(|| AdapterOperationError {
+            code: "PLUGIN_NOT_FOUND".to_string(),
+            message: format!("未找到插件 `{plugin_id}`"),
+            uncertain: false,
+        })?;
+    if row.status != PluginStatus::Enabled || !runtime.is_running(plugin_id) {
+        return Err(AdapterOperationError {
+            code: "PLUGIN_NOT_ENABLED".to_string(),
+            message: "插件未启用，不能执行平台作品同步".to_string(),
+            uncertain: false,
+        });
+    }
+    let grants = load_grants(conn, plugin_id).map_err(|message| AdapterOperationError {
+        code: "PLUGIN_GRANTS_FAILED".to_string(),
+        message,
+        uncertain: false,
+    })?;
+    let value = runtime
+        .request(
+            &row.manifest,
+            "syncWorks",
+            json!({ "accountRef": account_ref, "asOf": as_of }),
+            &granted_set(&grants),
+            active_workspace(conn),
+            Some(account_ref.to_string()),
+        )
+        .map_err(|message| AdapterOperationError {
+            code: if message.contains("超时") {
+                "SYNC_UNCERTAIN".to_string()
+            } else {
+                "ADAPTER_SYNC_FAILED".to_string()
+            },
+            message,
+            uncertain: message.contains("超时"),
+        })?;
+    parse_adapter_sync_output(&value).map_err(|message| AdapterOperationError {
+        code: "INVALID_ADAPTER_RESPONSE".to_string(),
+        message,
+        uncertain: false,
+    })
+}
+
+fn parse_adapter_sync_output(value: &Value) -> Result<AdapterSyncOutput, String> {
+    let works = value
+        .get("works")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "Adapter 同步结果缺少 works 数组".to_string())?;
+    let mut parsed = Vec::new();
+    for (index, work) in works.iter().enumerate() {
+        let external_id = work
+            .get("externalId")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| format!("works[{index}] 缺少 externalId"))?
+            .to_string();
+        let title = work
+            .get("title")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| format!("works[{index}] 缺少 title"))?
+            .to_string();
+        let content_type = work
+            .get("contentType")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown")
+            .to_string();
+        let content_kind = work
+            .get("contentKind")
+            .and_then(Value::as_str)
+            .and_then(ContentKind::parse);
+        let published_at = work
+            .get("publishedAt")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| format!("works[{index}] 缺少 publishedAt"))?
+            .to_string();
+        let metrics = work
+            .get("metrics")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|metric| {
+                        let name = metric.get("name").and_then(Value::as_str)?.to_string();
+                        let value = metric.get("value").and_then(Value::as_f64)?;
+                        Some(AdapterSyncMetric {
+                            name,
+                            value,
+                            unit: metric
+                                .get("unit")
+                                .and_then(Value::as_str)
+                                .unwrap_or("")
+                                .to_string(),
+                            definition: metric
+                                .get("definition")
+                                .and_then(Value::as_str)
+                                .unwrap_or("")
+                                .to_string(),
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        parsed.push(AdapterSyncWork {
+            external_id,
+            title,
+            content_type,
+            content_kind,
+            url: work.get("url").and_then(Value::as_str).map(str::to_string),
+            published_at,
+            captured_at: work
+                .get("capturedAt")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            metrics,
+        });
+    }
+    let errors = value
+        .get("errors")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    Ok(AdapterSyncOutput {
+        works: parsed,
+        errors,
+    })
 }
 
 pub fn payload_self_check() -> Vec<super::publish::PublishPayloadCheckResult> {

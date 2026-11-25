@@ -53,7 +53,7 @@ export const TARGET_RULES: Record<string, TargetRule> = {
     maxTitle: 30,
     maxBody: 5000,
     requiresCover: true,
-    requiresBody: false,
+    requiresBody: true,
     mediaMaxBytes: 10 * 1024 * 1024,
     unchecked: ["视频时长与码率检查未在该测试适配器中提供"],
   },
@@ -177,15 +177,10 @@ function structuralChecks(input: ContentCheckInput, rule: TargetRule): ContentCh
       label: "标题长度",
       message: `标题 ${title.length} 字符，超过 ${rule.label} 上限 ${rule.maxTitle}`,
     });
-  } else {
-    items.push({
-      id: "title-length",
-      level: "warning",
-      label: "标题长度",
-      message: `标题长度 ${title.length}/${rule.maxTitle}，在本规则范围内`,
-    });
   }
-  if (rule.requiresBody && !input.body.trim()) {
+  const bodyRequired =
+    rule.requiresBody && (input.kind === "article" || input.kind === "imageArticle");
+  if (bodyRequired && !input.body.trim()) {
     items.push({ id: "body-required", level: "error", label: "正文", message: "该平台要求正文" });
   } else if (input.body.length > rule.maxBody) {
     items.push({

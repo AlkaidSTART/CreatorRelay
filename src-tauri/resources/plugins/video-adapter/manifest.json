@@ -1,0 +1,62 @@
+{
+  "id": "creatorrelay.official.video-adapter",
+  "name": "CreatorRelay 视频往返适配器",
+  "description": "M6 视频发布验收适配器：验证视频文件、封面、元数据和提交结果可追溯。",
+  "version": "1.0.0",
+  "pluginType": "adapter",
+  "adapterContractVersion": 1,
+  "runtime": {
+    "kind": "coreTestRunner",
+    "profile": "healthy",
+    "timeoutMs": 3000
+  },
+  "entry": "builtin://creatorrelay.official.video-adapter",
+  "permissions": [
+    {
+      "id": "account.credentials",
+      "required": true,
+      "reason": "使用账号作用域验证视频发布目标"
+    },
+    {
+      "id": "workspace.read",
+      "required": false,
+      "reason": "读取用户确认的视频与封面素材"
+    },
+    {
+      "id": "platform.publish",
+      "required": true,
+      "reason": "执行已确认的视频发布"
+    }
+  ],
+  "capabilities": [
+    {
+      "kind": "video",
+      "read": "supported",
+      "publish": "supported",
+      "note": "视频发布往返可验证"
+    },
+    {
+      "kind": "imageText",
+      "read": "supported",
+      "publish": "unsupported",
+      "note": "该适配器只验证视频形态"
+    },
+    {
+      "kind": "imageArticle",
+      "read": "supported",
+      "publish": "restricted",
+      "note": "图文文章需人工审核"
+    },
+    {
+      "kind": "article",
+      "read": "supported",
+      "publish": "unsupported",
+      "note": "该适配器只验证视频形态"
+    }
+  ],
+  "mcp": {
+    "transport": "stdio",
+    "command": "creatorrelay-adapter-runner",
+    "args": []
+  }
+}

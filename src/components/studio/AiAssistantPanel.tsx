@@ -37,7 +37,10 @@ export function AiAssistantPanel() {
 
   useEffect(() => {
     if (!providerId) {
-      const preferred = providers.find((provider) => provider.isDefault) ?? providers[0];
+      const preferred =
+        providers.find((provider) => provider.isDefault && provider.configured) ??
+        providers.find((provider) => provider.configured) ??
+        providers[0];
       if (preferred) setProviderId(preferred.id);
     }
   }, [providers, providerId]);

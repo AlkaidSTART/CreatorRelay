@@ -167,12 +167,7 @@ fn handle_request(
                   "accountRef": account_ref,
                   "health": "ok",
                   "sandboxed": sandboxed,
-                  "capabilities": [
-                    { "kind": "video", "read": "unsupported", "publish": "unsupported", "reason": "测试适配器不模拟视频发布" },
-                    { "kind": "imageText", "read": "supported", "publish": "supported", "reason": "图文发布可验证" },
-                    { "kind": "imageArticle", "read": "supported", "publish": "restricted", "reason": "图文文章仍需人工审核" },
-                    { "kind": "article", "read": "supported", "publish": "supported", "reason": "纯文章发布可验证" }
-                  ],
+                  "capabilities": test_capabilities(manifest_id),
                   "hostAccess": host_access,
                   "isolation": {
                     "sandboxed": sandboxed,
@@ -233,13 +228,13 @@ fn handle_request(
                     }),
                 );
             }
-            if input.content_kind == ContentKind::Video {
+            if !test_publish_supported(manifest_id, input.content_kind) {
                 return (
                     false,
                     Value::Null,
                     json!({
                       "code": "CAPABILITY_UNSUPPORTED",
-                      "message": "该测试账号不支持视频发布"
+                      "message": format!("该测试平台不支持{}发布", input.content_kind.label())
                     }),
                 );
             }
@@ -255,24 +250,155 @@ fn handle_request(
             )
         }
         "publish" => {
-            let kind = params
-                .get("input")
-                .and_then(|input| input.get("contentKind"))
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            if kind == "video" {
+            let input = match serde_json::from_value::<PublishInput>(
+                params.get("input").cloned().unwrap_or(Value::Null),
+            ) {
+                Ok(input) => input,
+                Err(error) => {
+                    return (
+                        false,
+                        Value::Null,
+                        json!({ "code": "INVALID_PAYLOAD_SCHEMA", "message": error.to_string() }),
+                    );
+                }
+            };
+            if !test_publish_supported(manifest_id, input.content_kind) {
                 return (
                     false,
                     Value::Null,
-                    json!({ "code": "CAPABILITY_UNSUPPORTED", "message": "该测试账号不支持视频发布" }),
+                    json!({
+                      "code": "CAPABILITY_UNSUPPORTED",
+                      "message": format!("该测试平台不支持{}发布", input.content_kind.label())
+                    }),
                 );
             }
+            let result = validate_publish_payload(&input);
+            if !result.ok {
+                return (
+                    false,
+                    Value::Null,
+                    json!({
+                      "code": "INVALID_PAYLOAD",
+                      "message": result.issues.iter().map(|issue| issue.message.as_str()).collect::<Vec<_>>().join("；")
+                    }),
+                );
+            }
+            let submitted_media = input
+                .media
+                .iter()
+                .map(|media| json!({
+                  "assetId": media.asset_id,
+                  "kind": media.kind,
+                  "order": media.order,
+                  "role": media.role
+                }))
+                .collect::<Vec<_>>();
+            let submitted_cover = input.cover.as_ref().map(|cover| json!({
+              "assetId": cover.asset_id,
+              "kind": cover.kind,
+              "order": cover.order,
+              "role": cover.role
+            }));
             (
                 true,
                 json!({
                   "externalId": format!("test-{}", uuid::Uuid::new_v4()),
-                  "contentKind": kind,
-                  "simulated": true
+                  "contentKind": input.content_kind.as_str(),
+                  "submittedMedia": submitted_media,
+                  "submittedCover": submitted_cover,
+                  "simulated": true,
+                  "idempotencyObserved": true
+                }),
+                Value::Null,
+            )
+        }
+        "syncWorks" => {
+            let account_ref = params
+                .get("accountRef")
+                .and_then(Value::as_str)
+                .unwrap_or("fixture-sync-account");
+            if account_ref.contains("expired") || account_ref.contains("reauth") {
+                return (
+                    false,
+                    Value::Null,
+                    json!({
+                      "code": "AUTH_EXPIRED",
+                      "message": "测试平台会话已过期，请重新授权后同步"
+                    }),
+                );
+            }
+            let as_of = params
+                .get("asOf")
+                .and_then(Value::as_str)
+                .unwrap_or("2026-11-25T09:30:00Z");
+            let safe_account = account_ref
+                .chars()
+                .map(|character| {
+                    if character.is_ascii_alphanumeric() || character == '-' {
+                        character
+                    } else {
+                        '-'
+                    }
+                })
+                .collect::<String>();
+            let works = vec![
+                json!({
+                  "externalId": format!("{safe_account}-video-001"),
+                  "title": "测试视频作品",
+                  "contentType": "video",
+                  "contentKind": "video",
+                  "url": "https://example.invalid/video/test-video-001",
+                  "publishedAt": "2026-11-20T08:00:00Z",
+                  "capturedAt": as_of,
+                  "metrics": [
+                    { "name": "视频播放量", "value": 4200, "unit": "次", "definition": "平台后台视频播放次数" },
+                    { "name": "点赞数", "value": 320, "unit": "次", "definition": "平台后台点赞次数" }
+                  ]
+                }),
+                json!({
+                  "externalId": format!("{safe_account}-image-text-001"),
+                  "title": "测试图文作品",
+                  "contentType": "笔记",
+                  "contentKind": "imageText",
+                  "url": "https://example.invalid/note/test-image-text-001",
+                  "publishedAt": "2026-11-21T08:00:00Z",
+                  "capturedAt": as_of,
+                  "metrics": [
+                    { "name": "曝光量", "value": 6800, "unit": "次", "definition": "平台后台曝光次数" },
+                    { "name": "收藏数", "value": 180, "unit": "次", "definition": "平台后台收藏次数" }
+                  ]
+                }),
+                json!({
+                  "externalId": format!("{safe_account}-image-article-001"),
+                  "title": "测试图文文章",
+                  "contentType": "图文文章",
+                  "contentKind": "imageArticle",
+                  "url": "https://example.invalid/article/test-image-article-001",
+                  "publishedAt": "2026-11-22T08:00:00Z",
+                  "capturedAt": as_of,
+                  "metrics": [
+                    { "name": "图文文章阅读量", "value": 3100, "unit": "次", "definition": "平台后台图文文章阅读次数" }
+                  ]
+                }),
+                json!({
+                  "externalId": format!("{safe_account}-article-001"),
+                  "title": "测试纯文章",
+                  "contentType": "文章",
+                  "contentKind": "article",
+                  "url": "https://example.invalid/article/test-article-001",
+                  "publishedAt": "2026-11-23T08:00:00Z",
+                  "capturedAt": as_of,
+                  "metrics": [
+                    { "name": "文章阅读量", "value": 5200, "unit": "次", "definition": "平台后台文章阅读次数" }
+                  ]
+                })
+            ];
+            (
+                true,
+                json!({
+                  "accountRef": account_ref,
+                  "works": works,
+                  "partialFailure": false
                 }),
                 Value::Null,
             )
@@ -294,6 +420,44 @@ fn handle_request(
             Value::Null,
             json!({ "code": "METHOD_NOT_FOUND", "message": format!("未知 Adapter 方法：{method}") }),
         ),
+    }
+}
+
+fn test_capabilities(manifest_id: &str) -> Value {
+    if manifest_id == "creatorrelay.official.video-adapter" {
+        return json!([
+          { "kind": "video", "read": "supported", "publish": "supported", "reason": "视频发布往返可验证" },
+          { "kind": "imageText", "read": "supported", "publish": "unsupported", "reason": "该适配器只验证视频形态" },
+          { "kind": "imageArticle", "read": "supported", "publish": "restricted", "reason": "图文文章需人工审核" },
+          { "kind": "article", "read": "supported", "publish": "unsupported", "reason": "该适配器只验证视频形态" }
+        ]);
+    }
+    if manifest_id == "creatorrelay.official.sync-adapter" {
+        return json!([
+          { "kind": "video", "read": "supported", "publish": "unsupported", "reason": "可读取视频作品，但测试平台不支持视频发布" },
+          { "kind": "imageText", "read": "supported", "publish": "supported", "reason": "图文发布可验证" },
+          { "kind": "imageArticle", "read": "supported", "publish": "restricted", "reason": "图文文章仍需人工审核" },
+          { "kind": "article", "read": "supported", "publish": "supported", "reason": "纯文章发布可验证" }
+        ]);
+    }
+    json!([
+      { "kind": "video", "read": "unsupported", "publish": "unsupported", "reason": "测试适配器不模拟视频发布" },
+      { "kind": "imageText", "read": "supported", "publish": "supported", "reason": "图文发布可验证" },
+      { "kind": "imageArticle", "read": "supported", "publish": "restricted", "reason": "图文文章仍需人工审核" },
+      { "kind": "article", "read": "supported", "publish": "supported", "reason": "纯文章发布可验证" }
+    ])
+}
+
+fn test_publish_supported(manifest_id: &str, kind: ContentKind) -> bool {
+    match manifest_id {
+        "creatorrelay.official.video-adapter" => kind == ContentKind::Video,
+        "creatorrelay.official.sync-adapter" | "creatorrelay.official.test-adapter" => {
+            matches!(kind, ContentKind::ImageText | ContentKind::Article)
+        }
+        "creatorrelay.official.fault-adapter" => {
+            matches!(kind, ContentKind::ImageText | ContentKind::Article)
+        }
+        _ => false,
     }
 }
 

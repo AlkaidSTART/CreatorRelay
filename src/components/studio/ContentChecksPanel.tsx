@@ -26,14 +26,33 @@ function ReportView({ report }: { report: CheckReport }) {
           <span className="text-[9.5px] text-ink-muted">未检查</span>
         </div>
       </div>
-      <div className="rounded-lg border border-line bg-surface px-2.5 py-2">
+      <div
+        className={`rounded-lg border px-2.5 py-2 ${
+          report.verified && report.errorCount === 0
+            ? "border-mint-text/30 bg-mint-bg"
+            : report.verified
+              ? "border-coral-border bg-coral-bg"
+              : "border-line bg-surface"
+        }`}
+      >
         <div className="flex items-center gap-1.5">
-          {report.verified ? (
+          {report.verified && report.errorCount === 0 ? (
             <CheckCircle2 size={11} className="text-mint-text" />
+          ) : report.verified ? (
+            <AlertTriangle size={11} className="text-coral-text" />
           ) : (
             <Info size={11} className="text-ink-muted" />
           )}
           <strong className="text-[10.5px] text-ink">{report.targetLabel}</strong>
+          {report.verified && (
+            <span
+              className={`ml-auto rounded px-1.5 py-0.5 text-[9px] font-medium ${
+                report.errorCount === 0 ? "bg-white/60 text-mint-text" : "bg-white/60 text-coral-text"
+              }`}
+            >
+              {report.errorCount === 0 ? "检查通过" : "检查失败"}
+            </span>
+          )}
         </div>
         <p className="mt-0.5 text-[9.5px] leading-snug text-ink-muted">
           {report.verified

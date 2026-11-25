@@ -58,11 +58,11 @@ export const PRD_ROUTES: RouteMeta[] = [
     label: "写作空间",
     enLabel: "Studio",
     eyebrow: "STUDIO",
-    description: "本地 Markdown 创作、实时预览、版本历史与多平台适配",
+    description: "视频、图文、图文文章与纯文章创作，AI 辅助和多平台适配稿",
     priority: "P0",
     group: "primary",
     icon: BookOpen,
-    availability: "development",
+    availability: "available",
     milestone: "M2 / M5",
   },
   {

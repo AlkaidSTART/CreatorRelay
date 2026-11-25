@@ -34,7 +34,7 @@ describe("PRD route navigation definitions", () => {
     expect(settings.availability).toBe("available");
     expect(findRouteByPathname("/platforms").availability).toBe("available");
     expect(findRouteByPathname("/platforms").milestone).toBe("M3 / M4");
-    expect(studio.availability).toBe("development");
+    expect(studio.availability).toBe("available");
     expect(analytics.availability).toBe("planned");
     expect(analytics.milestone).toBe("M6");
   });

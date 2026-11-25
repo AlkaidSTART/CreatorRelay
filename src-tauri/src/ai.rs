@@ -826,6 +826,99 @@ mod tests {
     }
 
     #[test]
+    fn system_keyring_provider_smoke_is_explicitly_opt_in() {
+        if std::env::var("CREATORRELAY_TEST_KEYCHAIN").as_deref() != Ok("1") {
+            return;
+        }
+        let conn = db();
+        let vault = keyring_vault();
+        let secret = format!("sk-keyring-smoke-{}", Uuid::new_v4());
+        let provider = save_provider_with_vault(
+            &conn,
+            &AiProviderInput {
+                id: None,
+                name: "钥匙串烟测".to_string(),
+                base_url: "https://api.example.com/v1".to_string(),
+                model: "fixture-model".to_string(),
+                api_style: Some(API_STYLE_OPENAI_COMPATIBLE.to_string()),
+                api_key: Some(secret.clone()),
+                is_default: Some(true),
+            },
+            &vault,
+        )
+        .unwrap();
+        assert!(provider.configured);
+        assert_eq!(
+            vault
+                .get(&secret_reference(&provider.id))
+                .unwrap()
+                .as_deref(),
+            Some(secret.as_str())
+        );
+        assert!(!audit_database_for_secret(&conn, &secret).unwrap());
+        delete_provider_with_vault(&conn, &provider.id, &vault).unwrap();
+        assert_eq!(vault.get(&secret_reference(&provider.id)).unwrap(), None);
+    }
+
+    #[test]
+    fn provider_connection_success_and_default_switch_are_persisted() {
+        let conn = db();
+        let vault = MemoryVault::default();
+        let (base_url_one, server_one) =
+            fixture_server(r#"{"choices":[{"message":{"content":"OK"}}]}"#);
+        let (base_url_two, server_two) =
+            fixture_server(r#"{"choices":[{"message":{"content":"OK"}}]}"#);
+        let first = save_provider_with_vault(
+            &conn,
+            &AiProviderInput {
+                id: None,
+                name: "第一个供应商".to_string(),
+                base_url: base_url_one,
+                model: "fixture-one".to_string(),
+                api_style: Some(API_STYLE_OPENAI_COMPATIBLE.to_string()),
+                api_key: Some("first-secret".to_string()),
+                is_default: Some(true),
+            },
+            &vault,
+        )
+        .unwrap();
+        let second = save_provider_with_vault(
+            &conn,
+            &AiProviderInput {
+                id: None,
+                name: "第二个供应商".to_string(),
+                base_url: base_url_two,
+                model: "fixture-two".to_string(),
+                api_style: Some(API_STYLE_OPENAI_COMPATIBLE.to_string()),
+                api_key: Some("second-secret".to_string()),
+                is_default: Some(false),
+            },
+            &vault,
+        )
+        .unwrap();
+        let tested = test_provider_with_vault(&conn, &first.id, &vault).unwrap();
+        assert!(tested.ok);
+        assert_eq!(tested.status.as_deref(), Some("ok"));
+        let switched = set_default_provider(&conn, &second.id).unwrap();
+        assert!(switched.is_default);
+        let providers = list_providers(&conn).unwrap();
+        assert_eq!(
+            providers.iter().filter(|provider| provider.is_default).count(),
+            1
+        );
+        assert_eq!(
+            providers
+                .iter()
+                .find(|provider| provider.is_default)
+                .unwrap()
+                .id,
+            second.id
+        );
+        server_one.join().unwrap();
+        server_two.join().unwrap();
+    }
+
+    #[test]
     fn prompt_contains_only_explicit_context_and_media_metadata() {
         let request = AiGenerateRequest {
             provider_id: "p".to_string(),
