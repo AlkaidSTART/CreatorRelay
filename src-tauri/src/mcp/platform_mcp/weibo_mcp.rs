@@ -82,7 +82,7 @@ pub(super) fn profile() -> PlatformMcpProfile {
             mapping("metrics.like", "attitudes_count", "read", true, "表态/点赞数。"),
         ],
         content_rules: vec![
-            content_rule("article", vec![], 0, Some(0), None, Some(140), None, false, true, "官方 statuses/share 文档限制 status 不超过 140 个汉字，并必须包含安全域名链接。"),
+            content_rule("article", vec![], 0, None, None, Some(140), None, false, true, "官方 statuses/share 文档限制 status 不超过 140 个汉字，并必须包含安全域名链接。"),
             content_rule("imageText", vec!["image"], 1, Some(1), None, Some(140), None, false, true, "分享接口单图字段为 pic，只能上传 JPEG/GIF/PNG。"),
             content_rule("video", vec!["video"], 1, Some(1), None, Some(140), None, false, false, "视频微博需要额外媒体上传与审核能力，当前未验证。"),
         ],

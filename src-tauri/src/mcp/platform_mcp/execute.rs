@@ -391,9 +391,9 @@ fn execute_publish_validate(
         && media_count > max_media
     {
         issues.push(json!({
-            "severity": "error",
+            "severity": if rule.constraints_verified { "error" } else { "warning" },
             "field": "media",
-            "message": format!("{} 最多允许 {} 个媒体素材，当前 {} 个", profile.platform_name, max_media, media_count),
+            "message": format!("{} 媒体数量 {} 超过{}上限 {}", profile.platform_name, media_count, if rule.constraints_verified { "平台" } else { "参考" }, max_media),
         }));
     }
     if rule.allowed_media.iter().all(|kind| kind == "video") && image_count > 0 {
@@ -412,9 +412,9 @@ fn execute_publish_validate(
     }
     if rule.cover_required && package.manifest.cover.is_none() {
         issues.push(json!({
-            "severity": "error",
+            "severity": if rule.constraints_verified { "error" } else { "warning" },
             "field": "cover",
-            "message": format!("{} 要求提供封面", profile.platform_name),
+            "message": format!("{} 未提供封面{}", profile.platform_name, if rule.constraints_verified { "" } else { "（平台封面要求尚未账号级验证）" }),
         }));
     }
     if matches!(content_kind, "article" | "imageArticle") && package.body.trim().is_empty() {

@@ -100,7 +100,7 @@ pub(super) fn profile() -> PlatformMcpProfile {
         ],
         content_rules: vec![
             content_rule("video", vec!["video"], 1, Some(1), None, None, None, true, false, "视频稿件必须包含一个视频和封面；分区与标签由用户确认。"),
-            content_rule("article", vec![], 0, Some(0), None, None, None, false, false, "专栏文章必须有正文；图片可选。"),
+            content_rule("article", vec![], 0, None, None, None, None, false, false, "专栏文章必须有正文；图片可选。"),
             content_rule("imageArticle", vec!["image"], 1, None, None, None, None, false, false, "图文专栏沿用文章编辑器，图片作为正文素材。"),
             content_rule("imageText", vec!["image"], 1, None, None, None, None, false, false, "动态图文未完成账号级接口验证，按人工网页交接。"),
         ],

@@ -11,8 +11,8 @@
 > 本节记录实施跟踪状态，不是验收报告，也不能作为验收通过的依据。
 
 - **总结日期：** 2026-11-25
-- **总结范围：** M8 平台准入、账号级能力矩阵、统一平台数据差异、v6→v7 迁移、插件升级权限、发布安全、MCP 能力查询、插件市场门禁、UI 与回归验证。
-- **实现状态：** 已完成；M8-AC-01 至 M8-AC-09 自动化验证均通过。
+- **总结范围：** M8 平台准入、账号级能力矩阵、统一平台数据差异、v6→v7 迁移、插件升级权限、发布安全、平台专属 MCP profile、插件市场门禁、UI 与回归验证。
+- **实现状态：** 已完成；M8-AC-01 至 M8-AC-09 自动化验证均通过，平台专属 MCP profile 与只读发布校验已通过回归。
 - **已完成任务：**
   - 新增 10 个平台的[准入登记](../src-tauri/resources/ecosystem/platform-admissions.json)与 [JSON Schema](../docs/schemas/platform-admissions.schema.json)，记录官方来源、检查结果、账号类型和逐平台 × 四形态读/写结果。
   - 新增 [生态实现说明](../docs/ecosystem-expansion.md)，实现账号级能力降级、平台/账号能力 MCP 工具及“平台管理 → 生态治理”界面。
@@ -20,11 +20,13 @@
   - 新增插件升级新权限重新审查与拒绝后 hostCall 强制拒绝测试。
   - 新增发布准入门禁：Adapter 自报支持也不能绕过未验证平台的人工发布限制。
   - 新增[插件市场策略](../src-tauri/resources/ecosystem/marketplace-policy.json)和 [ADR-003](../docs/adr/ADR-003-plugin-marketplace.md)；第三方市场保持关闭。
-- **验证记录：** [M8 验证记录](./verification/M8-verification-2026-11-25.md)（当前状态：M8 AC `pass`；阶段 `blocked`）。
+  - 新增 [平台 MCP 拆分与接口映射](../docs/platform-mcp.md)：10 个平台各自拥有 `*_mcp` profile、原生字段 Schema、接口来源、字段映射、内容规则和人工交接入口；所有自动发布保持关闭。
+  - 将 `mcp.rs`、`platforms.rs`、`operations.rs` 拆分为主题模块，新增平台 profile 与只读发布校验测试。
+- **验证记录：** [M8 验证记录](./verification/M8-verification-2026-11-25.md)（当前状态：M8 AC `pass`；平台 MCP 回归 `pass`；阶段 `blocked`）。
 - **未完成与阻塞：** M8 自身 AC 无失败项；阶段验收前置 M6 仍未 accepted（M6 自动化 AC 通过，但受 M2 前置门和真实平台补验阻塞）。另外未使用 10 个平台的真实账号完成自动发布验证，因此所有自动发布继续保持关闭。
 - **验收状态：** 未验收（`blocked`：前置 M6 未 accepted）。实现完成不等于阶段验收通过。
 - **验收报告：** 未创建；只有前置条件满足且 M8 阶段验收完成后才创建 `progress/M8-acceptance.md`。
-- **下一步：** 先完成 M2 → M6 的前置验收和真实平台补验；随后复核 M8 准入登记与测试证据，再创建 M8 验收报告。
+- **下一步：** 先完成 M2 → M6 的前置验收和真实平台补验；随后按 `platform_mcp` profile 逐平台补齐账号级接口证据，复核 M8 准入登记后再创建验收报告。
 
 ## 前置条件
 

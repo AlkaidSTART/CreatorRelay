@@ -107,7 +107,7 @@ pub(super) fn profile() -> PlatformMcpProfile {
             mapping("metrics.favorite", "add_to_fav_count", "read", true, "收藏次数。"),
         ],
         content_rules: vec![
-            content_rule("article", vec![], 0, Some(0), None, None, None, false, false, "纯文章必须有正文；封面 thumb_media_id 建议提供，是否强制以公众号类型为准。"),
+            content_rule("article", vec![], 0, None, None, None, None, false, false, "纯文章必须有正文；封面 thumb_media_id 建议提供，是否强制以公众号类型为准。"),
             content_rule("imageArticle", vec!["image"], 1, None, None, None, None, true, false, "图文文章需要正文与封面素材。"),
             content_rule("imageText", vec!["image"], 1, None, None, None, None, true, false, "微信图文消息按草稿字段交接。"),
             content_rule("video", vec!["video"], 1, Some(1), None, None, None, false, false, "公众号视频素材链路未验证；先人工发布。"),

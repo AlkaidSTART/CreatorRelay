@@ -72,7 +72,7 @@ pub(super) fn profile() -> PlatformMcpProfile {
             mapping("metrics.collect", "collectCount", "read", true, "收藏数。"),
         ],
         content_rules: vec![
-            content_rule("article", vec![], 0, Some(0), None, None, None, false, false, "技术文章必须有正文；封面可选。"),
+            content_rule("article", vec![], 0, None, None, None, None, false, false, "技术文章必须有正文；封面可选。"),
             content_rule("imageArticle", vec!["image"], 1, None, None, None, None, false, false, "图文文章按 Markdown + 图片素材交接。"),
         ],
         handoff: handoff(
