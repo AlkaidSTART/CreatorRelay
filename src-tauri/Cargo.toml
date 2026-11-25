@@ -26,6 +26,9 @@ rusqlite = { version = "0.43.0", features = ["bundled"] }
 uuid = { version = "1.29.3", features = ["v4", "serde"] }
 chrono = { version = "0.4.45", features = ["serde"] }
 tauri-plugin-dialog = "2"
+walkdir = "2"
+tempfile = "3"
+sha2 = { version = "0.10", features = ["std"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+:root {
+  font-family: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  color: #252720;
+  background: #f5f4f0;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --ink: #252720;
+  --muted: #92938c;
+  --paper: #fbfaf7;
+  --canvas: #f5f4f0;
+  --line: #e9e8e2;
+  --green: #687a5d;
+  --green-dark: #506148;
+  --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Songti SC", Georgia, serif;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; min-width: 980px; height: 100%; margin: 0; }
+body { overflow: hidden; }
+button, input, textarea { font: inherit; }
+button { color: inherit; }
+::selection { color: #263323; background: #dce4d4; }
