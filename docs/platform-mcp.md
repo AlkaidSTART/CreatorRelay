@@ -54,6 +54,33 @@ src-tauri/src/mcp/
 
 拆分只改变代码边界，不改变数据库、公开 Tauri 命令或 MCP 工具的业务语义；M7/M8 回归测试用于确认这一点。
 
+`lib.rs` 和 `content.rs` 也做了同样处理：
+
+```text
+src-tauri/src/
+├── lib.rs                  # AppState、Tauri 注册入口、run()
+├── lib_tests.rs            # 根模块测试
+├── workspace_support.rs    # 文档/Git/工作区辅助逻辑
+├── commands/               # 按领域拆分的 Tauri 命令
+│   ├── content.rs
+│   ├── ai.rs
+│   ├── mcp.rs
+│   ├── creator_centers.rs
+│   ├── ecosystem.rs
+│   ├── workspace.rs
+│   ├── platforms.rs
+│   ├── plugins.rs
+│   └── operations.rs
+└── content/                # 内容包与平台稿
+    ├── mod.rs              # 类型与公开导出
+    ├── package.rs          # 内容包、素材、版本
+    ├── drafts.rs           # 平台稿
+    ├── paths.rs            # 路径、原子写入和通用校验
+    └── tests.rs
+```
+
+`lib.rs` 从 3450 行降到约 680 行；`content.rs` 从 1610 行拆为最大约 540 行的模块。
+
 ## 3. 平台 profile 契约
 
 每个平台模块实现一个 `profile() -> PlatformMcpProfile`：
@@ -85,7 +112,6 @@ src-tauri/src/mcp/
 CreatorRelay 的 MCP Host 是 **MCP Server**，把本地内容、账号能力和发布工作流暴露给 MCP Client；它不是 MCP Client，不会因为某个平台有创作者中心网页就自动连接该平台的远程 MCP 服务。当前平台专属工具读取的是 CreatorRelay 的本地数据库、执行本地内容校验并提供人工交接。未完成账号级官方 API 验证的平台，不会被当作实时作品读取或自动发布能力。
 
 平台管理新增“创作者中心”视图，8 个用户提供的网址在 SQLite `creator_center_links` 表中维护，并可在 UI 编辑。MCP `creator_centers_list` 只返回这些配置链接；它明确返回 `platformDataAccess: not_connected`、`automatedPublishing: disabled`，不发起登录、页面抓取或作品发布。通过 HTTPS 请求得到网页 HTTP 200 只证明匿名网页入口可响应，不代表 MCP 数据读取或已登录发布成功。
-
 
 每个平台注册四个只读工具：
 

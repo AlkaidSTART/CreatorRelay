@@ -21,6 +21,7 @@
   - [x] 实现调用审计、超时/取消、四类内容工具与形态载荷校验。
   - [x] 添加 `docs/mcp-agent.md` 运行与权限说明。
   - [x] 将 `mcp.rs` 拆分为 Host、Schema、审计、授权、内容、发布、Assistant、Server 等模块；新增 `platform_mcp/` 与 10 个平台 profile。
+  - [x] 将 `lib.rs` 拆为 `commands/`、`workspace_support.rs`、`lib_tests.rs`；将 `content.rs` 拆为 `content/` 模块目录。
 - **验证记录：** [M7 验证记录](./verification/M7-verification-2026-11-25.md)（当前状态：`pass`；已补 2026-11-25 模块化回归）。
 - **未完成与阻塞：** 无阻断 M7 的未完成项。真实平台发布能力仍需 M8/平台适配器独立验证；原生 Tauri 窗口视觉检查未能自动附加，已记录为后续 CI/桌面 smoke 风险。
 - **验收状态：** 已验收（`accepted`）。

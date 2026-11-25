@@ -64,16 +64,16 @@ M7 的 12 项验收标准均取得可复现证据，未发现阻断验收的已�
 
 > 本节记录拆分后的回归验证，不改变 M7 原有 AC 结论。
 
-- **范围：** `mcp.rs` → `mcp/`（Host、Schema、审计、授权、内容、发布、Assistant、Server、outcome）；`platforms.rs` → `platforms/`；`operations.rs` → `operations/`；新增 `mcp/platform_mcp/` 平台 profile。
-- **基线：** `48c07a7` 及工作树中既有 M7/M8 改动；**验证 HEAD：** `4d95d5f` + 当前工作树文档/测试修订。
+- **范围：** `mcp.rs` → `mcp/`（Host、Schema、审计、授权、内容、发布、Assistant、Server、outcome）；`platforms.rs` → `platforms/`；`operations.rs` → `operations/`；`lib.rs` → `commands/`、`workspace_support.rs`、`lib_tests.rs`；`content.rs` → `content/`；新增 `mcp/platform_mcp/` 平台 profile。
+- **基线：** `48c07a7` 及工作树中既有 M7/M8 改动；**验证 HEAD：** `95e129b` + 本次文档修订工作树。
 - **回归命令与结果：**
 
 ```text
 cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check   # pass
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings  # pass
 cargo test --manifest-path src-tauri/Cargo.toml --all-targets    # pass
-  # 73 lib + 9 M4 + 5 M6 + 8 M7 + 8 M8 = 103 tests
-pnpm test                                                         # pass, 44/44
+  # 76 lib + 9 M4 + 5 M6 + 8 M7 + 8 M8 = 106 tests
+pnpm test                                                         # pass, 47/47
 pnpm typecheck                                                    # pass
 pnpm lint                                                         # pass
 pnpm build                                                        # pass（仅既有 chunk > 500 kB 警告）

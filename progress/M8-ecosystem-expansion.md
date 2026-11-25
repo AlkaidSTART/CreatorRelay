@@ -22,7 +22,7 @@
   - 新增[插件市场策略](../src-tauri/resources/ecosystem/marketplace-policy.json)和 [ADR-003](../docs/adr/ADR-003-plugin-marketplace.md)；第三方市场保持关闭。
   - 新增 [平台 MCP 拆分与接口映射](../docs/platform-mcp.md)：10 个平台各自拥有 `*_mcp` profile、原生字段 Schema、接口来源、字段映射、内容规则和人工交接入口；所有自动发布保持关闭。
   - 新增 8 个[创作者中心链接](../src-tauri/src/creator_centers.rs)的 SQLite v8 持久化、前端编辑入口和 MCP `creator_centers_list` 只读工具；页面明确区分网页可达与真实 MCP/API 数据读取、发布能力。
-  - 将 `mcp.rs`、`platforms.rs`、`operations.rs` 拆分为主题模块，新增平台 profile 与只读发布校验测试。
+  - 将 `mcp.rs`、`platforms.rs`、`operations.rs`、`lib.rs`、`content.rs` 拆分为主题模块，新增平台 profile 与只读发布校验测试。
 - **验证记录：** [M8 验证记录](./verification/M8-verification-2026-11-25.md)（链接功能前端自动化通过；本次 Rust 当前工作树回归 `blocked`；真实平台数据读取/发布 `not verified`；阶段 `blocked`）。
 - **未完成与阻塞：** 当前工作树 Rust 测试因 `src-tauri/src/lib.rs` 残留 `#[cfg(test)]` 且源码拆分中的引用/可见性错误而失败；该拆分不是本需求改动，本次保留并行工作、未修复。阶段验收前置 M6 仍未 accepted；也未配置 8 个平台远程 MCP/实时 API 或真实账号读取/发布证据。自动发布关闭，桌面 UI 手工保存/重启检查未验证。
 - **验收状态：** 未验收（`blocked`：前置 M6 未 accepted）。实现完成不等于阶段验收通过。

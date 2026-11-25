@@ -27,7 +27,7 @@
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | Rust 格式        | `cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check`                                                                                                                                                                                     | pass                                                                                         |
 | Rust Clippy      | `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings`                                                                                                                                                                      | pass                                                                                         |
-| Rust 全量测试    | `cargo test --manifest-path src-tauri/Cargo.toml --all-targets`                                                                                                                                                                                       | pass：103 项（73 个 lib + M4 9 + M6 5 + M7 8 + M8 8）                                             |
+| Rust 全量测试    | `cargo test --manifest-path src-tauri/Cargo.toml --all-targets`                                                                                                                                                                                       | pass：103 项（73 个 lib + M4 9 + M6 5 + M7 8 + M8 8）                                        |
 | M8 集成测试      | `cargo test --manifest-path src-tauri/Cargo.toml --test m8_ecosystem`                                                                                                                                                                                 | pass，8/8                                                                                    |
 | 数据库迁移       | `cargo test --manifest-path src-tauri/Cargo.toml --lib database::tests`                                                                                                                                                                               | pass；含 v6 四类内容/账号/任务/指标 → v7，以及失败迁移回滚                                   |
 | Adapter 回归     | `cargo test --manifest-path src-tauri/Cargo.toml --test m4_runtime`                                                                                                                                                                                   | pass，9/9；含崩溃/超时隔离和版本回退                                                         |
@@ -92,12 +92,12 @@
 | M8-AC-01 平台准入     | pass | 10 个平台均有官方来源、HTTP 检查结果、验证日期、账号类型、未支持事项和四形态结果；`m8_admission_registry_is_traceable_and_covers_every_content_kind`；未验证能力保持 experimental/restricted/unsupported |
 | M8-AC-02 兼容性       | pass | `m8_embedded_adapter_contract_and_payload_regression_passes_together`；6 个内嵌 Adapter 通过身份唯一、v1 合约、四形态和共享载荷检查；M4 崩溃/超时隔离 9/9                                                |
 | M8-AC-03 能力呈现     | pass | `m8_expired_account_degrades_platform_and_account_capabilities`；`m8_mcp_returns_platform_and_account_capability_matrix`；UI 账号级能力与降级原因截图                                                    |
-| M8-AC-04 平台数据差异 | pass | `m8_platform_sync_preserves_raw_fields_content_mapping_and_metric_provenance`；四类作品映射、原始内容类型、rawFields、指标定义/单位/source 均保留；平台 profile 保留原生 ID 和字段映射 |
+| M8-AC-04 平台数据差异 | pass | `m8_platform_sync_preserves_raw_fields_content_mapping_and_metric_provenance`；四类作品映射、原始内容类型、rawFields、指标定义/单位/source 均保留；平台 profile 保留原生 ID 和字段映射                   |
 | M8-AC-05 版本升级     | pass | `m8_upgrade_from_v6_preserves_content_accounts_tasks_and_metrics`；四类内容包、Markdown、账号、任务和历史指标恢复；`failed_migration_rolls_back_and_preserves_database`                                  |
 | M8-AC-06 权限治理     | pass | `m8_plugin_upgrade_requires_review_of_new_permission_and_denial_is_effective`；新权限待审查，用户拒绝后 `network.request` 返回 `PERMISSION_DENIED`                                                       |
 | M8-AC-07 发布安全     | pass | `m8_unverified_platform_forces_manual_publish_even_when_adapter_claims_support`；Adapter 声明支持仍只进入人工发布；UI 显示自动发布关闭                                                                   |
 | M8-AC-08 插件市场决策 | pass | `m8_marketplace_policy_stays_closed_until_all_gates_pass`；ADR-003 明确六项门禁，当前市场 closed、第三方安装和受控试点均禁止                                                                             |
-| M8-AC-09 内容形态覆盖 | pass | 准入 Schema 要求每个平台恰好四种形态；10 × 4 个读取/发布结果均为显式状态；平台专属 MCP profile 的只读发布校验和人工交接测试通过；未完成真实账号验证的形态不在 UI/MCP 显示 supported |
+| M8-AC-09 内容形态覆盖 | pass | 准入 Schema 要求每个平台恰好四种形态；10 × 4 个读取/发布结果均为显式状态；平台专属 MCP profile 的只读发布校验和人工交接测试通过；未完成真实账号验证的形态不在 UI/MCP 显示 supported                      |
 
 ## 未覆盖项与剩余风险
 
@@ -113,8 +113,8 @@ M8-AC-01 至 M8-AC-09 的实现与自动化证据已通过，UI 和打包检查�
 
 ## 2026-11-25 平台 MCP profile 验证补充
 
-- **范围：** 10 个平台 `*_mcp` profile、平台原生字段 Schema、Core 只读执行、发布载荷校验与 M8 回归测试。
-- **基线：** `48c07a7`；**验证 HEAD：** `869f2a8`。
+- **范围：** 10 个平台 `*_mcp` profile、平台原生字段 Schema、Core 只读执行、发布载荷校验、`lib.rs`/`content.rs` 模块化与 M8 回归测试。
+- **基线：** `48c07a7`；**验证 HEAD：** `95e129b` + 本次文档修订工作树。
 - **实现结果：** 新增 `douyin_mcp`、`xiaohongshu_mcp`、`bilibili_mcp`、`youtube_mcp`、`wechat_mcp`、`weibo_mcp`、`kuaishou_mcp`、`juejin_mcp`、`csdn_mcp`、`zhihu_mcp`；每个 profile 含接口来源、验证状态、原生作品 ID、字段映射、内容规则和人工交接入口。所有 profile 的 `autoPublishAllowed=false`、`publishDispatch=manual_only`。
 - **命令与结果：**
 
@@ -122,13 +122,13 @@ M8-AC-01 至 M8-AC-09 的实现与自动化证据已通过，UI 和打包检查�
 cargo test --manifest-path src-tauri/Cargo.toml --test m8_ecosystem
 # pass, 8/8；新增 2 项平台 profile/发布校验测试
 cargo test --manifest-path src-tauri/Cargo.toml --all-targets
-# pass, 103 tests
+# pass, 106 tests
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 # pass
 cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 # pass
 pnpm test
-# pass, 44/44
+# pass, 47/47
 pnpm typecheck
 # pass
 pnpm lint
@@ -170,38 +170,38 @@ for name,url in urls.items():
 PY
 ```
 
-| 平台 | 匿名 GET 结果 | 结论 |
-|---|---|---|
-| 抖音 | `200 text/html; charset=utf-8` | 入口可响应；账号/MCP/发布未验证 |
-| 小红书 | `200 text/html; charset=UTF-8` | 入口可响应；账号/MCP/发布未验证 |
-| 知乎 | `200 text/html; charset=utf-8` | 入口可响应；账号/MCP/发布未验证 |
+| 平台       | 匿名 GET 结果                  | 结论                            |
+| ---------- | ------------------------------ | ------------------------------- |
+| 抖音       | `200 text/html; charset=utf-8` | 入口可响应；账号/MCP/发布未验证 |
+| 小红书     | `200 text/html; charset=UTF-8` | 入口可响应；账号/MCP/发布未验证 |
+| 知乎       | `200 text/html; charset=utf-8` | 入口可响应；账号/MCP/发布未验证 |
 | 微信公众号 | `200 text/html; charset=UTF-8` | 入口可响应；账号/MCP/发布未验证 |
-| 快手 | `200 text/html; charset=UTF-8` | 入口可响应；账号/MCP/发布未验证 |
-| 哔哩哔哩 | `200 text/html` | 入口可响应；账号/MCP/发布未验证 |
-| 稀土掘金 | `200 text/html; charset=utf-8` | 入口可响应；账号/MCP/发布未验证 |
-| CSDN | `200 text/html; charset=utf-8` | 入口可响应；账号/MCP/发布未验证 |
+| 快手       | `200 text/html; charset=UTF-8` | 入口可响应；账号/MCP/发布未验证 |
+| 哔哩哔哩   | `200 text/html`                | 入口可响应；账号/MCP/发布未验证 |
+| 稀土掘金   | `200 text/html; charset=utf-8` | 入口可响应；账号/MCP/发布未验证 |
+| CSDN       | `200 text/html; charset=utf-8` | 入口可响应；账号/MCP/发布未验证 |
 
 ### 自动化检查
 
-| 命令 | 结果 |
-|---|---|
-| `pnpm typecheck` | pass |
-| `pnpm test` | pass，12 files / 47 tests |
-| `cargo test --manifest-path src-tauri/Cargo.toml --lib` | pass，76 tests；包括链接初始化、SQLite 更新/HTTPS 校验及 MCP 链接工具边界测试 |
-| `pnpm lint` | pass |
-| `pnpm build` | pass；Vite 输出既有的大 chunk 警告（主 JS chunk 约 1.53 MB） |
-| `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` | pass |
-| `pnpm exec prettier --check src/components/CreatorCentersPanel.tsx src/components/Icons.tsx src/pages/PlatformsPage.tsx src/stores/creatorCenterStore.ts src/stores/creatorCenterStore.test.ts src/types/creatorCenter.ts` | pass |
-| `pnpm format:check` | fail：仓库中 4 个未修改文件格式不符：`src/components/studio/ContentEditor.tsx`、`src/components/StudioWorkspaceEmpty.tsx`、`src/pages/StudioPage.css`、`src/utils/operations.ts`；本次修改的 UI 文件单独格式检查通过，未改动无关文件 |
+| 命令                                                                                                                                                                                                                       | 结果                                                                                                                                                                                                                                 |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm typecheck`                                                                                                                                                                                                           | pass                                                                                                                                                                                                                                 |
+| `pnpm test`                                                                                                                                                                                                                | pass，12 files / 47 tests                                                                                                                                                                                                            |
+| `cargo test --manifest-path src-tauri/Cargo.toml --lib`                                                                                                                                                                    | pass，76 tests；包括链接初始化、SQLite 更新/HTTPS 校验及 MCP 链接工具边界测试                                                                                                                                                        |
+| `pnpm lint`                                                                                                                                                                                                                | pass                                                                                                                                                                                                                                 |
+| `pnpm build`                                                                                                                                                                                                               | pass；Vite 输出既有的大 chunk 警告（主 JS chunk 约 1.53 MB）                                                                                                                                                                         |
+| `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`                                                                                                                                                                | pass                                                                                                                                                                                                                                 |
+| `pnpm exec prettier --check src/components/CreatorCentersPanel.tsx src/components/Icons.tsx src/pages/PlatformsPage.tsx src/stores/creatorCenterStore.ts src/stores/creatorCenterStore.test.ts src/types/creatorCenter.ts` | pass                                                                                                                                                                                                                                 |
+| `pnpm format:check`                                                                                                                                                                                                        | fail：仓库中 4 个未修改文件格式不符：`src/components/studio/ContentEditor.tsx`、`src/components/StudioWorkspaceEmpty.tsx`、`src/pages/StudioPage.css`、`src/utils/operations.ts`；本次修改的 UI 文件单独格式检查通过，未改动无关文件 |
 
 ### 本次需求验收快照
 
-| 标准 | 结果 | 证据 / 缺口 |
-|---|---|---|
+| 标准                                                          | 结果                                          | 证据 / 缺口                                                                                                                                                                    |
+| ------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 8 个创作者中心链接在前端可见、可编辑、打开，并持久化到 SQLite | pass（自动化）；桌面 UI 手工操作 not verified | 平台管理新增“创作者中心”页；schema v8 建表并预置 8 个地址；Rust CRUD/HTTPS 校验测试通过，前端 store 更新测试及 typecheck/build 通过；本次未启动桌面客户端逐项手工保存/重启验证 |
-| 通过 MCP 读取这些平台的已登录实时作品与指标 | not verified / 当前未接入 | 无外部 MCP Server 配置或账号授权；匿名 HTTP 200 不是该能力证据。新增 MCP 工具只读取配置链接，既有能力工具仍按当前 profile 报告已验证能力 |
-| 通过 MCP 实际发布作品 | not verified / 自动发布关闭 | 无平台账号/授权往返测试；没有实际提交。现有 profile 的发布 dispatch 为 `manual_only`，专属工具只校验并交接 |
-| MCP Client 可读取链接目录（只读） | pass（代码与单元测试） | MCP 工具 `creator_centers_list` 已注册为 read 权限，支持 `platformId` 过滤，并明确返回未连接/自动发布关闭；单测验证 URL 和边界字段 |
+| 通过 MCP 读取这些平台的已登录实时作品与指标                   | not verified / 当前未接入                     | 无外部 MCP Server 配置或账号授权；匿名 HTTP 200 不是该能力证据。新增 MCP 工具只读取配置链接，既有能力工具仍按当前 profile 报告已验证能力                                       |
+| 通过 MCP 实际发布作品                                         | not verified / 自动发布关闭                   | 无平台账号/授权往返测试；没有实际提交。现有 profile 的发布 dispatch 为 `manual_only`，专属工具只校验并交接                                                                     |
+| MCP Client 可读取链接目录（只读）                             | pass（代码与单元测试）                        | MCP 工具 `creator_centers_list` 已注册为 read 权限，支持 `platformId` 过滤，并明确返回未连接/自动发布关闭；单测验证 URL 和边界字段                                             |
 
 - **人工/平台检查：** 未登录各平台账号，未读取真实作品/分析数据，未进行实际发布，也未在桌面 Tauri 窗口执行 UI 手工回归。
 - **总体状态：** 创作者中心链接 UI、SQLite 和 MCP 链接目录实现检查通过；真实平台 MCP 数据读取与发布仍 `not verified`。该功能增量为 `partial`；M8 保持 `blocked / not accepted`，不创建 acceptance report。

@@ -674,7 +674,7 @@ pub fn run() {
             commands::mcp::get_assistant_thread,
             commands::mcp::assistant_plan_message,
             commands::mcp::assistant_context_preview,
-            assistant_generate_reply
+            commands::mcp::assistant_generate_reply
         ])
         .run(tauri::generate_context!())
         .expect("error while running CreatorRelay");
