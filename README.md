@@ -5,3 +5,25 @@ This template should help get you started developing with Tauri, React and Types
 ## Recommended IDE Setup
 
 - [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+
+## 自动发版
+
+工作流位于 `.github/workflows/release.yml`。每次推送或合并到 `main` 分支（也可在 Actions 页面手动触发）都会：
+
+- 在 macOS 上构建 Universal `.dmg`（Apple Silicon + Intel）
+- 在 Windows 上构建 NSIS `.exe`
+- 校验构建产物并生成 `SHA256SUMS.txt`
+- 创建或更新对应的 GitHub Release，并自动生成变更说明
+
+构建版本由 `package.json` 的基础版本和 GitHub Actions 运行序号组成，例如基础版本为 `0.1.0`、运行序号为 `12` 时，构建版本为 `0.1.12`。版本只会在 CI 构建过程中写入，不会回写仓库。
+
+如需启用 macOS 签名和公证，请在仓库 Secrets 中配置：
+
+- `APPLE_CERTIFICATE`
+- `APPLE_CERTIFICATE_PASSWORD`
+- `APPLE_ID`
+- `APPLE_PASSWORD`
+- `APPLE_TEAM_ID`
+- 可选：`KEYCHAIN_PASSWORD`
+
+Windows 安装包当前未配置代码签名；如未签名，SmartScreen 可能显示警告。

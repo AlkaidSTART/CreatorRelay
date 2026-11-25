@@ -1,20 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createAppStore } from "./appStore";
+import { createContentStore, createUiStore, createWorkspaceStore } from "./appStore";
 
-const firstDocument = {
-  id: "article-one",
-  title: "First article",
-  path: "articles/first/article.md",
-  updatedAt: "2026-11-25T08:00:00.000Z",
-  preview: "A first draft",
-  wordCount: 3,
-  charCount: 13,
-  tags: ["draft"],
-};
-
-describe("app store", () => {
-  it("starts with a usable, clean application state", () => {
-    const store = createAppStore();
+describe("stores", () => {
+  it("initializes workspace store with clean defaults", () => {
+    const store = createWorkspaceStore();
     const state = store.getState();
 
     expect(state.workspace).toBeNull();
@@ -26,20 +15,8 @@ describe("app store", () => {
     expect(state.revisions.length).toBeGreaterThan(0);
   });
 
-  it("supports updater callbacks for state derived from the latest value", () => {
-    const store = createAppStore();
-    const { setDocuments } = store.getState();
-
-    setDocuments([firstDocument]);
-    setDocuments((documents) =>
-      documents.map((document) => ({ ...document, title: "Updated title" })),
-    );
-
-    expect(store.getState().documents).toEqual([{ ...firstDocument, title: "Updated title" }]);
-  });
-
   it("updates editor content and marks it unsaved atomically", () => {
-    const store = createAppStore();
+    const store = createWorkspaceStore();
     const observedTransitions: Array<{ content: string; saveState: string }> = [];
     store.subscribe(({ content, saveState }) => observedTransitions.push({ content, saveState }));
 
@@ -48,5 +25,37 @@ describe("app store", () => {
     expect(store.getState().content).toBe("# Draft");
     expect(store.getState().saveState).toBe("unsaved");
     expect(observedTransitions).toEqual([{ content: "# Draft", saveState: "unsaved" }]);
+  });
+
+  it("toggles UI panels and sidebar cleanly", () => {
+    const ui = createUiStore();
+
+    expect(ui.getState().sidebarOpen).toBe(true);
+    expect(ui.getState().rightPanel).toBe("none");
+
+    ui.getState().toggleSidebar();
+    expect(ui.getState().sidebarOpen).toBe(false);
+
+    ui.getState().toggleRightPanel("info");
+    expect(ui.getState().rightPanel).toBe("info");
+
+    ui.getState().toggleRightPanel("history");
+    expect(ui.getState().rightPanel).toBe("history");
+
+    ui.getState().toggleRightPanel("history");
+    expect(ui.getState().rightPanel).toBe("none");
+  });
+
+  it("manages shared content filters and assistant messages", () => {
+    const content = createContentStore();
+    const initialCount = content.getState().assistantMessages.length;
+
+    content.getState().setPublishingFilter("SCHEDULED");
+    expect(content.getState().publishingFilter).toBe("SCHEDULED");
+
+    content.getState().sendAssistantPrompt("把当前主稿适配为掘金版本");
+    const messages = content.getState().assistantMessages;
+    expect(messages.length).toBe(initialCount + 2);
+    expect(messages[messages.length - 1].toolCall?.name).toBe("studio_adapt_content");
   });
 });

@@ -8,7 +8,6 @@ import { PlatformsPage } from "./pages/PlatformsPage";
 import { PublishingPage } from "./pages/PublishingPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { StudioPage } from "./pages/StudioPage";
-import "./App.css";
 
 function App() {
   return (
