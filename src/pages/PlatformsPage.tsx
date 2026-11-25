@@ -15,6 +15,7 @@ import {
 import { PageHeader } from "../components/PageHeader";
 import { EcosystemPanel } from "../components/EcosystemPanel";
 import { PluginManager } from "../components/PluginManager";
+import { CreatorCentersPanel } from "../components/CreatorCentersPanel";
 import { PlatformLogo } from "../components/PlatformLogo";
 import { PLATFORM_CATEGORIES } from "../data/demoData";
 import { usePlatformStore, useUiStore } from "../stores";
@@ -174,9 +175,9 @@ export function PlatformsPage() {
   const [manualPrompt, setManualPrompt] = useState<ManualPrompt | null>(null);
   const [deleteState, setDeleteState] = useState<DeleteState | null>(null);
   const [busyAccountId, setBusyAccountId] = useState("");
-  const [managementView, setManagementView] = useState<"accounts" | "adapters" | "ecosystem">(
-    "accounts",
-  );
+  const [managementView, setManagementView] = useState<
+    "accounts" | "adapters" | "ecosystem" | "creator-centers"
+  >("accounts");
 
   useEffect(() => {
     void initialize();
@@ -384,7 +385,9 @@ export function PlatformsPage() {
             ? "管理平台账号、真实会话校验、系统凭据与隔离会话容器；未验证身份不会显示为已连接。"
             : managementView === "adapters"
               ? "发现、安装并审查平台适配器；按内容形态探测真实能力，限制插件对账号、凭据和本地数据的访问。"
-              : "核对平台准入来源、账号级逐形态能力、Adapter 兼容性与第三方插件市场门禁。"
+              : managementView === "ecosystem"
+                ? "核对平台准入来源、账号级逐形态能力、Adapter 兼容性与第三方插件市场门禁。"
+                : "管理创作者中心网址，并查看 MCP 对平台实时数据与发布能力的实际边界。"
         }
         actions={
           managementView === "accounts" ? (
@@ -429,6 +432,19 @@ export function PlatformsPage() {
             }`}
           >
             适配器与插件
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={managementView === "creator-centers"}
+            onClick={() => setManagementView("creator-centers")}
+            className={`h-9 cursor-pointer rounded-t-xl border-b-2 px-3 text-xs font-medium transition-colors ${
+              managementView === "creator-centers"
+                ? "border-accent text-accent-deep"
+                : "border-transparent text-ink-muted hover:text-ink-secondary"
+            }`}
+          >
+            创作者中心
           </button>
           <button
             type="button"
@@ -708,10 +724,12 @@ export function PlatformsPage() {
         <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
           <PluginManager />
         </div>
-      ) : (
+      ) : managementView === "ecosystem" ? (
         <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
           <EcosystemPanel />
         </div>
+      ) : (
+        <CreatorCentersPanel />
       )}
 
       {addPlatformId && selectedPlatform && (

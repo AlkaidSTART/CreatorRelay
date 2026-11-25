@@ -26,7 +26,10 @@ fn execute_core_tool(
             field_errors: Vec::new(),
         });
     }
-    if matches!(tool_name, "account_get_info" | "platform_capabilities_get") {
+    if matches!(
+        tool_name,
+        "account_get_info" | "platform_capabilities_get" | "creator_centers_list"
+    ) {
         return account_tools::execute_account_tool(conn, tool_name, arguments);
     }
     if matches!(

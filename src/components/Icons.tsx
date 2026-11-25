@@ -79,3 +79,5 @@ export const Video = createIcon("video");
 export const Copy = createIcon("copy");
 export const GripVertical = createIcon("grip-vertical");
 export const Save = createIcon("floppy-disk");
+
+export const Link2 = createIcon("link");

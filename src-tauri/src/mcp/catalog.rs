@@ -30,6 +30,18 @@ pub fn tool_catalog() -> Vec<McpToolDefinition> {
             ),
         ),
         tool(
+            "creator_centers_list",
+            "列出创作者中心链接",
+            "读取用户配置的创作者中心网址。该工具只返回链接配置，不会登录平台、读取平台实时作品或执行发布；请用 platform_capabilities_get 查看已验证能力。",
+            ToolPermission::Read,
+            object_schema(
+                json!({
+                    "platformId": { "type": "string", "minLength": 1, "maxLength": 64 }
+                }),
+                vec![],
+            ),
+        ),
+        tool(
             "content_list",
             "查询本地内容",
             "按关键词、形态和平台查询本地内容包，不返回素材原始路径或凭据。",

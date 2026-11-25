@@ -82,6 +82,11 @@ src-tauri/src/mcp/
 
 ## 4. 平台工具面
 
+CreatorRelay 的 MCP Host 是 **MCP Server**，把本地内容、账号能力和发布工作流暴露给 MCP Client；它不是 MCP Client，不会因为某个平台有创作者中心网页就自动连接该平台的远程 MCP 服务。当前平台专属工具读取的是 CreatorRelay 的本地数据库、执行本地内容校验并提供人工交接。未完成账号级官方 API 验证的平台，不会被当作实时作品读取或自动发布能力。
+
+平台管理新增“创作者中心”视图，8 个用户提供的网址在 SQLite `creator_center_links` 表中维护，并可在 UI 编辑。MCP `creator_centers_list` 只返回这些配置链接；它明确返回 `platformDataAccess: not_connected`、`automatedPublishing: disabled`，不发起登录、页面抓取或作品发布。通过 HTTPS 请求得到网页 HTTP 200 只证明匿名网页入口可响应，不代表 MCP 数据读取或已登录发布成功。
+
+
 每个平台注册四个只读工具：
 
 | 工具后缀                         | 权限 | 行为                                                             |

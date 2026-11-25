@@ -140,3 +140,68 @@ pnpm build
 - **接口检查：** 抖音开放平台 `upload_video`、`upload_image`、`create_video`、`create_image_text`、`video_list`、`video_data` 路径返回平台 JSON；无有效 token 时为 `access_token无效`。这只证明路径可达，不证明应用资格或发布成功。
 - **未完成：** 10 个平台的账号级 OAuth/应用审核、真实作品回读、媒体上传、发布和指标往返仍未验证；小红书/掘金/CSDN/知乎没有已核实的官方内容发布 API，继续人工网页交接。
 - **结论：** 平台 MCP 实现与自动化回归通过，但 M8 阶段仍为 `implementation in progress / acceptance blocked`，不创建 `M8-acceptance.md`。
+
+## 2026-11-25 创作者中心链接与 MCP 边界验证补充
+
+- **范围：** 用户提供的 8 个创作者中心地址、SQLite v8 持久化与 URL 更新、平台管理 UI、MCP `creator_centers_list` 链接目录工具，以及匿名 HTTPS 可达性检查。
+- **基线：** `8fef1965e8a352d3104ad10f98460d20618d39a3`；**HEAD：** 同一提交。实现与本记录均为当前未提交工作树改动。
+- **实际 MCP 边界：** 仓库中的 MCP Host 是 CreatorRelay 的本地 MCP Server，不是连接平台远程 MCP Server 的 MCP Client。现有平台专属 MCP profile 对本地缓存做只读查询、对内容做本地校验并生成手工交接；未调用平台实时作品 API，也没有向平台实际发布。新增 `creator_centers_list` 只暴露 SQLite 链接，返回 `platformDataAccess=not_connected`、`automatedPublishing=disabled`。
+
+### 实时网页入口检查
+
+以下请求在本验证环境中执行；均为未登录 HTTPS GET，curl 跟随重定向并丢弃响应正文。`200 text/html` 仅表示网页入口响应，不能证明身份已登录、MCP 读取或作品发布能力。
+
+```sh
+python3 - <<'PY'
+import subprocess
+urls={
+'douyin':'https://creator.douyin.com/',
+'xiaohongshu':'https://creator.xiaohongshu.com/new/home',
+'zhihu':'https://www.zhihu.com/signin?next=%2F',
+'wechat':'https://mp.weixin.qq.com/cgi-bin/home?t=home/index&lang=zh_CN',
+'kuaishou':'https://cp.kuaishou.com/profile',
+'bilibili':'https://member.bilibili.com/platform/home',
+'juejin':'https://juejin.cn/creator/home',
+'csdn':'https://mp.csdn.net/',
+}
+for name,url in urls.items():
+    r=subprocess.run(['curl','-L','-sS','--max-time','12','-o','/dev/null','-w','%{http_code}\t%{url_effective}\t%{content_type}\\n',url],capture_output=True,text=True)
+    print(f'{name}\t{r.stdout.strip() or "NO_HTTP_RESPONSE"}\t{r.stderr.strip()}')
+PY
+```
+
+| 平台 | 匿名 GET 结果 | 结论 |
+|---|---|---|
+| 抖音 | `200 text/html; charset=utf-8` | 入口可响应；账号/MCP/发布未验证 |
+| 小红书 | `200 text/html; charset=UTF-8` | 入口可响应；账号/MCP/发布未验证 |
+| 知乎 | `200 text/html; charset=utf-8` | 入口可响应；账号/MCP/发布未验证 |
+| 微信公众号 | `200 text/html; charset=UTF-8` | 入口可响应；账号/MCP/发布未验证 |
+| 快手 | `200 text/html; charset=UTF-8` | 入口可响应；账号/MCP/发布未验证 |
+| 哔哩哔哩 | `200 text/html` | 入口可响应；账号/MCP/发布未验证 |
+| 稀土掘金 | `200 text/html; charset=utf-8` | 入口可响应；账号/MCP/发布未验证 |
+| CSDN | `200 text/html; charset=utf-8` | 入口可响应；账号/MCP/发布未验证 |
+
+### 自动化检查
+
+| 命令 | 结果 |
+|---|---|
+| `pnpm typecheck` | pass |
+| `pnpm test` | pass，12 files / 47 tests |
+| `cargo test --manifest-path src-tauri/Cargo.toml --lib` | pass，76 tests；包括链接初始化、SQLite 更新/HTTPS 校验及 MCP 链接工具边界测试 |
+| `pnpm lint` | pass |
+| `pnpm build` | pass；Vite 输出既有的大 chunk 警告（主 JS chunk 约 1.53 MB） |
+| `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` | pass |
+| `pnpm exec prettier --check src/components/CreatorCentersPanel.tsx src/components/Icons.tsx src/pages/PlatformsPage.tsx src/stores/creatorCenterStore.ts src/stores/creatorCenterStore.test.ts src/types/creatorCenter.ts` | pass |
+| `pnpm format:check` | fail：仓库中 4 个未修改文件格式不符：`src/components/studio/ContentEditor.tsx`、`src/components/StudioWorkspaceEmpty.tsx`、`src/pages/StudioPage.css`、`src/utils/operations.ts`；本次修改的 UI 文件单独格式检查通过，未改动无关文件 |
+
+### 本次需求验收快照
+
+| 标准 | 结果 | 证据 / 缺口 |
+|---|---|---|
+| 8 个创作者中心链接在前端可见、可编辑、打开，并持久化到 SQLite | pass（自动化）；桌面 UI 手工操作 not verified | 平台管理新增“创作者中心”页；schema v8 建表并预置 8 个地址；Rust CRUD/HTTPS 校验测试通过，前端 store 更新测试及 typecheck/build 通过；本次未启动桌面客户端逐项手工保存/重启验证 |
+| 通过 MCP 读取这些平台的已登录实时作品与指标 | not verified / 当前未接入 | 无外部 MCP Server 配置或账号授权；匿名 HTTP 200 不是该能力证据。新增 MCP 工具只读取配置链接，既有能力工具仍按当前 profile 报告已验证能力 |
+| 通过 MCP 实际发布作品 | not verified / 自动发布关闭 | 无平台账号/授权往返测试；没有实际提交。现有 profile 的发布 dispatch 为 `manual_only`，专属工具只校验并交接 |
+| MCP Client 可读取链接目录（只读） | pass（代码与单元测试） | MCP 工具 `creator_centers_list` 已注册为 read 权限，支持 `platformId` 过滤，并明确返回未连接/自动发布关闭；单测验证 URL 和边界字段 |
+
+- **人工/平台检查：** 未登录各平台账号，未读取真实作品/分析数据，未进行实际发布，也未在桌面 Tauri 窗口执行 UI 手工回归。
+- **总体状态：** 创作者中心链接 UI、SQLite 和 MCP 链接目录实现检查通过；真实平台 MCP 数据读取与发布仍 `not verified`。该功能增量为 `partial`；M8 保持 `blocked / not accepted`，不创建 acceptance report。

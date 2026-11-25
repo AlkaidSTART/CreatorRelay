@@ -2,7 +2,7 @@ use chrono::Utc;
 use rusqlite::{Connection, params};
 use serde::Serialize;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 7;
+pub const CURRENT_SCHEMA_VERSION: i64 = 8;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -396,6 +396,22 @@ fn migration_sql(version: i64) -> Result<&'static str, String> {
             ) VALUES(1, 1, 'confirm', 'confirm_each_time', 1, 3, 'title_summary_media', '2026-11-25T00:00:00Z');"),
         7 => Ok("ALTER TABLE external_works
                 ADD COLUMN raw_fields_json TEXT NOT NULL DEFAULT '{}';"),
+        8 => Ok("CREATE TABLE IF NOT EXISTS creator_center_links(
+                platform_id TEXT PRIMARY KEY,
+                platform_name TEXT NOT NULL,
+                url TEXT NOT NULL,
+                sort_order INTEGER NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            INSERT OR IGNORE INTO creator_center_links(platform_id, platform_name, url, sort_order, updated_at) VALUES
+                ('douyin', '抖音', 'https://creator.douyin.com/', 1, '2026-11-25T00:00:00Z'),
+                ('xiaohongshu', '小红书', 'https://creator.xiaohongshu.com/new/home', 2, '2026-11-25T00:00:00Z'),
+                ('zhihu', '知乎', 'https://www.zhihu.com/signin?next=%2F', 3, '2026-11-25T00:00:00Z'),
+                ('wechat', '微信公众号', 'https://mp.weixin.qq.com/cgi-bin/home?t=home/index&lang=zh_CN', 4, '2026-11-25T00:00:00Z'),
+                ('kuaishou', '快手', 'https://cp.kuaishou.com/profile', 5, '2026-11-25T00:00:00Z'),
+                ('bilibili', '哔哩哔哩', 'https://member.bilibili.com/platform/home', 6, '2026-11-25T00:00:00Z'),
+                ('juejin', '稀土掘金', 'https://juejin.cn/creator/home', 7, '2026-11-25T00:00:00Z'),
+                ('csdn', 'CSDN', 'https://mp.csdn.net/', 8, '2026-11-25T00:00:00Z');"),
         _ => Err(format!("没有定义 schema v{version} 的迁移脚本")),
     }
 }
@@ -427,7 +443,7 @@ mod tests {
         let report = migrate(&mut conn).unwrap();
         assert_eq!(report.from_version, 0);
         assert_eq!(report.to_version, CURRENT_SCHEMA_VERSION);
-        assert_eq!(report.applied_versions, vec![1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(report.applied_versions, vec![1, 2, 3, 4, 5, 6, 7, 8]);
         assert_eq!(current_version(&conn).unwrap(), CURRENT_SCHEMA_VERSION);
     }
 
@@ -438,7 +454,7 @@ mod tests {
         let report = migrate(&mut conn).unwrap();
         assert_eq!(report.from_version, 1);
         assert_eq!(report.to_version, CURRENT_SCHEMA_VERSION);
-        assert_eq!(report.applied_versions, vec![2, 3, 4, 5, 6, 7]);
+        assert_eq!(report.applied_versions, vec![2, 3, 4, 5, 6, 7, 8]);
         let workspace: String = conn
             .query_row(
                 "SELECT value FROM app_settings WHERE key='workspace_path'",
@@ -486,7 +502,7 @@ mod tests {
         let report = migrate(&mut conn).unwrap();
         assert_eq!(report.from_version, 2);
         assert_eq!(report.to_version, CURRENT_SCHEMA_VERSION);
-        assert_eq!(report.applied_versions, vec![3, 4, 5, 6, 7]);
+        assert_eq!(report.applied_versions, vec![3, 4, 5, 6, 7, 8]);
         let alias: String = conn
             .query_row(
                 "SELECT alias FROM platform_accounts WHERE id='account-m3'",
@@ -593,7 +609,7 @@ mod tests {
 
         let report = migrate_to_version(&mut conn, CURRENT_SCHEMA_VERSION).unwrap();
         assert_eq!(report.from_version, 6);
-        assert_eq!(report.applied_versions, vec![7]);
+        assert_eq!(report.applied_versions, vec![7, 8]);
         let packages = content::list_content_packages(&workspace).unwrap();
         assert_eq!(packages.len(), 4);
         assert_eq!(

@@ -43,6 +43,22 @@ pub(super) fn execute_account_tool(
                 .collect::<Vec<_>>();
             success_result(json!({ "accounts": views, "count": views.len() }))
         }
+        "creator_centers_list" => {
+            let platform_id = arguments.get("platformId").and_then(Value::as_str);
+            let links =
+                crate::creator_centers::list(conn, platform_id).map_err(|error| McpCallError {
+                    code: "CREATOR_CENTER_SERVICE_ERROR".to_string(),
+                    message: error,
+                    field_errors: Vec::new(),
+                })?;
+            success_result(json!({
+                "creatorCenters": links,
+                "count": links.len(),
+                "scope": "configured_links_only",
+                "platformDataAccess": "not_connected",
+                "automatedPublishing": "disabled",
+            }))
+        }
         "platform_capabilities_get" => {
             let platform_id = arguments.get("platformId").and_then(Value::as_str);
             let account_id = arguments.get("accountId").and_then(Value::as_str);
@@ -84,4 +100,37 @@ pub(super) fn execute_account_tool(
         }
     };
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{database, mcp::catalog};
+
+    #[test]
+    fn creator_centers_mcp_tool_only_returns_configured_links_and_clear_capability_scope() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        database::migrate(&mut conn).unwrap();
+        let result = execute_account_tool(
+            &conn,
+            "creator_centers_list",
+            &json!({ "platformId": "douyin" }),
+        )
+        .unwrap();
+
+        assert_eq!(result.status, "success");
+        assert_eq!(result.result["count"], 1);
+        assert_eq!(
+            result.result["creatorCenters"][0]["url"],
+            "https://creator.douyin.com/"
+        );
+        assert_eq!(result.result["platformDataAccess"], "not_connected");
+        assert_eq!(result.result["automatedPublishing"], "disabled");
+        let definition = catalog::tool_catalog()
+            .into_iter()
+            .find(|tool| tool.name == "creator_centers_list")
+            .unwrap();
+        assert_eq!(definition.permission, ToolPermission::Read);
+        assert!(definition.description.contains("不会登录平台"));
+    }
 }

@@ -16,6 +16,7 @@ use walkdir::WalkDir;
 
 pub mod ai;
 pub mod content;
+pub mod creator_centers;
 pub mod database;
 mod diagnostics;
 pub mod ecosystem;
@@ -804,6 +805,25 @@ fn stop_mcp_server(state: State<'_, AppState>) -> Result<mcp::McpHostStatus, Str
 #[tauri::command]
 fn mcp_health_check(state: State<'_, AppState>) -> Result<mcp::McpHostStatus, String> {
     state.mcp_host.health_check()
+}
+
+#[tauri::command]
+fn list_creator_center_links(
+    platform_id: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<Vec<creator_centers::CreatorCenterLink>, String> {
+    let conn = state.db.lock().map_err(|error| error.to_string())?;
+    creator_centers::list(&conn, platform_id.as_deref())
+}
+
+#[tauri::command]
+fn save_creator_center_link(
+    platform_id: String,
+    url: String,
+    state: State<'_, AppState>,
+) -> Result<creator_centers::CreatorCenterLink, String> {
+    let conn = state.db.lock().map_err(|error| error.to_string())?;
+    creator_centers::save_url(&conn, &platform_id, &url)
 }
 
 #[tauri::command]
@@ -2928,6 +2948,8 @@ pub fn run() {
             start_mcp_server,
             stop_mcp_server,
             mcp_health_check,
+            list_creator_center_links,
+            save_creator_center_link,
             list_platform_mcp_servers,
             mcp_list_tools,
             mcp_cancel_tool,
