@@ -68,3 +68,12 @@ export const TrendingUp = createIcon("chart-line");
 export const X = createIcon("xmark");
 
 export type IconComponent = (props: IconProps) => JSX.Element;
+export const ArrowDown = createIcon("arrow-down");
+export const ArrowUp = createIcon("arrow-up");
+export const Eye = createIcon("eye");
+export const LoaderCircle = createIcon("spinner");
+export const RotateCcw = createIcon("rotate-left");
+export const Star = createIcon("star");
+export const Video = createIcon("video");
+export const Copy = createIcon("copy");
+export const GripVertical = createIcon("grip-vertical");
