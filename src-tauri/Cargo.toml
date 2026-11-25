@@ -29,6 +29,7 @@ tauri-plugin-dialog = "2"
 walkdir = "2"
 tempfile = "3"
 sha2 = { version = "0.10", features = ["std"] }
+git2 = "0.21.0"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

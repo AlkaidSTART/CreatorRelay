@@ -3,7 +3,6 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   ChevronsUpDown,
   FilePlus2,
-  Palette,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -12,7 +11,7 @@ import {
 import { NavLink, useLocation, useNavigate, useOutlet } from "react-router";
 import { findRouteByPathname, PRIMARY_ROUTES, SECONDARY_ROUTES } from "../routes/navigation";
 import { useContentStore, useUiStore, useWorkspaceStore } from "../stores";
-import { applyThemeToDocument, THEMES } from "../utils/themes";
+import { applyThemeToDocument } from "../utils/themes";
 
 const ROUTE_ENTER_EASE = [0.22, 1, 0.36, 1] as const;
 const ROUTE_EXIT_EASE = [0.4, 0, 1, 1] as const;
@@ -70,7 +69,6 @@ export function AppLayout() {
   const saveCurrentDocument = useWorkspaceStore((state) => state.saveCurrentDocument);
 
   const theme = useUiStore((state) => state.theme);
-  const setTheme = useUiStore((state) => state.setTheme);
   const sidebarOpen = useUiStore((state) => state.sidebarOpen);
   const setSidebarOpen = useUiStore((state) => state.setSidebarOpen);
   const showDemoBanner = useUiStore((state) => state.showDemoBanner);
@@ -82,7 +80,6 @@ export function AppLayout() {
   const error = useUiStore((state) => state.error);
   const clearError = useUiStore((state) => state.clearError);
   const notice = useUiStore((state) => state.notice);
-  const showToast = useUiStore((state) => state.showToast);
 
   const pendingTaskCount = useContentStore(
     (state) =>
@@ -126,13 +123,6 @@ export function AppLayout() {
     if (created && !isStudioRoute) {
       navigate("/studio");
     }
-  }
-
-  function handleCycleTheme() {
-    const currentIndex = THEMES.findIndex((item) => item.id === theme);
-    const nextTheme = THEMES[(currentIndex + 1) % THEMES.length];
-    setTheme(nextTheme.id);
-    showToast(`已切换为「${nextTheme.name}」主题`);
   }
 
   if (loading) {
@@ -376,40 +366,6 @@ export function AppLayout() {
                       </NavLink>
                     );
                   })}
-                  {/* Compact Macaron Theme Switcher */}
-                  <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-line bg-surface/80 px-2.5 py-2">
-                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-secondary">
-                      <Palette size={11} className="text-accent" />
-                      主题
-                    </span>
-                    <div className="flex items-center gap-1.5" role="radiogroup" aria-label="切换配色主题">
-                      {THEMES.map((item) => {
-                        const active = item.id === theme;
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            role="radio"
-                            aria-checked={active}
-                            title={`${item.name} (${item.enName})`}
-                            aria-label={`切换为${item.name}主题`}
-                            onClick={() => {
-                              setTheme(item.id);
-                              showToast(`已切换为「${item.name}」主题`);
-                            }}
-                            className={`h-4 w-4 cursor-pointer rounded-full border transition-transform hover:scale-110 ${
-                              active
-                                ? "scale-110 ring-2 ring-accent ring-offset-1 ring-offset-surface"
-                                : "border-line-strong opacity-85 hover:opacity-100"
-                            }`}
-                            style={{
-                              background: `linear-gradient(135deg, ${item.swatches[1]} 0%, ${item.swatches[2]} 100%)`,
-                            }}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
                   <button
                     onClick={() => navigate("/settings")}
                     className="mt-2 flex cursor-pointer items-center gap-2.5 border-t border-line px-1.5 pt-3 text-left transition-opacity hover:opacity-80"
@@ -467,15 +423,6 @@ export function AppLayout() {
                     </NavLink>
                   );
                 })}
-                <button
-                  type="button"
-                  onClick={handleCycleTheme}
-                  title="切换配色主题"
-                  aria-label="切换配色主题"
-                  className="mt-auto grid h-9 w-10 cursor-pointer place-items-center rounded-xl text-ink-secondary transition-colors hover:bg-hover hover:text-accent"
-                >
-                  <Palette size={15} />
-                </button>
               </motion.nav>
             )}
           </AnimatePresence>

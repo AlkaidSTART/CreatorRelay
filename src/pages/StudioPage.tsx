@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -12,12 +12,10 @@ import {
   ChevronRight,
   Clock3,
   FilePlus2,
-  FileText,
   FolderOpen,
   History,
   Image,
   Info,
-  PanelLeft,
   Plus,
   Search,
   Send,
@@ -26,6 +24,10 @@ import {
   X,
 } from "../components/Icons";
 import { PlatformLogo } from "../components/PlatformLogo";
+import {
+  StudioNoDocumentState,
+  StudioWorkspaceOnboarding,
+} from "../components/StudioWorkspaceEmpty";
 import { useNavigate } from "react-router";
 import { PLATFORM_CATEGORIES } from "../data/demoData";
 import { useContentStore, useUiStore, useWorkspaceStore } from "../stores";
@@ -49,7 +51,11 @@ function extractFrontmatterBlock(markdown: string): { frontmatter: string; body:
 export function StudioPage() {
   const navigate = useNavigate();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [showFrontmatter, setShowFrontmatter] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const workspace = useWorkspaceStore((state) => state.workspace);
   const documents = useWorkspaceStore((state) => state.documents);
@@ -68,8 +74,6 @@ export function StudioPage() {
   const publishTasks = useContentStore((state) => state.publishTasks);
   const createPublishTaskFromDraft = useContentStore((state) => state.createPublishTaskFromDraft);
 
-  const docListOpen = useUiStore((state) => state.docListOpen);
-  const toggleDocList = useUiStore((state) => state.toggleDocList);
   const viewMode = useUiStore((state) => state.viewMode);
   const setViewMode = useUiStore((state) => state.setViewMode);
   const rightPanel = useUiStore((state) => state.rightPanel);
@@ -77,6 +81,33 @@ export function StudioPage() {
   const toggleRightPanel = useUiStore((state) => state.toggleRightPanel);
   const setIsCreating = useUiStore((state) => state.setIsCreating);
   const showToast = useUiStore((state) => state.showToast);
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(event.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen(true);
+        searchInputRef.current?.focus();
+      } else if (event.key === "Escape") {
+        setSearchOpen(false);
+        searchInputRef.current?.blur();
+      }
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  const clampedActiveIndex =
+    documents.length > 0 ? Math.min(activeIndex, documents.length - 1) : 0;
 
   const isMissingWorkspace = isTauri() && !workspace;
 
@@ -111,150 +142,265 @@ export function StudioPage() {
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-surface-soft">
-      {/* Left Collapsible Document List */}
-      {docListOpen && (
-        <aside className="flex h-full w-[260px] shrink-0 flex-col border-r border-line bg-canvas">
-          <div className="flex h-12 items-center justify-between border-b border-line px-4">
-            <div className="flex items-center gap-2">
-              <h2 className="text-xs font-semibold text-ink">本地主稿</h2>
-              <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent-deep">
-                {documents.length}
-              </span>
-            </div>
-            <button
-              className="grid h-7 w-7 cursor-pointer place-items-center rounded-md text-ink-secondary transition-colors hover:bg-hover hover:text-ink"
-              aria-label="新建文章"
-              title="新建文章"
-              onClick={() => setIsCreating(true)}
-            >
-              <FilePlus2 size={14} />
-            </button>
-          </div>
-
-          <div className="p-3 pb-2">
-            <div className="flex h-8 items-center gap-2 rounded-xl border border-line bg-surface px-2.5 text-ink-muted focus-within:border-accent">
-              <Search size={12} className="shrink-0" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索主稿..."
-                aria-label="搜索文章"
-                className="min-w-0 flex-1 bg-transparent text-xs text-ink placeholder:text-ink-muted focus:outline-none"
-              />
-              {query && (
-                <button
-                  onClick={() => setQuery("")}
-                  aria-label="清空搜索"
-                  className="cursor-pointer text-ink-muted hover:text-ink"
-                >
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="flex-1 space-y-1 overflow-y-auto px-2.5 py-1.5" role="list">
-            {documents.map((doc) => {
-              const isSelected = doc.id === selectedId;
-              return (
-                <button
-                  key={doc.id}
-                  role="listitem"
-                  onClick={() => void selectDocumentSafely(doc)}
-                  className={`relative block w-full cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-all ${
-                    isSelected
-                      ? "border-accent-border bg-surface shadow-[0_2px_8px_rgba(91,72,136,0.08)]"
-                      : "border-transparent bg-transparent hover:bg-hover/60"
-                  }`}
-                >
-                  {isSelected && (
-                    <span className="absolute top-2.5 bottom-2.5 left-0 w-[3px] rounded-r-full bg-accent" />
-                  )}
-                  <div className="flex items-center justify-between gap-2 text-[11px] text-ink-muted">
-                    <span>{formatRelativeTime(doc.updatedAt)}</span>
-                    <span>{doc.charCount || doc.wordCount} 字</span>
-                  </div>
-                  <strong
-                    className={`mt-1 line-clamp-2 block text-[13px] leading-snug ${
-                      isSelected ? "font-semibold text-ink" : "font-medium text-ink"
-                    }`}
-                  >
-                    {doc.title}
-                  </strong>
-                  <p className="mt-1 line-clamp-1 text-[11.5px] text-ink-muted">{doc.preview}</p>
-                  {doc.tags.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {doc.tags.slice(0, 2).map((tag) => (
-                        <span
-                          key={tag}
-                          className={`rounded-md px-1.5 py-0.5 text-[10px] ${
-                            isSelected
-                              ? "bg-accent-soft text-accent-deep"
-                              : "bg-subtle text-ink-secondary"
-                          }`}
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-            {!documents.length && (
-              <div className="py-10 text-center text-xs text-ink-muted">没有找到匹配的主稿</div>
-            )}
-          </div>
-
-          {/* Bottom Local Workspace Info */}
-          <div className="border-t border-line p-3">
-            <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-2.5 py-2">
-              <div className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-mint-bg text-mint-text">
-                <FolderOpen size={12} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-mint-text" />
-                  <span className="text-[11px] font-medium text-ink">本地工作区</span>
-                </div>
-                <p className="truncate text-[10px] text-ink-muted">
-                  {workspace?.path ?? "尚未设置路径"}
-                </p>
-              </div>
-              <button
-                className="grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded text-ink-muted hover:bg-sidebar hover:text-ink"
-                onClick={() => void chooseWorkspace()}
-                aria-label="更换工作区"
-                title="更换工作区"
-              >
-                <ArrowUpRight size={12} />
-              </button>
-            </div>
-          </div>
-        </aside>
-      )}
-
       {/* Center Distraction-Free Writing Area */}
       <main className="flex min-w-0 flex-1 flex-col bg-surface-soft">
         {/* Single Unified Header Toolbar */}
         <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-line bg-surface-soft px-4">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <button
-              onClick={toggleDocList}
-              aria-label={docListOpen ? "隐藏文章列表" : "显示文章列表"}
-              title={docListOpen ? "隐藏文章列表" : "显示文章列表"}
-              className={`grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-lg transition-colors ${
-                docListOpen
-                  ? "bg-sidebar text-ink"
-                  : "text-ink-muted hover:bg-sidebar hover:text-ink"
-              }`}
-            >
-              <PanelLeft size={14} />
-            </button>
+          <div className="flex min-w-0 items-center gap-3">
+            {/* Consolidated Local Drafts Search Box & Popover */}
+            <div ref={searchBoxRef} className="relative shrink-0">
+              <div
+                onClick={() => {
+                  setSearchOpen(true);
+                  if (!isMissingWorkspace) {
+                    searchInputRef.current?.focus();
+                  }
+                }}
+                className={`flex h-8 w-[200px] items-center gap-2 rounded-xl border bg-surface px-2.5 text-ink-muted transition-colors sm:w-[232px] ${
+                  searchOpen
+                    ? "border-accent shadow-[0_2px_8px_rgba(91,72,136,0.08)]"
+                    : "border-line hover:border-line-strong"
+                } ${isMissingWorkspace ? "cursor-pointer opacity-75" : ""}`}
+              >
+                <Search size={12} className="shrink-0" />
+                <input
+                  ref={searchInputRef}
+                  value={query}
+                  onFocus={() => setSearchOpen(true)}
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setActiveIndex(0);
+                    setSearchOpen(true);
+                  }}
+                  onKeyDown={(event) => {
+                    if (!searchOpen || documents.length === 0) return;
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      setActiveIndex((prev) => (prev + 1) % documents.length);
+                    } else if (event.key === "ArrowUp") {
+                      event.preventDefault();
+                      setActiveIndex((prev) => (prev - 1 + documents.length) % documents.length);
+                    } else if (event.key === "Enter") {
+                      event.preventDefault();
+                      const target = documents[clampedActiveIndex];
+                      if (target) {
+                        void selectDocumentSafely(target);
+                        setSearchOpen(false);
+                        searchInputRef.current?.blur();
+                      }
+                    }
+                  }}
+                  disabled={isMissingWorkspace}
+                  placeholder={isMissingWorkspace ? "连接工作区后可搜索..." : "搜索主稿..."}
+                  aria-label="搜索文章"
+                  aria-expanded={searchOpen}
+                  className="min-w-0 flex-1 bg-transparent text-xs text-ink placeholder:text-ink-muted focus:outline-none disabled:cursor-pointer"
+                />
+                {query ? (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setQuery("");
+                      setActiveIndex(0);
+                      searchInputRef.current?.focus();
+                    }}
+                    aria-label="清空搜索"
+                    className="cursor-pointer text-ink-muted hover:text-ink"
+                  >
+                    <X size={12} />
+                  </button>
+                ) : (
+                  <span className="shrink-0 rounded-md bg-sidebar px-1.5 py-0.5 font-mono text-[10px] text-ink-muted">
+                    ⌘K
+                  </span>
+                )}
+              </div>
+
+              {searchOpen && (
+                <div className="absolute top-full left-0 z-30 mt-1.5 flex max-h-[min(70vh,520px)] w-[320px] flex-col overflow-hidden rounded-2xl border border-line bg-canvas shadow-[0_12px_32px_rgba(74,58,48,0.14)]">
+                  <div className="flex h-10 shrink-0 items-center justify-between border-b border-line px-3.5">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xs font-semibold text-ink">本地主稿</h2>
+                      <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent-deep">
+                        {documents.length}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className={`grid h-7 w-7 place-items-center rounded-md transition-colors ${
+                        isMissingWorkspace
+                          ? "cursor-not-allowed text-ink-faint"
+                          : "cursor-pointer text-ink-secondary hover:bg-hover hover:text-ink"
+                      }`}
+                      aria-label="新建文章"
+                      title={isMissingWorkspace ? "请先选择本地工作区" : "新建文章"}
+                      disabled={isMissingWorkspace}
+                      onClick={() => {
+                        setSearchOpen(false);
+                        setIsCreating(true);
+                      }}
+                    >
+                      <FilePlus2 size={14} />
+                    </button>
+                  </div>
+
+                  <div className="flex-1 space-y-1 overflow-y-auto px-2.5 py-2" role="list">
+                    {documents.map((doc, index) => {
+                      const isSelected = doc.id === selectedId;
+                      const isActive = index === clampedActiveIndex;
+                      return (
+                        <button
+                          key={doc.id}
+                          type="button"
+                          role="listitem"
+                          onMouseEnter={() => setActiveIndex(index)}
+                          onClick={() => {
+                            void selectDocumentSafely(doc);
+                            setSearchOpen(false);
+                          }}
+                          className={`relative block w-full cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-all ${
+                            isSelected
+                              ? "border-accent-border bg-surface shadow-[0_2px_8px_rgba(91,72,136,0.08)]"
+                              : isActive
+                                ? "border-transparent bg-hover/70"
+                                : "border-transparent bg-transparent hover:bg-hover/60"
+                          }`}
+                        >
+                          {isSelected && (
+                            <span className="absolute top-2.5 bottom-2.5 left-0 w-[3px] rounded-r-full bg-accent" />
+                          )}
+                          <div className="flex items-center justify-between gap-2 text-[11px] text-ink-muted">
+                            <span>{formatRelativeTime(doc.updatedAt)}</span>
+                            <span>{doc.charCount || doc.wordCount} 字</span>
+                          </div>
+                          <strong
+                            className={`mt-1 line-clamp-2 block text-[13px] leading-snug ${
+                              isSelected ? "font-semibold text-ink" : "font-medium text-ink"
+                            }`}
+                          >
+                            {doc.title}
+                          </strong>
+                          <p className="mt-1 line-clamp-1 text-[11.5px] text-ink-muted">
+                            {doc.preview}
+                          </p>
+                          {doc.tags.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {doc.tags.slice(0, 2).map((tag) => (
+                                <span
+                                  key={tag}
+                                  className={`rounded-md px-1.5 py-0.5 text-[10px] ${
+                                    isSelected
+                                      ? "bg-accent-soft text-accent-deep"
+                                      : "bg-subtle text-ink-secondary"
+                                  }`}
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                    {!documents.length && (
+                      <div className="mx-1 my-3 rounded-2xl border border-dashed border-line-strong/75 bg-surface-soft/75 px-4 py-6 text-center">
+                        {isMissingWorkspace ? (
+                          <>
+                            <div className="mx-auto grid h-8 w-8 place-items-center rounded-xl bg-accent-soft text-accent-deep">
+                              <FolderOpen size={13} />
+                            </div>
+                            <p className="mt-2.5 text-xs font-medium text-ink">尚未连接工作区</p>
+                            <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">
+                              选择本地文件夹后，主稿会自动显示在这里
+                            </p>
+                          </>
+                        ) : query.trim() ? (
+                          <>
+                            <p className="text-xs font-medium text-ink">没有找到匹配的主稿</p>
+                            <button
+                              type="button"
+                              onClick={() => setQuery("")}
+                              className="mt-2.5 inline-flex cursor-pointer items-center gap-1 rounded-lg bg-accent-soft px-2.5 py-1 text-[11px] font-medium text-accent-deep transition-colors hover:bg-accent-border"
+                            >
+                              清空搜索
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xs font-medium text-ink">工作区还是空的</p>
+                            <p className="mt-1 text-[11px] text-ink-muted">
+                              写下你的第一篇 Markdown 主稿
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSearchOpen(false);
+                                setIsCreating(true);
+                              }}
+                              className="mt-3 inline-flex cursor-pointer items-center gap-1 rounded-lg bg-accent-soft px-2.5 py-1 text-[11px] font-medium text-accent-deep transition-colors hover:bg-accent-border"
+                            >
+                              <Plus size={11} />
+                              新建文章
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bottom Local Workspace Info */}
+                  <div className="shrink-0 border-t border-line p-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchOpen(false);
+                        void chooseWorkspace();
+                      }}
+                      aria-label={workspace ? "更换工作区" : "选择本地工作区"}
+                      title={workspace ? "更换工作区" : "选择本地工作区"}
+                      className="group flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-line bg-surface px-2.5 py-2 text-left transition-colors hover:border-line-strong hover:bg-surface-soft"
+                    >
+                      <div
+                        className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg ${
+                          workspace
+                            ? "bg-mint-bg text-mint-text"
+                            : "bg-accent-soft text-accent-deep"
+                        }`}
+                      >
+                        <FolderOpen size={12} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              workspace ? "bg-mint-text" : "bg-ink-faint"
+                            }`}
+                          />
+                          <span className="text-[11px] font-medium text-ink">
+                            {workspace ? workspace.name || "本地工作区" : "本地工作区"}
+                          </span>
+                        </div>
+                        <p className="truncate text-[10px] text-ink-muted">
+                          {workspace?.path ?? "点击选择本地文件夹"}
+                        </p>
+                      </div>
+                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded text-ink-muted transition-colors group-hover:bg-sidebar group-hover:text-ink">
+                        <ArrowUpRight size={12} />
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="flex min-w-0 items-center gap-2">
-              <h1 className="truncate text-[13px] font-medium text-ink">
-                {selected?.title ?? "未选择文章"}
+              <h1
+                className={`truncate text-[13px] font-medium ${
+                  isMissingWorkspace ? "text-ink-muted" : "text-ink"
+                }`}
+              >
+                {isMissingWorkspace ? "等待连接本地工作区" : (selected?.title ?? "未选择文章")}
               </h1>
               {selected && (
                 <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-sidebar px-2 py-0.5 text-[11px] text-ink-secondary">
@@ -265,77 +411,81 @@ export function StudioPage() {
             </div>
           </div>
 
-          {/* Segmented Write / Preview Switch */}
-          <div className="flex shrink-0 items-center rounded-xl bg-sidebar p-0.5">
-            <button
-              onClick={() => setViewMode("write")}
-              className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-all ${
-                viewMode === "write"
-                  ? "bg-surface text-ink shadow-[0_1px_3px_rgba(74,58,48,0.08)]"
-                  : "text-ink-secondary hover:text-ink"
-              }`}
-            >
-              <AlignLeft size={12} />
-              编辑
-            </button>
-            <button
-              onClick={() => setViewMode("preview")}
-              className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-all ${
-                viewMode === "preview"
-                  ? "bg-surface text-ink shadow-[0_1px_3px_rgba(74,58,48,0.08)]"
-                  : "text-ink-secondary hover:text-ink"
-              }`}
-            >
-              <BookOpen size={12} />
-              预览
-            </button>
-          </div>
+          {!isMissingWorkspace && (
+            <>
+              {/* Segmented Write / Preview Switch */}
+              <div className="flex shrink-0 items-center rounded-xl bg-sidebar p-0.5">
+                <button
+                  onClick={() => setViewMode("write")}
+                  className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-all ${
+                    viewMode === "write"
+                      ? "bg-surface text-ink shadow-[0_1px_3px_rgba(74,58,48,0.08)]"
+                      : "text-ink-secondary hover:text-ink"
+                  }`}
+                >
+                  <AlignLeft size={12} />
+                  编辑
+                </button>
+                <button
+                  onClick={() => setViewMode("preview")}
+                  className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-all ${
+                    viewMode === "preview"
+                      ? "bg-surface text-ink shadow-[0_1px_3px_rgba(74,58,48,0.08)]"
+                      : "text-ink-secondary hover:text-ink"
+                  }`}
+                >
+                  <BookOpen size={12} />
+                  预览
+                </button>
+              </div>
 
-          {/* Right Toolbar Actions */}
-          <div className="flex shrink-0 items-center gap-1">
-            <button
-              onClick={() => toggleRightPanel("info")}
-              aria-label="文章信息"
-              title="文章信息"
-              className={`inline-flex h-7 cursor-pointer items-center gap-1 rounded-lg px-2 text-xs transition-colors ${
-                rightPanel === "info"
-                  ? "bg-accent-soft font-medium text-accent-deep"
-                  : "text-ink-secondary hover:bg-sidebar hover:text-ink"
-              }`}
-            >
-              <Info size={13} />
-              <span className="hidden xl:inline">信息</span>
-            </button>
-            <button
-              onClick={() => toggleRightPanel("history")}
-              aria-label="版本历史"
-              title="版本历史"
-              className={`inline-flex h-7 cursor-pointer items-center gap-1 rounded-lg px-2 text-xs transition-colors ${
-                rightPanel === "history"
-                  ? "bg-accent-soft font-medium text-accent-deep"
-                  : "text-ink-secondary hover:bg-sidebar hover:text-ink"
-              }`}
-            >
-              <History size={13} />
-              <span className="hidden xl:inline">历史</span>
-            </button>
-            <button
-              onClick={() => showToast("已准备 Markdown 导出文件")}
-              aria-label="导出"
-              title="导出 Markdown"
-              className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-ink-secondary transition-colors hover:bg-sidebar hover:text-ink"
-            >
-              <ArrowDownToLine size={13} />
-            </button>
-            <div className="mx-1 h-4 w-px bg-line" />
-            <button
-              onClick={() => navigate("/publishing")}
-              className="inline-flex h-7.5 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.22)] transition-colors hover:bg-accent-hover"
-            >
-              发布准备
-              <ArrowRight size={12} />
-            </button>
-          </div>
+              {/* Right Toolbar Actions */}
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  onClick={() => toggleRightPanel("info")}
+                  aria-label="文章信息"
+                  title="文章信息"
+                  className={`inline-flex h-7 cursor-pointer items-center gap-1 rounded-lg px-2 text-xs transition-colors ${
+                    rightPanel === "info"
+                      ? "bg-accent-soft font-medium text-accent-deep"
+                      : "text-ink-secondary hover:bg-sidebar hover:text-ink"
+                  }`}
+                >
+                  <Info size={13} />
+                  <span className="hidden xl:inline">信息</span>
+                </button>
+                <button
+                  onClick={() => toggleRightPanel("history")}
+                  aria-label="版本历史"
+                  title="版本历史"
+                  className={`inline-flex h-7 cursor-pointer items-center gap-1 rounded-lg px-2 text-xs transition-colors ${
+                    rightPanel === "history"
+                      ? "bg-accent-soft font-medium text-accent-deep"
+                      : "text-ink-secondary hover:bg-sidebar hover:text-ink"
+                  }`}
+                >
+                  <History size={13} />
+                  <span className="hidden xl:inline">历史</span>
+                </button>
+                <button
+                  onClick={() => showToast("已准备 Markdown 导出文件")}
+                  aria-label="导出"
+                  title="导出 Markdown"
+                  className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-ink-secondary transition-colors hover:bg-sidebar hover:text-ink"
+                >
+                  <ArrowDownToLine size={13} />
+                </button>
+                <div className="mx-1 h-4 w-px bg-line" />
+                <button
+                  onClick={() => navigate("/publishing")}
+                  className="inline-flex h-7.5 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.22)] transition-colors hover:bg-accent-hover"
+                >
+                  发布准备
+                  <ArrowRight size={12} />
+                </button>
+              </div>
+            </>
+          )}
         </header>
 
         {/* Subtle Multi-Platform Relay Strip */}
@@ -404,30 +554,13 @@ export function StudioPage() {
         )}
 
         {/* Writing Canvas */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-8 py-9 sm:px-14">
-          {isTauri() && !workspace ? (
-            <div className="mx-auto mt-20 max-w-md">
-              <div className="mb-5 grid h-11 w-11 place-items-center rounded-xl border border-accent-border bg-accent-soft text-accent-deep">
-                <FolderOpen size={20} />
-              </div>
-              <span className="text-[11px] font-semibold tracking-widest text-ink-muted uppercase">
-                LOCAL WORKSPACE
-              </span>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">
-                先选择你的本地写作文件夹
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-ink-secondary">
-                主稿以纯 Markdown
-                文件保存在你的硬盘中，支持自由接力分发到各大创作平台，正文永远属于你。
-              </p>
-              <button
-                onClick={() => void chooseWorkspace()}
-                className="mt-6 inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl bg-accent px-4 text-xs font-medium text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.24)] transition-colors hover:bg-accent-hover"
-              >
-                <FolderOpen size={14} />
-                选择工作区
-              </button>
-            </div>
+        <div
+          className={`min-h-0 flex-1 overflow-y-auto ${
+            isMissingWorkspace || !selected ? "" : "px-8 py-9 sm:px-14"
+          }`}
+        >
+          {isMissingWorkspace ? (
+            <StudioWorkspaceOnboarding onChooseWorkspace={() => void chooseWorkspace()} />
           ) : selected ? (
             <div className="mx-auto flex min-h-full w-full max-w-[740px] flex-col">
               {/* Clean Document Meta Strip */}
@@ -482,35 +615,39 @@ export function StudioPage() {
               )}
             </div>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-3 text-ink-muted">
-              <FileText size={32} strokeWidth={1.5} />
-              <strong className="text-sm font-medium text-ink">选择一篇主稿开始写作</strong>
-              <span className="text-xs">或者创建一篇新的 Markdown 主稿</span>
-              <button
-                onClick={() => setIsCreating(true)}
-                className="mt-2 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3.5 text-xs font-medium text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.22)] hover:bg-accent-hover"
-              >
-                <Plus size={13} />
-                新建文章
-              </button>
-            </div>
+            <StudioNoDocumentState onCreateDocument={() => setIsCreating(true)} />
           )}
         </div>
 
         {/* Minimal Footer Status Bar */}
         <footer className="flex h-8 shrink-0 items-center justify-between border-t border-line bg-surface-soft px-5 text-[11px] text-ink-muted">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1">
-              <AlignLeft size={11} />
-              Markdown
-            </span>
-            <span>{chars.toLocaleString()} 字</span>
-            <span>预计阅读 {readingMinutes} 分钟</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-[10.5px]">⌘S 自动保存</span>
-            <span>UTF-8</span>
-          </div>
+          {isMissingWorkspace ? (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-ink-faint" />
+                <span>尚未连接本地工作区</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span>Markdown</span>
+                <span>UTF-8</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center gap-1">
+                  <AlignLeft size={11} />
+                  Markdown
+                </span>
+                <span>{chars.toLocaleString()} 字</span>
+                <span>预计阅读 {readingMinutes} 分钟</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-[10.5px]">⌘S 自动保存</span>
+                <span>UTF-8</span>
+              </div>
+            </>
+          )}
         </footer>
       </main>
 
