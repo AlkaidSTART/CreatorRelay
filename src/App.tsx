@@ -4,6 +4,7 @@ import { ModulePlaceholder } from "./components/ModulePlaceholder";
 import { PlatformsPage } from "./pages/PlatformsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { StudioPage } from "./pages/StudioPage";
+import { ContentStudioPage } from "./pages/ContentStudioPage";
 
 function App() {
   return (
@@ -12,7 +13,8 @@ function App() {
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<ModulePlaceholder routeId="dashboard" />} />
-          <Route path="/studio" element={<StudioPage />} />
+          <Route path="/studio" element={<ContentStudioPage />} />
+          <Route path="/studio/classic" element={<StudioPage />} />
           <Route path="/publishing" element={<ModulePlaceholder routeId="publishing" />} />
           <Route path="/content" element={<ModulePlaceholder routeId="content" />} />
           <Route path="/analytics" element={<ModulePlaceholder routeId="analytics" />} />

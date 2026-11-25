@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   Check,
   FolderOpen,
-  KeyRound,
   Palette,
   Plug,
   RefreshCw,
@@ -13,20 +12,10 @@ import {
   Terminal,
 } from "../components/Icons";
 import { PageHeader } from "../components/PageHeader";
+import { AiProviderSettings } from "../components/AiProviderSettings";
 import { useUiStore, useWorkspaceStore } from "../stores";
 import { THEMES } from "../utils/themes";
 
-const aiProviders = [
-  { name: "OpenAI", endpoint: "https://api.openai.com/v1", status: "未配置" },
-  { name: "Anthropic", endpoint: "https://api.anthropic.com", status: "未配置" },
-  {
-    name: "Google Gemini",
-    endpoint: "https://generativelanguage.googleapis.com",
-    status: "未配置",
-  },
-  { name: "DeepSeek", endpoint: "https://api.deepseek.com", status: "未配置" },
-  { name: "OpenAI Compatible", endpoint: "自定义端点 / 本地模型", status: "可扩展" },
-];
 
 type RuntimeDiagnostics = {
   appVersion: string;
@@ -243,52 +232,7 @@ export function SettingsPage() {
             </div>
           </article>
 
-          {/* AI Providers */}
-          <article className="rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent-deep">
-                  <KeyRound size={15} />
-                </div>
-                <div>
-                  <h2 className="text-sm font-semibold text-ink">自带 AI 模型（BYOK）</h2>
-                  <small className="text-xs text-ink-muted">
-                    M5 规划能力；将使用系统钥匙串保存 API Key，当前未开放配置
-                  </small>
-                </div>
-              </div>
-              <button
-                disabled
-                className="h-8 shrink-0 cursor-not-allowed rounded-xl border border-line bg-sidebar px-3 text-xs font-medium text-ink-muted"
-              >
-                尚未开放
-              </button>
-            </div>
-            <div className="space-y-2">
-              {aiProviders.map((provider) => (
-                <div
-                  key={provider.name}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-line bg-canvas px-3.5 py-2.5"
-                >
-                  <div className="min-w-0 flex-1">
-                    <strong className="block text-xs font-medium text-ink">{provider.name}</strong>
-                    <small className="block truncate text-[11px] text-ink-muted">
-                      {provider.endpoint}
-                    </small>
-                  </div>
-                  <span className="rounded-md border border-line bg-surface px-2 py-0.5 text-[11px] text-ink-muted">
-                    {provider.status}
-                  </span>
-                  <button
-                    disabled
-                    className="h-7 cursor-not-allowed rounded-lg border border-line bg-sidebar px-2.5 text-xs font-medium text-ink-muted"
-                  >
-                    规划中
-                  </button>
-                </div>
-              ))}
-            </div>
-          </article>
+          <AiProviderSettings />
 
           {/* MCP & Security */}
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2">

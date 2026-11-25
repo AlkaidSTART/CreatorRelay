@@ -682,9 +682,27 @@ mod tests {
         let address = listener.local_addr().unwrap();
         let handle = std::thread::spawn(move || {
             let (mut stream, _) = listener.accept().unwrap();
+            let mut collected = Vec::new();
             let mut buffer = [0_u8; 8192];
-            let count = stream.read(&mut buffer).unwrap();
-            let request = String::from_utf8_lossy(&buffer[..count]).to_string();
+            loop {
+                let count = stream.read(&mut buffer).unwrap();
+                if count == 0 {
+                    break;
+                }
+                collected.extend_from_slice(&buffer[..count]);
+                if let Some(header_end) = collected.windows(4).position(|window| window == b"\r\n\r\n") {
+                    let headers = String::from_utf8_lossy(&collected[..header_end + 4]).to_ascii_lowercase();
+                    let content_length = headers
+                        .lines()
+                        .find_map(|line| line.strip_prefix("content-length:"))
+                        .and_then(|value| value.trim().parse::<usize>().ok())
+                        .unwrap_or(0);
+                    if collected.len() >= header_end + 4 + content_length {
+                        break;
+                    }
+                }
+            }
+            let request = String::from_utf8_lossy(&collected).to_string();
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                 body.len(),
@@ -744,6 +762,41 @@ mod tests {
     }
 
     #[test]
+    fn provider_key_is_absent_from_persisted_sqlite_bytes() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("creatorrelay.sqlite3");
+        let mut conn = Connection::open(&path).unwrap();
+        database::migrate(&mut conn).unwrap();
+        let vault = MemoryVault::default();
+        let secret = "sk-persisted-file-secret-3948";
+        save_provider_with_vault(
+            &conn,
+            &AiProviderInput {
+                id: None,
+                name: "文件检查".to_string(),
+                base_url: "https://api.example.com/v1".to_string(),
+                model: "fixture-model".to_string(),
+                api_style: Some(API_STYLE_OPENAI_COMPATIBLE.to_string()),
+                api_key: Some(secret.to_string()),
+                is_default: Some(true),
+            },
+            &vault,
+        )
+        .unwrap();
+        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);").unwrap();
+        drop(conn);
+        let bytes = fs::read(&path).unwrap();
+        assert!(!String::from_utf8_lossy(&bytes).contains(secret));
+        for suffix in ["-wal", "-shm"] {
+            let sidecar = Path::new(&format!("{}{suffix}", path.to_string_lossy())).to_path_buf();
+            if sidecar.exists() {
+                let bytes = fs::read(sidecar).unwrap();
+                assert!(!String::from_utf8_lossy(&bytes).contains(secret));
+            }
+        }
+    }
+
+    #[test]
     fn test_connection_distinguishes_auth_failure_and_updates_status() {
         let conn = db();
         let vault = MemoryVault::default();
@@ -766,6 +819,7 @@ mod tests {
         let result = test_provider_with_vault(&conn, &provider.id, &vault).unwrap();
         assert!(!result.ok);
         assert!(result.message.contains("认证"));
+        assert!(!result.message.contains("bad-key"));
         let refreshed = provider_record(&conn, &provider.id).unwrap();
         assert_eq!(refreshed.last_test_status.as_deref(), Some("failed"));
         server.join().unwrap();

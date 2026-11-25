@@ -658,8 +658,12 @@ pub fn read_content_asset(
     })
 }
 
-fn copy_asset(package_dir: &Path, asset: &ContentAsset) -> Result<ContentAsset, String> {
-    let source = validate_asset_path(package_dir, &asset.file)?;
+fn copy_asset(
+    source_package_dir: &Path,
+    target_package_dir: &Path,
+    asset: &ContentAsset,
+) -> Result<ContentAsset, String> {
+    let source = validate_asset_path(source_package_dir, &asset.file)?;
     let id = Uuid::new_v4().to_string();
     let extension = Path::new(&asset.file)
         .extension()
@@ -667,7 +671,7 @@ fn copy_asset(package_dir: &Path, asset: &ContentAsset) -> Result<ContentAsset, 
         .unwrap_or("bin");
     let relative = format!("assets/{id}.{extension}");
     let bytes = fs::read(source).map_err(|e| e.to_string())?;
-    atomic_write(&package_dir.join(&relative), &bytes)?;
+    atomic_write(&target_package_dir.join(&relative), &bytes)?;
     let mut copy = asset.clone();
     copy.id = id;
     copy.file = relative;
@@ -695,13 +699,13 @@ pub fn derive_content_package(
         .manifest
         .cover
         .as_ref()
-        .map(|asset| copy_asset(&source_dir, asset))
+        .map(|asset| copy_asset(&source_dir, &package_dir, asset))
         .transpose()?;
     let media = source
         .manifest
         .media
         .iter()
-        .map(|asset| copy_asset(&source_dir, asset))
+        .map(|asset| copy_asset(&source_dir, &package_dir, asset))
         .collect::<Result<Vec<_>, _>>()?;
     let now = Utc::now().to_rfc3339();
     let body = if target_kind.requires_markdown() {
@@ -847,13 +851,13 @@ pub fn create_platform_drafts(
             .manifest
             .cover
             .as_ref()
-            .map(|asset| copy_asset(&source_dir, asset))
+            .map(|asset| copy_asset(&source_dir, &directory, asset))
             .transpose()?;
         let mut media = content
             .manifest
             .media
             .iter()
-            .map(|asset| copy_asset(&source_dir, asset))
+            .map(|asset| copy_asset(&source_dir, &directory, asset))
             .collect::<Result<Vec<_>, _>>()?;
         validate_media_order(&mut media)?;
         let now = Utc::now().to_rfc3339();
@@ -990,13 +994,13 @@ pub fn regenerate_platform_draft(
         .manifest
         .cover
         .as_ref()
-        .map(|asset| copy_asset(&source_dir, asset))
+        .map(|asset| copy_asset(&source_dir, &directory, asset))
         .transpose()?;
     let mut media = content
         .manifest
         .media
         .iter()
-        .map(|asset| copy_asset(&source_dir, asset))
+        .map(|asset| copy_asset(&source_dir, &directory, asset))
         .collect::<Result<Vec<_>, _>>()?;
     validate_media_order(&mut media)?;
     let mut draft = PlatformDraft {
@@ -1358,6 +1362,163 @@ mod tests {
         assert!(!regenerated.source_changed);
         assert!(!regenerated.manually_edited);
         assert!(regenerated.body.contains("第二版"));
+    }
+
+    #[test]
+    fn video_drafts_copy_video_and_cover_metadata() {
+        let temp = workspace();
+        let package =
+            create_content_package(temp.path(), ContentKind::Video, "视频主稿").unwrap();
+        let video = import_content_asset(
+            temp.path(),
+            &package.manifest.id,
+            "media",
+            "clip.mp4",
+            "video/mp4",
+            video_bytes(),
+        )
+        .unwrap();
+        let cover = import_content_asset(
+            temp.path(),
+            &package.manifest.id,
+            "cover",
+            "cover.png",
+            "image/png",
+            image_bytes(),
+        )
+        .unwrap();
+        let saved = save_content_package(
+            temp.path(),
+            &package.manifest.id,
+            ContentSaveInput {
+                title: "视频主稿".to_string(),
+                summary: "简介".to_string(),
+                tags: vec![],
+                cover: Some(cover),
+                media: vec![video],
+                body: String::new(),
+                base_hash: Some(package.content_hash),
+            },
+        )
+        .unwrap();
+        let drafts = create_platform_drafts(
+            temp.path(),
+            &saved.manifest.id,
+            &[DraftTarget {
+                platform_id: "bilibili".to_string(),
+                platform_name: "Bilibili".to_string(),
+                account_id: "bili-1".to_string(),
+                account_alias: "视频号".to_string(),
+                adapter_id: None,
+            }],
+        )
+        .unwrap();
+        let draft = &drafts[0];
+        assert_eq!(draft.media.len(), 1);
+        assert_eq!(draft.media[0].kind, AssetKind::Video);
+        assert_eq!(draft.media[0].mime_type, "video/mp4");
+        assert_eq!(draft.media[0].byte_size, video_bytes().len() as u64);
+        assert_eq!(draft.cover.as_ref().unwrap().mime_type, "image/png");
+        assert!(!draft.body.is_empty());
+        assert!(temp
+            .path()
+            .join("platform-drafts")
+            .join(&draft.id)
+            .join(&draft.media[0].file)
+            .is_file());
+    }
+
+    #[test]
+    fn image_text_drafts_keep_media_order_and_cover_independently() {
+        let temp = workspace();
+        let package =
+            create_content_package(temp.path(), ContentKind::ImageText, "图集主稿").unwrap();
+        let mut media = Vec::new();
+        for index in 0..3 {
+            media.push(
+                import_content_asset(
+                    temp.path(),
+                    &package.manifest.id,
+                    "media",
+                    &format!("image-{index}.png"),
+                    "image/png",
+                    image_bytes(),
+                )
+                .unwrap(),
+            );
+        }
+        let cover = media[1].clone();
+        let saved = save_content_package(
+            temp.path(),
+            &package.manifest.id,
+            ContentSaveInput {
+                title: "图集主稿".to_string(),
+                summary: "短文案".to_string(),
+                tags: vec![],
+                cover: Some(cover.clone()),
+                media,
+                body: String::new(),
+                base_hash: Some(package.content_hash),
+            },
+        )
+        .unwrap();
+        let drafts = create_platform_drafts(
+            temp.path(),
+            &saved.manifest.id,
+            &[
+                DraftTarget {
+                    platform_id: "douyin".to_string(),
+                    platform_name: "抖音".to_string(),
+                    account_id: "douyin-1".to_string(),
+                    account_alias: "视频号".to_string(),
+                    adapter_id: None,
+                },
+                DraftTarget {
+                    platform_id: "xiaohongshu".to_string(),
+                    platform_name: "小红书".to_string(),
+                    account_id: "xhs-1".to_string(),
+                    account_alias: "图集号".to_string(),
+                    adapter_id: None,
+                },
+            ],
+        )
+        .unwrap();
+        for draft in &drafts {
+            assert_eq!(
+                draft.media.iter().map(|asset| asset.order).collect::<Vec<_>>(),
+                vec![1, 2, 3]
+            );
+            assert_eq!(draft.cover.as_ref().unwrap().order, cover.order);
+            assert_eq!(draft.media.len(), 3);
+        }
+        let edited = save_platform_draft(
+            temp.path(),
+            &drafts[0].id,
+            DraftSaveInput {
+                title: "抖音独立标题".to_string(),
+                summary: drafts[0].summary.clone(),
+                tags: drafts[0].tags.clone(),
+                cover: drafts[0].cover.clone(),
+                media: drafts[0].media.clone(),
+                body: "抖音独立正文".to_string(),
+                base_hash: drafts[0].hash.clone(),
+            },
+        )
+        .unwrap();
+        assert_eq!(edited.media.len(), 3);
+        assert_eq!(
+            read_platform_draft(temp.path(), &drafts[1].id)
+                .unwrap()
+                .title,
+            "图集主稿"
+        );
+        assert_eq!(
+            read_content_package(temp.path(), &saved.manifest.id)
+                .unwrap()
+                .manifest
+                .title,
+            "图集主稿"
+        );
     }
 
     #[test]

@@ -30,6 +30,7 @@ export interface ContentEditorState {
   createdAt: string;
   updatedAt: string;
   path: string;
+  source?: { contentId: string; version: string } | null;
 }
 
 export interface DraftEditorState {
@@ -76,6 +77,7 @@ export interface StudioStore {
   setFilter: (filter: "ALL" | ContentKind) => void;
   setQuery: (query: string) => void;
   createPackage: (kind: ContentKind, title: string) => Promise<ContentPackage | null>;
+  derivePackage: (targetKind: ContentKind, title?: string) => Promise<ContentPackage | null>;
   selectPackage: (id: string) => Promise<boolean>;
   updateEditor: (patch: Partial<ContentEditorState>) => void;
   addAsset: (asset: ContentAsset, role: "media" | "cover") => void;
@@ -113,6 +115,7 @@ function packageToEditor(packageData: ContentPackage): ContentEditorState {
     createdAt: packageData.createdAt,
     updatedAt: packageData.updatedAt,
     path: packageData.path,
+    source: packageData.source ?? null,
   };
 }
 
@@ -217,6 +220,15 @@ function draftToEditor(draft: PlatformDraft): DraftEditorState {
   };
 }
 
+function withLocalSourceState(draft: PlatformDraft, current: ContentPackage | null): PlatformDraft {
+  return {
+    ...draft,
+    sourceChanged:
+      Boolean(current && current.id === draft.contentId) &&
+      current?.contentVersion !== draft.sourceVersion,
+  };
+}
+
 const createStudioStoreState: StateCreator<StudioStore> = (set, get) => {
   let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
   let saveInFlight = false;
@@ -316,6 +328,44 @@ const createStudioStoreState: StateCreator<StudioStore> = (set, get) => {
         return packageData;
       } catch (cause) {
         ui.setError(cause instanceof Error ? cause.message : String(cause));
+        return null;
+      }
+    },
+
+    derivePackage: async (targetKind, title) => {
+      const current = get().current;
+      if (!current) return null;
+      try {
+        if (get().saveState === "unsaved") {
+          const saved = await get().save({ silent: true });
+          if (!saved) return null;
+        }
+        let derived: ContentPackage;
+        if (isTauri()) {
+          derived = await invoke<ContentPackage>("derive_content_package", {
+            sourceId: current.id,
+            targetKind,
+            title: title ?? null,
+          });
+        } else {
+          const base = createDemoPackage(targetKind, title ?? `${current.title}（派生稿）`);
+          derived = {
+            ...base,
+            summary: current.summary,
+            tags: current.tags,
+            cover: current.cover,
+            media: current.media.map((asset) => ({ ...asset })),
+            source: { contentId: current.id, version: current.contentVersion },
+          };
+          const all = readLocal<ContentPackage>(STORAGE_PACKAGES);
+          writeLocal(STORAGE_PACKAGES, [derived, ...all]);
+        }
+        await get().loadPackages();
+        await get().selectPackage(derived.id);
+        useUiStore.getState().showToast("已创建可追溯的派生内容包");
+        return derived;
+      } catch (cause) {
+        useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));
         return null;
       }
     },
@@ -529,11 +579,10 @@ const createStudioStoreState: StateCreator<StudioStore> = (set, get) => {
         set({
           current: saved,
           editor: stillSame ? nextEditor : get().editor,
-          packages: get()
-            .packages.map((item) =>
-              item.id === saved.id ? summaryFromEditor(packageToEditor(saved)) : item,
-            )
-            .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+          packages: [
+            summaryFromEditor(packageToEditor(saved)),
+            ...get().packages.filter((item) => item.id !== saved.id),
+          ],
           saveState: stillSame ? "saved" : "unsaved",
           saveError: "",
         });
@@ -561,9 +610,9 @@ const createStudioStoreState: StateCreator<StudioStore> = (set, get) => {
           ? await invoke<PlatformDraft[]>("list_platform_drafts", {
               contentId: contentId ?? null,
             })
-          : readLocal<PlatformDraft>(STORAGE_DRAFTS).filter(
-              (draft) => !contentId || draft.contentId === contentId,
-            );
+          : readLocal<PlatformDraft>(STORAGE_DRAFTS)
+              .filter((draft) => !contentId || draft.contentId === contentId)
+              .map((draft) => withLocalSourceState(draft, get().current));
         set({ drafts });
       } catch (cause) {
         useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));
@@ -631,7 +680,10 @@ const createStudioStoreState: StateCreator<StudioStore> = (set, get) => {
         if (isTauri()) {
           draft = await invoke<PlatformDraft>("read_platform_draft", { draftId });
         } else {
-          draft = readLocal<PlatformDraft>(STORAGE_DRAFTS).find((item) => item.id === draftId);
+          const stored = readLocal<PlatformDraft>(STORAGE_DRAFTS).find(
+            (item) => item.id === draftId,
+          );
+          draft = stored ? withLocalSourceState(stored, get().current) : undefined;
         }
         if (!draft) throw new Error("未找到平台稿");
         set({
@@ -687,6 +739,7 @@ const createStudioStoreState: StateCreator<StudioStore> = (set, get) => {
             manuallyEdited: true,
             updatedAt: new Date().toISOString(),
             hash,
+            sourceChanged: existing.sourceVersion !== get().current?.contentVersion,
           };
           writeLocal(
             STORAGE_DRAFTS,
@@ -717,7 +770,11 @@ const createStudioStoreState: StateCreator<StudioStore> = (set, get) => {
           const all = readLocal<PlatformDraft>(STORAGE_DRAFTS);
           const existing = all.find((item) => item.id === draftId);
           if (!existing) throw new Error("未找到平台稿");
-          updated = { ...existing, sourceChanged: false };
+          updated = {
+            ...existing,
+            sourceVersion: get().current?.contentVersion ?? existing.sourceVersion,
+            sourceChanged: false,
+          };
           writeLocal(
             STORAGE_DRAFTS,
             all.map((item) => (item.id === draftId ? updated : item)),

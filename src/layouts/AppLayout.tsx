@@ -15,7 +15,8 @@ import {
   routeAvailabilityLabel,
   SECONDARY_ROUTES,
 } from "../routes/navigation";
-import { usePlatformStore, useUiStore, useWorkspaceStore } from "../stores";
+import { usePlatformStore, useStudioStore, useUiStore, useWorkspaceStore } from "../stores";
+import { CONTENT_KIND_META } from "../types/content";
 import { applyThemeToDocument } from "../utils/themes";
 
 const ROUTE_ENTER_EASE = [0.22, 1, 0.36, 1] as const;
@@ -71,7 +72,7 @@ export function AppLayout() {
   const initialize = useWorkspaceStore((state) => state.initialize);
   const initializePlatforms = usePlatformStore((state) => state.initialize);
   const chooseWorkspace = useWorkspaceStore((state) => state.chooseWorkspace);
-  const createDocument = useWorkspaceStore((state) => state.createDocument);
+  const createPackage = useStudioStore((state) => state.createPackage);
   const saveCurrentDocument = useWorkspaceStore((state) => state.saveCurrentDocument);
 
   const theme = useUiStore((state) => state.theme);
@@ -83,6 +84,8 @@ export function AppLayout() {
   const setIsCreating = useUiStore((state) => state.setIsCreating);
   const newTitle = useUiStore((state) => state.newTitle);
   const setNewTitle = useUiStore((state) => state.setNewTitle);
+  const newKind = useUiStore((state) => state.newKind);
+  const setNewKind = useUiStore((state) => state.setNewKind);
   const error = useUiStore((state) => state.error);
   const clearError = useUiStore((state) => state.clearError);
   const notice = useUiStore((state) => state.notice);
@@ -119,9 +122,11 @@ export function AppLayout() {
   }, [saveCurrentDocument, setIsCreating]);
 
   async function handleCreateSubmit() {
-    const created = await createDocument();
-    if (created && !isStudioRoute) {
-      navigate("/studio");
+    const created = await createPackage(newKind, newTitle);
+    if (created) {
+      setNewTitle("");
+      setIsCreating(false);
+      if (!isStudioRoute) navigate("/studio");
     }
   }
 
@@ -540,16 +545,39 @@ export function AppLayout() {
               <FilePlus2 size={17} />
             </div>
 
-            <h2 className="text-lg font-semibold tracking-tight text-ink">新建本地主稿</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-ink">新建内容主稿</h2>
             <p className="mt-1 text-xs leading-relaxed text-ink-secondary">
-              保存为本地 Markdown 文件，写作完成后可一键生成掘金、CSDN、知乎等多平台适配稿。
+              先选择内容形态，再创建本地内容包；生成平台稿时不会改写主稿。
             </p>
+
+            <div className="mt-4">
+              <span className="mb-1.5 block text-xs font-medium text-ink">内容形态</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                {CONTENT_KIND_META.map((item) => (
+                  <button
+                    key={item.kind}
+                    type="button"
+                    onClick={() => setNewKind(item.kind)}
+                    className={`rounded-xl border p-2.5 text-left transition-colors ${
+                      newKind === item.kind
+                        ? "border-accent bg-accent-soft/70 ring-1 ring-accent/30"
+                        : "border-line bg-canvas hover:border-line-strong"
+                    }`}
+                  >
+                    <strong className="block text-[11.5px] font-medium text-ink">{item.label}</strong>
+                    <small className="mt-0.5 block text-[10px] leading-snug text-ink-muted">
+                      {item.description}
+                    </small>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <label
               htmlFor="document-title"
-              className="mt-5 mb-1.5 block text-xs font-medium text-ink"
+              className="mt-4 mb-1.5 block text-xs font-medium text-ink"
             >
-              文章标题
+              内容标题
             </label>
             <input
               id="document-title"
@@ -590,7 +618,7 @@ export function AppLayout() {
                 className="inline-flex h-8.5 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3.5 text-xs font-medium text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.24)] transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-line-strong"
               >
                 <Plus size={13} />
-                创建并开始写作
+                创建并开始编辑
               </button>
             </div>
           </form>

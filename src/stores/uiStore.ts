@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { StateCreator } from "zustand";
 import { createStore } from "zustand/vanilla";
+import type { ContentKind } from "../types/plugin";
 import { applyThemeToDocument, getInitialTheme, type ThemeId } from "../utils/themes";
 
 export type ViewMode = "write" | "preview";
@@ -13,6 +14,7 @@ export interface UiStore {
   showDemoBanner: boolean;
   isCreating: boolean;
   newTitle: string;
+  newKind: ContentKind;
   error: string;
   notice: string;
   viewMode: ViewMode;
@@ -25,6 +27,7 @@ export interface UiStore {
   setShowDemoBanner: (show: boolean) => void;
   setIsCreating: (open: boolean) => void;
   setNewTitle: (title: string) => void;
+  setNewKind: (kind: ContentKind) => void;
   setError: (error: string) => void;
   clearError: () => void;
   setNotice: (notice: string) => void;
@@ -43,6 +46,7 @@ const createUiStoreState: StateCreator<UiStore> = (set) => ({
   showDemoBanner: false,
   isCreating: false,
   newTitle: "",
+  newKind: "video",
   error: "",
   notice: "",
   viewMode: "write",
@@ -58,6 +62,7 @@ const createUiStoreState: StateCreator<UiStore> = (set) => ({
   setShowDemoBanner: (showDemoBanner) => set({ showDemoBanner }),
   setIsCreating: (isCreating) => set({ isCreating }),
   setNewTitle: (newTitle) => set({ newTitle }),
+  setNewKind: (newKind) => set({ newKind }),
   setError: (error) => set({ error }),
   clearError: () => set({ error: "" }),
   setNotice: (notice) => set({ notice }),

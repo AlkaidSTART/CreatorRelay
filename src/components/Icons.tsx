@@ -77,3 +77,4 @@ export const Star = createIcon("star");
 export const Video = createIcon("video");
 export const Copy = createIcon("copy");
 export const GripVertical = createIcon("grip-vertical");
+export const Save = createIcon("floppy-disk");
