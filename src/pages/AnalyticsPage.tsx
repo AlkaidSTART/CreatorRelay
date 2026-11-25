@@ -1,55 +1,16 @@
-import { BarChart3, TrendingUp } from "../components/Icons";
+import { useEffect, useMemo, useState } from "react";
+import { BarChart3, Info } from "../components/Icons";
+import { OverviewTrendChart } from "../components/OverviewTrendChart";
 import { PageHeader } from "../components/PageHeader";
 import { PlatformLogo } from "../components/PlatformLogo";
-import { useContentStore, type AnalyticsRange } from "../stores";
-import { getPlatformVisual } from "../utils/platformStyle";
-
-const platformSnapshots = [
-  {
-    platform: "掘金",
-    account: "技术主号",
-    sourceMetricName: "文章阅读量",
-    value: "24,680",
-    delta: "+14.2%",
-    followers: "3,420",
-    capturedAt: "今天 09:30",
-    barPercent: 82,
-    goalLabel: "月目标达成",
-  },
-  {
-    platform: "Bilibili",
-    account: "林工视频号",
-    sourceMetricName: "视频播放量",
-    value: "41,920",
-    delta: "+22.8%",
-    followers: "5,180",
-    capturedAt: "今天 08:15",
-    barPercent: 95,
-    goalLabel: "月目标达成",
-  },
-  {
-    platform: "知乎",
-    account: "林工笔记",
-    sourceMetricName: "专栏浏览量",
-    value: "12,340",
-    delta: "+6.4%",
-    followers: "1,890",
-    capturedAt: "昨天 21:00",
-    barPercent: 54,
-    goalLabel: "月目标达成",
-  },
-  {
-    platform: "CSDN",
-    account: "Rust 专栏号",
-    sourceMetricName: "博客访问量",
-    value: "16,510",
-    delta: "+9.1%",
-    followers: "2,210",
-    capturedAt: "今天 09:00",
-    barPercent: 66,
-    goalLabel: "月目标达成",
-  },
-];
+import { useOperationsStore, usePlatformStore } from "../stores";
+import type { AnalyticsGranularity, AnalyticsRange } from "../types/operations";
+import type { ContentKind } from "../types/content";
+import {
+  analyticsToTrendDataset,
+  contentKindText,
+  formatMetricNumber,
+} from "../utils/operations";
 
 const rangeOptions: Array<{ id: AnalyticsRange; label: string }> = [
   { id: "7d", label: "近 7 天" },
@@ -57,88 +18,212 @@ const rangeOptions: Array<{ id: AnalyticsRange; label: string }> = [
   { id: "90d", label: "近 90 天" },
 ];
 
+const granularityOptions: Array<{ id: AnalyticsGranularity; label: string }> = [
+  { id: "day", label: "按日" },
+  { id: "week", label: "按周" },
+  { id: "month", label: "按月" },
+];
+
+const kindOptions: Array<{ value: "ALL" | ContentKind; label: string }> = [
+  { value: "ALL", label: "全部形态" },
+  { value: "video", label: "视频" },
+  { value: "imageText", label: "图文" },
+  { value: "imageArticle", label: "图文文章" },
+  { value: "article", label: "纯文章" },
+];
+
 export function AnalyticsPage() {
-  const range = useContentStore((state) => state.analyticsRange);
-  const setRange = useContentStore((state) => state.setAnalyticsRange);
+  const accounts = usePlatformStore((state) => state.accounts);
+  const initializeAccounts = usePlatformStore((state) => state.initialize);
+  const analytics = useOperationsStore((state) => state.analytics);
+  const initializeOperations = useOperationsStore((state) => state.initialize);
+  const loadAnalytics = useOperationsStore((state) => state.loadAnalytics);
+  const [range, setRange] = useState<AnalyticsRange>("30d");
+  const [granularity, setGranularity] = useState<AnalyticsGranularity>("week");
+  const [platformId, setPlatformId] = useState("");
+  const [accountId, setAccountId] = useState("");
+  const [contentKind, setContentKind] = useState<"ALL" | ContentKind>("ALL");
+
+  useEffect(() => {
+    void initializeAccounts();
+    void initializeOperations();
+  }, [initializeAccounts, initializeOperations]);
+
+  useEffect(() => {
+    void loadAnalytics({
+      range,
+      granularity,
+      platformId: platformId || null,
+      accountId: accountId || null,
+      contentKind: contentKind === "ALL" ? null : contentKind,
+      workId: null,
+    });
+  }, [accountId, contentKind, granularity, loadAnalytics, platformId, range]);
+
+  const dataset = useMemo(
+    () => (analytics ? analyticsToTrendDataset(analytics) : { dates: [], series: [] }),
+    [analytics],
+  );
+  const visibleAccounts = accounts.filter(
+    (account) => !platformId || account.platformId === platformId,
+  );
 
   return (
     <main className="flex h-full min-w-0 flex-col bg-canvas">
       <PageHeader
         eyebrow="ANALYTICS"
         title="数据分析"
-        description="按账号、平台与时间维度观察创作增长，保留各平台真实指标名称与采集时间。"
+        description="按账号、内容形态、作品和时间观察原始指标趋势；不同平台口径默认不合并。"
         actions={
-          <div className="flex items-center rounded-xl bg-sidebar p-0.5">
-            {rangeOptions.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setRange(item.id)}
-                className={`h-7 cursor-pointer rounded-lg px-2.5 text-xs font-medium transition-all ${
-                  range === item.id
-                    ? "bg-surface text-ink shadow-[0_1px_3px_rgba(74,58,48,0.08)]"
-                    : "text-ink-secondary hover:text-ink"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center rounded-xl bg-sidebar p-0.5">
+              {granularityOptions.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setGranularity(item.id)}
+                  className={`h-7 cursor-pointer rounded-lg px-2.5 text-xs font-medium transition-all ${
+                    granularity === item.id
+                      ? "bg-surface text-ink shadow-[0_1px_3px_rgba(74,58,48,0.08)]"
+                      : "text-ink-secondary hover:text-ink"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center rounded-xl bg-sidebar p-0.5">
+              {rangeOptions.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setRange(item.id)}
+                  className={`h-7 cursor-pointer rounded-lg px-2.5 text-xs font-medium transition-all ${
+                    range === item.id
+                      ? "bg-surface text-ink shadow-[0_1px_3px_rgba(74,58,48,0.08)]"
+                      : "text-ink-secondary hover:text-ink"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
         }
       />
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-7 py-6">
-        <section className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          {platformSnapshots.map((item) => {
-            const visual = getPlatformVisual(item.platform);
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={platformId}
+            onChange={(event) => {
+              setPlatformId(event.target.value);
+              setAccountId("");
+            }}
+            className="h-8 rounded-lg border border-line bg-surface px-2 text-xs text-ink-secondary"
+          >
+            <option value="">全部平台</option>
+            {Array.from(new Map(accounts.map((account) => [account.platformId, account.platformName]))).map(
+              ([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ),
+            )}
+          </select>
+          <select
+            value={accountId}
+            onChange={(event) => setAccountId(event.target.value)}
+            className="h-8 rounded-lg border border-line bg-surface px-2 text-xs text-ink-secondary"
+          >
+            <option value="">全部账号</option>
+            {visibleAccounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.alias}
+              </option>
+            ))}
+          </select>
+          <select
+            value={contentKind}
+            onChange={(event) => setContentKind(event.target.value as typeof contentKind)}
+            className="h-8 rounded-lg border border-line bg-surface px-2 text-xs text-ink-secondary"
+          >
+            {kindOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <span className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-sidebar px-2.5 py-1 text-[11px] text-ink-secondary">
+            <Info size={11} />
+            每个序列只代表一个作品的一个平台原始指标
+          </span>
+        </div>
+
+        <section className="rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-ink">可追溯趋势</h2>
+              <p className="mt-0.5 text-[11px] text-ink-muted">
+                时间桶内取最新采样；缺失桶留空，不补零。
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1 text-[11px] text-ink-muted">
+              <BarChart3 size={12} /> {analytics?.series.length ?? 0} 个指标序列
+            </span>
+          </div>
+          {dataset.series.length ? (
+            <OverviewTrendChart dataset={dataset} height={330} />
+          ) : (
+            <div className="grid h-64 place-items-center rounded-xl border border-dashed border-line bg-canvas text-center text-xs text-ink-muted">
+              所选范围没有至少一个可展示的指标序列。
+            </div>
+          )}
+        </section>
+
+        {analytics?.warnings.length ? (
+          <section className="rounded-2xl border border-lemon-border bg-lemon-bg p-4 text-xs leading-relaxed text-lemon-text">
+            {analytics.warnings.map((warning) => (
+              <p key={warning}>· {warning}</p>
+            ))}
+          </section>
+        ) : null}
+
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {analytics?.series.map((series) => {
+            const last = series.points[series.points.length - 1];
+            const first = series.points[0];
             return (
               <article
-                key={item.platform}
-                className="rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]"
+                key={series.key}
+                className="rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_10px_rgba(74,58,48,0.03)]"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
-                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-line bg-white shadow-[0_1px_2px_rgba(35,28,25,0.04)]">
-                      <PlatformLogo platformName={item.platform} size={26} />
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-line bg-white">
+                      <PlatformLogo platformName={series.platformName} size={24} />
                     </div>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 text-[11px] text-ink-muted">
-                        <span>{item.sourceMetricName}</span>
-                      </div>
-                      <h2 className="mt-1 truncate text-base font-semibold text-ink">
-                        {item.platform} · {item.account}
-                      </h2>
+                      <p className="text-[11px] text-ink-muted">{series.metricName}</p>
+                      <h3 className="mt-1 truncate text-sm font-semibold text-ink">{series.title}</h3>
+                      <p className="mt-0.5 truncate text-[11px] text-ink-secondary">
+                        {series.platformName} · {series.accountAlias} · {contentKindText(series.contentKind)}
+                      </p>
                     </div>
                   </div>
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-mint-bg px-2 py-0.5 text-xs font-medium text-mint-text">
-                    <TrendingUp size={11} /> {item.delta}
+                  <span className="shrink-0 rounded-lg bg-sidebar px-2 py-1 text-[10px] text-ink-secondary">
+                    {series.points.length} 个采样点
                   </span>
                 </div>
-
-                <div className="mt-4 mb-2.5 flex items-baseline justify-between">
-                  <strong className="text-3xl font-semibold tracking-tight tabular-nums text-ink">
-                    {item.value}
+                <div className="mt-4 flex items-baseline justify-between gap-3">
+                  <strong className="text-2xl font-semibold tabular-nums text-ink">
+                    {last ? `${formatMetricNumber(last.value)} ${series.unit}` : "无采样"}
                   </strong>
-                  <span className="text-xs text-ink-secondary">粉丝 {item.followers}</span>
-                </div>
-
-                <div className="mb-1.5 flex items-center justify-between text-[11px] text-ink-muted">
-                  <span>{item.goalLabel}</span>
-                  <span className="font-mono">{item.barPercent}%</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-sidebar" aria-hidden="true">
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: `${item.barPercent}%`, backgroundColor: visual.barColor }}
-                  />
-                </div>
-
-                <div className="mt-3.5 flex items-center justify-between border-t border-line pt-3 text-[11px] text-ink-muted">
-                  <span className="inline-flex items-center gap-1">
-                    <BarChart3 size={11} />
-                    统计窗口：{rangeOptions.find((r) => r.id === range)?.label}
+                  <span className="text-[11px] text-ink-muted">
+                    {first?.bucket ?? "—"} → {last?.bucket ?? "—"}
                   </span>
-                  <span>采集于 {item.capturedAt}</span>
                 </div>
+                <p className="mt-3 border-t border-line pt-3 text-[11px] leading-relaxed text-ink-muted">
+                  {series.metricDefinition || "平台未提供指标定义"} · {series.comparabilityNote}
+                </p>
               </article>
             );
           })}

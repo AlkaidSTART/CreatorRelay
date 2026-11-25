@@ -468,7 +468,7 @@ export interface PlatformTrendSeries {
   accountAlias: string;
   metricLabel: string;
   color: string;
-  values: number[];
+  values: Array<number | null>;
 }
 
 export interface OverviewTrendDataset {

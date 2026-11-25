@@ -113,11 +113,11 @@ export function buildOverviewTrendOption(dataset: OverviewTrendDataset): Overvie
         const rows = items.map((item) => {
           const name = item.seriesName ?? "";
           const metricLabel = metricByPlatform.get(name) ?? name;
-          const numericValue =
-            typeof item.value === "number" ? item.value : Number(item.value ?? 0);
-          const formatted = Number.isNaN(numericValue)
-            ? String(item.value ?? "-")
-            : numericValue.toLocaleString("zh-CN");
+          const numericValue = typeof item.value === "number" ? item.value : null;
+          const formatted =
+            numericValue == null || Number.isNaN(numericValue)
+              ? "无采样"
+              : numericValue.toLocaleString("zh-CN");
           const dotColor = typeof item.color === "string" ? item.color : colors.ink;
           return [
             `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:6px;">`,

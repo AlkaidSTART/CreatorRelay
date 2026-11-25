@@ -52,6 +52,7 @@ export const PanelLeftOpen = createIcon("angles-right");
 export const Plug = createIcon("plug");
 export const Plus = createIcon("plus");
 export const Pencil = createIcon("pencil");
+export const Play = createIcon("play");
 export const RefreshCw = createIcon("arrows-rotate");
 export const Search = createIcon("magnifying-glass");
 export const Send = createIcon("paper-plane");
