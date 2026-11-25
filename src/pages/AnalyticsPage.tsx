@@ -61,21 +61,21 @@ export function AnalyticsPage() {
   const setRange = useContentStore((state) => state.setAnalyticsRange);
 
   return (
-    <main className="flex h-full min-w-0 flex-col bg-[#FAFAFB]">
+    <main className="flex h-full min-w-0 flex-col bg-[#FAF7F4]">
       <PageHeader
         eyebrow="ANALYTICS"
         title="数据分析"
         description="按账号、平台与时间维度观察创作增长，保留各平台真实指标名称与采集时间。"
         actions={
-          <div className="flex items-center rounded-lg bg-[#F5F5F7] p-0.5">
+          <div className="flex items-center rounded-xl bg-[#F4EFEA] p-0.5">
             {rangeOptions.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setRange(item.id)}
-                className={`h-7 cursor-pointer rounded-md px-2.5 text-xs font-medium transition-all ${
+                className={`h-7 cursor-pointer rounded-lg px-2.5 text-xs font-medium transition-all ${
                   range === item.id
-                    ? "bg-white text-[#1D1D1F] shadow-2xs"
-                    : "text-[#6E6E73] hover:text-[#1D1D1F]"
+                    ? "bg-white text-[#332B29] shadow-[0_1px_3px_rgba(74,58,48,0.08)]"
+                    : "text-[#6F6561] hover:text-[#332B29]"
                 }`}
               >
                 {item.label}
@@ -92,45 +92,45 @@ export function AnalyticsPage() {
             return (
               <article
                 key={item.platform}
-                className="rounded-xl border border-black/[0.07] bg-white p-5"
+                className="rounded-2xl border border-[#EAE2D9] bg-white p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-1.5 text-[11px] text-[#8E8E93]">
+                    <div className="flex items-center gap-1.5 text-[11px] text-[#9A8F8A]">
                       <span
                         className="h-2 w-2 rounded-full"
                         style={{ backgroundColor: visual.color }}
                       />
                       <span>{item.sourceMetricName}</span>
                     </div>
-                    <h2 className="mt-1 text-base font-semibold text-[#1D1D1F]">
+                    <h2 className="mt-1 text-base font-semibold text-[#332B29]">
                       {item.platform} · {item.account}
                     </h2>
                   </div>
-                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-[#E7F4EE] px-2 py-0.5 text-xs font-medium text-[#286B51]">
                     <TrendingUp size={11} /> {item.delta}
                   </span>
                 </div>
 
                 <div className="mt-4 mb-2.5 flex items-baseline justify-between">
-                  <strong className="text-3xl font-semibold tracking-tight tabular-nums text-[#1D1D1F]">
+                  <strong className="text-3xl font-semibold tracking-tight tabular-nums text-[#332B29]">
                     {item.value}
                   </strong>
-                  <span className="text-xs text-[#6E6E73]">粉丝 {item.followers}</span>
+                  <span className="text-xs text-[#6F6561]">粉丝 {item.followers}</span>
                 </div>
 
-                <div className="mb-1.5 flex items-center justify-between text-[11px] text-[#8E8E93]">
+                <div className="mb-1.5 flex items-center justify-between text-[11px] text-[#9A8F8A]">
                   <span>{item.goalLabel}</span>
                   <span className="font-mono">{item.barPercent}%</span>
                 </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-[#F2F2F5]" aria-hidden="true">
+                <div className="h-2 overflow-hidden rounded-full bg-[#F4EFEA]" aria-hidden="true">
                   <div
                     className="h-full rounded-full"
                     style={{ width: `${item.barPercent}%`, backgroundColor: visual.barColor }}
                   />
                 </div>
 
-                <div className="mt-3.5 flex items-center justify-between border-t border-black/[0.05] pt-3 text-[11px] text-[#8E8E93]">
+                <div className="mt-3.5 flex items-center justify-between border-t border-[#F0E9E1] pt-3 text-[11px] text-[#9A8F8A]">
                   <span className="inline-flex items-center gap-1">
                     <BarChart3 size={11} />
                     统计窗口：{rangeOptions.find((r) => r.id === range)?.label}
