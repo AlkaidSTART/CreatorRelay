@@ -2,7 +2,7 @@ use chrono::Utc;
 use rusqlite::{Connection, params};
 use serde::Serialize;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 2;
+pub const CURRENT_SCHEMA_VERSION: i64 = 3;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -138,6 +138,54 @@ fn migration_sql(version: i64) -> Result<&'static str, String> {
                 detail TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );"),
+        3 => Ok("CREATE TABLE IF NOT EXISTS plugins(
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                version TEXT NOT NULL,
+                adapter_contract_version INTEGER NOT NULL,
+                runtime_kind TEXT NOT NULL,
+                runtime_profile TEXT,
+                entry TEXT NOT NULL,
+                source TEXT NOT NULL,
+                trust_level TEXT NOT NULL,
+                status TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 0,
+                manifest_json TEXT NOT NULL,
+                manifest_hash TEXT NOT NULL,
+                previous_manifest_json TEXT,
+                previous_manifest_hash TEXT,
+                installed_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                last_error TEXT,
+                install_path TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS plugin_grants(
+                plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+                permission TEXT NOT NULL,
+                granted INTEGER NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(plugin_id, permission)
+            );
+            CREATE TABLE IF NOT EXISTS plugin_capability_checks(
+                plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+                account_ref TEXT NOT NULL,
+                content_kind TEXT NOT NULL,
+                read_state TEXT NOT NULL,
+                publish_state TEXT NOT NULL,
+                reason TEXT,
+                checked_at TEXT NOT NULL,
+                PRIMARY KEY(plugin_id, account_ref, content_kind)
+            );
+            CREATE TABLE IF NOT EXISTS plugin_events(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                plugin_id TEXT NOT NULL,
+                plugin_version TEXT NOT NULL,
+                action TEXT NOT NULL,
+                detail TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS plugin_events_plugin_id ON plugin_events(plugin_id, id);
+            CREATE INDEX IF NOT EXISTS plugin_capability_checks_plugin_id ON plugin_capability_checks(plugin_id);"),
         _ => Err(format!("没有定义 schema v{version} 的迁移脚本")),
     }
 }
@@ -169,7 +217,7 @@ mod tests {
         let report = migrate(&mut conn).unwrap();
         assert_eq!(report.from_version, 0);
         assert_eq!(report.to_version, CURRENT_SCHEMA_VERSION);
-        assert_eq!(report.applied_versions, vec![1, 2]);
+        assert_eq!(report.applied_versions, vec![1, 2, 3]);
         assert_eq!(current_version(&conn).unwrap(), CURRENT_SCHEMA_VERSION);
     }
 
@@ -179,8 +227,8 @@ mod tests {
         let mut conn = v1_fixture(&temp.path().join("legacy.sqlite3"));
         let report = migrate(&mut conn).unwrap();
         assert_eq!(report.from_version, 1);
-        assert_eq!(report.to_version, 2);
-        assert_eq!(report.applied_versions, vec![2]);
+        assert_eq!(report.to_version, 3);
+        assert_eq!(report.applied_versions, vec![2, 3]);
         let workspace: String = conn
             .query_row(
                 "SELECT value FROM app_settings WHERE key='workspace_path'",
@@ -212,8 +260,8 @@ mod tests {
         let mut conn = Connection::open_in_memory().unwrap();
         migrate(&mut conn).unwrap();
         let report = migrate(&mut conn).unwrap();
-        assert_eq!(report.from_version, 2);
-        assert_eq!(report.to_version, 2);
+        assert_eq!(report.from_version, 3);
+        assert_eq!(report.to_version, 3);
         assert!(report.applied_versions.is_empty());
     }
 

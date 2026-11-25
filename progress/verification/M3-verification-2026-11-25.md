@@ -6,9 +6,9 @@
 - **记录日期：** 2026-11-25
 - **验证环境：** macOS 26.6.2（25G83），arm64
 - **代码基线：** `93a978c6013974c17d519d5c9a127ec84b1b4f2a`
-- **受检实现：** `9d6710bc11a939a1672b0910a536891a9012a5db` 加当前工作区 M3 收尾改动（迁移幂等测试、真实平台登录 URL、测试、文档）
+- **受检实现：** `5e7a5192fba8775b284641a85672e6212e03ec39`（M3 实现主体为 `9d6710b`，含后续 M1 迁移整合、测试与文档）
 - **变更范围：** M3 平台目录、账号 CRUD、认证状态机、系统凭据、隔离会话、状态检测、删除语义、前端平台管理页及相关测试/文档
-- **总体状态：** `pass`（M3 全部 AC 已有可复现证据；M1 前置验收仍见下方阻塞说明）
+- **总体状态：** `pass`（M3 全部 AC 已有可复现证据；M1 前置验收已通过）
 
 ## AC 快照
 
@@ -29,13 +29,13 @@
 | --- | --- |
 | `pnpm typecheck` | pass |
 | `pnpm lint` | pass |
-| `pnpm test` | pass，6 个测试文件、29 个测试 |
+| `pnpm test` | pass，6 个测试文件、30 个测试 |
 | `pnpm build` | pass；仅有 Vite 单 chunk 大于 500 kB 的体积警告 |
 | `pnpm exec prettier --check`（M3 修改文件清单） | pass |
 | `pnpm format:check`（全仓库） | fail；仅报告未由 M3 修改的 `src/components/StudioWorkspaceEmpty.tsx`、`src/pages/AssistantPage.tsx`、`src/pages/StudioPage.css`，属于既有格式债务 |
 | `cargo fmt --all -- --check` | pass |
 | `cargo clippy --all-targets -- -D warnings` | pass |
-| `cargo test` | pass，29 个测试 |
+| `cargo test` | pass，38 个测试 |
 | `CREATORRELAY_TEST_KEYCHAIN=1 cargo test system_keyring_smoke_is_explicitly_opt_in -- --nocapture` | pass，真实 macOS Keychain round-trip |
 | `pnpm tauri build --debug --bundles app --no-sign` | pass，产物 `src-tauri/target/debug/bundle/macos/creatorrelay.app` |
 
@@ -53,6 +53,31 @@
 6. 打开删除预览，确认三项显式确认范围和历史作品保留说明，随后取消，未执行删除。
 
 手工验收产生的两个测试账号、审计记录和会话目录已在测试后定向清理；清理后 `platform_accounts` 中 `验收*` 账号计数为 0。
+
+### 独立验收复核（2026-11-25）
+
+使用隔离目录 `/tmp/creatorrelay-m3-acceptance-20261125` 重新执行：
+
+- `cargo test m3_ac_`：8 项 M3 AC 领域测试通过。
+- `cargo test platforms::tests`：12 项平台测试通过。
+- 同一 Bilibili 平台添加“M3 主号”和“M3 副号”，profile 与 credential reference 均不同。
+- 主账号编辑别名并设为默认，副账号不变。
+- 检测主账号进入“需重新授权”，显示“未找到安全的平台会话凭据”。
+- 打开授权弹窗确认系统浏览器与 Keychain 步骤；取消后恢复未登录。
+- 打开删除预览，确认 Keychain、会话目录、历史作品保留三项范围；未执行删除。
+
+复核数据库结果：
+
+```text
+platform_accounts = 2
+platform_sessions = 2
+distinct_profile_id = 2
+distinct_credential_ref = 2
+PRAGMA foreign_key_check = 无输出
+PRAGMA integrity_check = ok
+platform-sessions/<profile> = drwx------
+profile.json = -rw-------
+```
 
 ### 数据库与文件系统
 
@@ -94,4 +119,4 @@ curl -sS --max-time 15 \
 
 ## 阶段门说明
 
-本记录形成时 M1 尚未通过验收，因此当时未授权发布 M3 验收报告。后续状态更新：M1 已于 2026-11-25 通过全部 AC 并发布 [M1 验收报告](../M1-acceptance.md)，M3 的 M1 阶段门现已解除。该更新不改变本记录中的 M3 AC 证据和剩余风险，M3 仍需一次独立验收复核后才能创建报告。
+本记录形成时 M1 尚未通过验收，因此当时未授权发布 M3 验收报告。后续状态更新：M1 已于 2026-11-25 通过全部 AC 并发布 [M1 验收报告](../M1-acceptance.md)；M3 已完成独立验收复核，正式验收结论见 [M3 验收报告](../M3-acceptance.md)。

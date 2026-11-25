@@ -1,0 +1,49 @@
+{
+  "id": "creatorrelay.official.probe-failure-adapter",
+  "name": "CreatorRelay 能力探测失败适配器",
+  "description": "Manifest 声明支持视频发布，但运行时探测失败；Core 必须显示 unavailable 而不是 supported。",
+  "version": "1.0.0",
+  "pluginType": "adapter",
+  "adapterContractVersion": 1,
+  "runtime": {
+    "kind": "coreTestRunner",
+    "profile": "probeFailure",
+    "timeoutMs": 2000
+  },
+  "entry": "builtin://creatorrelay.official.probe-failure-adapter",
+  "permissions": [
+    {
+      "id": "account.credentials",
+      "required": true,
+      "reason": "验证能力探测失败时的账号边界"
+    },
+    {
+      "id": "platform.publish",
+      "required": true,
+      "reason": "验证能力探测失败时禁止发布"
+    }
+  ],
+  "capabilities": [
+    {
+      "kind": "video",
+      "read": "supported",
+      "publish": "supported",
+      "note": "声明支持，但运行时检查会失败"
+    },
+    {
+      "kind": "imageText",
+      "read": "supported",
+      "publish": "supported"
+    },
+    {
+      "kind": "imageArticle",
+      "read": "supported",
+      "publish": "experimental"
+    },
+    {
+      "kind": "article",
+      "read": "supported",
+      "publish": "supported"
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "id": "creatorrelay.official.test-adapter",
+  "name": "CreatorRelay 测试适配器",
+  "description": "M4 公开合约测试适配器：模拟图文可用、视频不可用，并通过 Core 主机 API 验证权限边界。",
+  "version": "1.0.0",
+  "pluginType": "adapter",
+  "adapterContractVersion": 1,
+  "runtime": {
+    "kind": "coreTestRunner",
+    "profile": "healthy",
+    "timeoutMs": 3000
+  },
+  "entry": "builtin://creatorrelay.official.test-adapter",
+  "permissions": [
+    {
+      "id": "account.credentials",
+      "required": true,
+      "reason": "通过 Core 的账号会话代理验证发布账号作用域"
+    },
+    {
+      "id": "network",
+      "required": false,
+      "reason": "通过 Core 网络代理发起测试发布请求"
+    },
+    {
+      "id": "workspace.read",
+      "required": false,
+      "reason": "读取用户明确选择的发布素材"
+    },
+    {
+      "id": "platform.publish",
+      "required": true,
+      "reason": "执行已授权的图文/文章发布能力"
+    }
+  ],
+  "capabilities": [
+    {
+      "kind": "video",
+      "read": "unsupported",
+      "publish": "unsupported",
+      "note": "测试账号不模拟视频发布"
+    },
+    {
+      "kind": "imageText",
+      "read": "supported",
+      "publish": "supported",
+      "note": "图文发布可验证"
+    },
+    {
+      "kind": "imageArticle",
+      "read": "supported",
+      "publish": "restricted",
+      "note": "图文文章仍需人工审核"
+    },
+    {
+      "kind": "article",
+      "read": "supported",
+      "publish": "supported",
+      "note": "纯文章发布可验证"
+    }
+  ],
+  "mcp": {
+    "transport": "stdio",
+    "command": "creatorrelay-adapter-runner",
+    "args": []
+  }
+}

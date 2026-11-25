@@ -16,8 +16,9 @@
 - **已完成任务：**
   - 完成 Manifest 校验、权限审查、Adapter 注册与生命周期、故障隔离、版本兼容、安全边界和分形态载荷的需求拆分。
   - 完成 M4-AC-01 至 M4-AC-11，并记录首期 Runtime 尚未冻结、必须先完成 ADR 的约束。
+  - M1 与 M3 已于 2026-11-25 通过验收，M4 的桌面基础设施与账号/会话前置条件已满足。
 - **验证记录：** [M4 验证记录](./verification/M4-verification-2026-11-25.md)（当前状态：`not verified`）。
-- **未完成与阻塞：** Runtime ADR 尚未冻结；Adapter 合约、Manifest Schema、权限矩阵、独立进程监督、分形态能力探测和载荷完整性校验均未完成验证。
+- **未完成与阻塞：** Runtime ADR 尚未冻结；Adapter 合约、Manifest Schema、权限矩阵、独立进程监督、分形态能力探测和载荷完整性校验均未完成验证。M1/M3 前置已满足。
 - **验收状态：** 未验收（`not verified`）。
 - **验收报告：** 未创建；只有 M4 全部 AC 通过后才创建 `progress/M4-acceptance.md`。
 - **下一步：** 先冻结 Runtime/隔离/信任模型 ADR，再建立最小测试 Adapter 和合约测试套件，逐项验证 M4 AC。
