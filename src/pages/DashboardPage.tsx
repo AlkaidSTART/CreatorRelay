@@ -77,7 +77,7 @@ export function DashboardPage() {
                   }}
                   className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.22)] transition-colors hover:bg-accent-hover"
                 >
-                  <BookOpen size={12} />
+                  <BookOpen size={14} />
                   <span className="max-w-[200px] truncate">继续写：{latestDoc.title}</span>
                 </button>
               )}
@@ -86,7 +86,7 @@ export function DashboardPage() {
                 onClick={() => navigate("/publishing")}
                 className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-line-strong bg-surface-soft px-3 text-xs font-medium text-ink transition-colors hover:bg-subtle"
               >
-                <Send size={12} className="text-accent" />
+                <Send size={14} className="text-accent" />
                 发布队列 ({pendingTasks.length})
               </button>
             </div>
@@ -138,7 +138,7 @@ export function DashboardPage() {
                         <PlatformLogo
                           platformId={acc.platformId}
                           platformName={acc.platformName}
-                          size={12}
+                          size={14}
                         />
                         {acc.platformName}
                       </span>
@@ -294,7 +294,7 @@ export function DashboardPage() {
                   <PlatformLogo
                     platformId={series.platformId}
                     platformName={series.platformName}
-                    size={14}
+                    size={16}
                     className="mt-0.5"
                   />
                   <div className="min-w-0 flex-1">
@@ -357,7 +357,7 @@ export function DashboardPage() {
                     key={task.id}
                     className="flex items-center gap-3 rounded-xl border border-line bg-canvas px-3.5 py-2.5"
                   >
-                    <PlatformLogo platformName={task.platform} size={16} />
+                    <PlatformLogo platformName={task.platform} size={18} />
                     <div className="min-w-0 flex-1">
                       <strong className="block truncate text-xs font-medium text-ink">
                         [{task.platform}] {task.articleTitle}
@@ -404,10 +404,7 @@ export function DashboardPage() {
                   }}
                   className="group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-line bg-canvas px-3.5 py-2.5 text-left transition-colors hover:border-accent-border hover:bg-accent-soft"
                 >
-                  <FileText
-                    size={14}
-                    className="shrink-0 text-ink-muted group-hover:text-accent"
-                  />
+                  <FileText size={14} className="shrink-0 text-ink-muted group-hover:text-accent" />
                   <div className="min-w-0 flex-1">
                     <strong className="block truncate text-xs font-medium text-ink">
                       {doc.title}
@@ -461,7 +458,7 @@ export function DashboardPage() {
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium ${visual.badgeClass}`}
                     >
-                      <PlatformLogo platformName={item.platform} size={13} />
+                      <PlatformLogo platformName={item.platform} size={14} />
                       {item.platform}
                     </span>
                     <span className="truncate text-xs text-ink-secondary">{item.accountAlias}</span>

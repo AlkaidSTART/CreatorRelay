@@ -19,25 +19,28 @@ export type Document = {
   contentHash?: string;
 };
 
-export type Revision = { id: number; createdAt: string; label: string; preview: string };
+export type Revision = { id: string; createdAt: string; label: string; preview: string; diff: string };
 export type WorkspaceInfo = { path: string; name: string };
 export type SaveState = "saved" | "saving" | "unsaved" | "error";
 
 export const starterRevisions: Revision[] = [
   {
-    id: 3,
+    id: "demo-3",
+    diff: "",
     createdAt: "今天 09:41",
     label: "当前版本",
     preview: "当服务离用户更近，延迟自然会低一些。但真正的挑战并不是把容器搬到边缘……",
   },
   {
-    id: 2,
+    id: "demo-2",
+    diff: "",
     createdAt: "今天 09:18",
     label: "自动保存",
     preview: "最近我把一个数据转换任务迁移到了 WebAssembly 运行时。它并没有让系统架构……",
   },
   {
-    id: 1,
+    id: "demo-1",
+    diff: "",
     createdAt: "昨天 16:32",
     label: "初始版本",
     preview: "当服务离用户更近，延迟自然会低一些。真正的挑战是如何在有限资源里运行代码。",
@@ -88,6 +91,7 @@ export interface WorkspaceStore {
   chooseWorkspace: () => Promise<void>;
   selectDocumentSafely: (document: Document) => Promise<boolean>;
   createDocument: () => Promise<Document | null>;
+  createRevision: (label?: string) => Promise<void>;
   restoreRevision: (revision: Revision) => Promise<void>;
 }
 
@@ -389,6 +393,39 @@ const createWorkspaceStoreState: StateCreator<WorkspaceStore> = (set, get) => {
       }
     },
 
+    createRevision: async (label = "手动保存版本") => {
+      const state = get();
+      const ui = useUiStore.getState();
+      const selected = state.documents.find((doc) => doc.id === state.selectedId);
+      if (!selected) return;
+      if (saveInFlight || state.saveState === "saving") {
+        ui.showToast("正在保存文章，请稍后再创建版本", 2200);
+        return;
+      }
+      if (state.saveState === "error") {
+        ui.showToast("请先解决当前文章的保存错误", 2200);
+        return;
+      }
+      if (!isTauri()) {
+        ui.showToast("演示模式不保存真实版本历史", 2200);
+        return;
+      }
+      try {
+        if (get().saveState === "unsaved") {
+          const saved = await get().saveCurrentDocument({ silent: true });
+          if (!saved) return;
+        }
+        const items = await invoke<Revision[]>("create_document_revision", {
+          path: selected.path,
+          label,
+        });
+        set({ revisions: items });
+        ui.showToast(items[0]?.label === label ? "已保存当前文章版本" : "当前内容与最近版本相同");
+      } catch (cause) {
+        ui.setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    },
+
     restoreRevision: async (revision) => {
       const state = get();
       const ui = useUiStore.getState();
@@ -403,6 +440,7 @@ const createWorkspaceStoreState: StateCreator<WorkspaceStore> = (set, get) => {
           const updated = await invoke<Document>("restore_revision", {
             path: selected.path,
             revisionId: revision.id,
+            baseHash: state.baseHash,
           });
           await get().loadDocuments();
           await get().loadDocument(updated);

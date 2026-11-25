@@ -66,7 +66,7 @@ export function ContentPage() {
                     : "border-line bg-surface text-ink-secondary hover:bg-subtle"
                 }`}
               >
-                {platform !== "全部平台" && <PlatformLogo platformName={platform} size={13} />}
+                {platform !== "全部平台" && <PlatformLogo platformName={platform} size={14} />}
                 {platform}
               </button>
             ))}
@@ -101,7 +101,7 @@ export function ContentPage() {
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium ${visual.badgeClass}`}
                       >
-                        <PlatformLogo platformName={item.platform} size={13} />
+                        <PlatformLogo platformName={item.platform} size={14} />
                         {item.platform}
                       </span>
                       <span className="rounded-md bg-sidebar px-2 py-0.5 text-[11px] text-ink-secondary">

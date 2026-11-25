@@ -97,10 +97,8 @@ export function AnalyticsPage() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
-                    <div
-                      className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl border ${visual.badgeClass}`}
-                    >
-                      <PlatformLogo platformName={item.platform} size={20} />
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-line bg-white shadow-[0_1px_2px_rgba(35,28,25,0.04)]">
+                      <PlatformLogo platformName={item.platform} size={26} />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 text-[11px] text-ink-muted">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -56,6 +56,8 @@ export function StudioPage() {
   const [showFrontmatter, setShowFrontmatter] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [selectedRevisionId, setSelectedRevisionId] = useState("");
+  const [revisionLabel, setRevisionLabel] = useState("");
 
   const workspace = useWorkspaceStore((state) => state.workspace);
   const documents = useWorkspaceStore((state) => state.documents);
@@ -69,6 +71,7 @@ export function StudioPage() {
   const chooseWorkspace = useWorkspaceStore((state) => state.chooseWorkspace);
   const selectDocumentSafely = useWorkspaceStore((state) => state.selectDocumentSafely);
   const restoreRevision = useWorkspaceStore((state) => state.restoreRevision);
+  const createRevision = useWorkspaceStore((state) => state.createRevision);
 
   const platformAccounts = useContentStore((state) => state.platformAccounts);
   const publishTasks = useContentStore((state) => state.publishTasks);
@@ -106,8 +109,7 @@ export function StudioPage() {
     };
   }, []);
 
-  const clampedActiveIndex =
-    documents.length > 0 ? Math.min(activeIndex, documents.length - 1) : 0;
+  const clampedActiveIndex = documents.length > 0 ? Math.min(activeIndex, documents.length - 1) : 0;
 
   const isMissingWorkspace = isTauri() && !workspace;
 
@@ -128,6 +130,59 @@ export function StudioPage() {
       updateContent(`${frontmatter}\n${nextBody}`);
     } else {
       updateContent(nextBody);
+    }
+  }
+
+  async function handleExportMarkdown() {
+    if (!selected) return;
+    if (!isTauri()) {
+      showToast("请在桌面端导出 Markdown 文件");
+      return;
+    }
+    const target = await save({
+      defaultPath: `${selected.title.replace(/[\\/:*?"<>|]/gu, "-")}.md`,
+      filters: [{ name: "Markdown", extensions: ["md"] }],
+    });
+    if (!target) return;
+    try {
+      const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+      await writeTextFile(target, content);
+      showToast("Markdown 已导出");
+    } catch (cause) {
+      useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  async function handleImportMarkdown() {
+    if (!isTauri()) {
+      showToast("请在桌面端导入 Markdown 文件");
+      return;
+    }
+    const source = await open({
+      multiple: false,
+      filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
+    });
+    if (typeof source !== "string") return;
+    try {
+      const imported = await invoke<{
+        id: string;
+        title: string;
+        path: string;
+        updatedAt: string;
+        preview: string;
+        wordCount: number;
+        charCount: number;
+        tags: string[];
+        contentHash: string;
+      }>("import_markdown", { sourcePath: source });
+      const store = useWorkspaceStore.getState();
+      await store.loadDocuments();
+      useWorkspaceStore.setState({ selectedId: imported.id });
+      await useWorkspaceStore.getState().loadDocument(imported);
+      await useWorkspaceStore.getState().loadRevisions(imported.path);
+      showToast("Markdown 已导入到工作区");
+    } catch (cause) {
+      useUiStore.getState().setError(cause instanceof Error ? cause.message : String(cause));
     }
   }
 
@@ -468,7 +523,15 @@ export function StudioPage() {
                   <span className="hidden xl:inline">历史</span>
                 </button>
                 <button
-                  onClick={() => showToast("已准备 Markdown 导出文件")}
+                  onClick={() => void handleImportMarkdown()}
+                  aria-label="导入 Markdown"
+                  title="导入 Markdown"
+                  className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-ink-secondary transition-colors hover:bg-sidebar hover:text-ink"
+                >
+                  <FilePlus2 size={13} />
+                </button>
+                <button
+                  onClick={() => void handleExportMarkdown()}
                   aria-label="导出"
                   title="导出 Markdown"
                   className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-ink-secondary transition-colors hover:bg-sidebar hover:text-ink"
@@ -529,7 +592,7 @@ export function StudioPage() {
                         : `为 ${account.platformName} 生成独立适配稿`
                     }
                   >
-                    <PlatformLogo platformName={account.platformName} size={12} />
+                    <PlatformLogo platformName={account.platformName} size={14} />
                     <span>{account.platformName}</span>
                     {existingTask ? (
                       <span className="text-[10px] opacity-80">
@@ -724,7 +787,7 @@ export function StudioPage() {
                                   key={account.id}
                                   className="flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-2"
                                 >
-                                  <PlatformLogo platformName={account.platformName} size={18} />
+                                  <PlatformLogo platformName={account.platformName} size={20} />
                                   <div className="min-w-0 flex-1">
                                     <strong className="block text-xs font-medium text-ink">
                                       {account.platformName}
@@ -825,17 +888,13 @@ export function StudioPage() {
 
                   {/* Source Version */}
                   <section className="border-t border-line pt-4">
-                    <span className="mb-2.5 block text-xs font-semibold text-ink">
-                      当前版本
-                    </span>
+                    <span className="mb-2.5 block text-xs font-semibold text-ink">当前版本</span>
                     <div className="flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-2.5">
                       <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-sky-bg text-sky-text">
                         <Clock3 size={13} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <strong className="block text-xs font-medium text-ink">
-                          主稿版本 03
-                        </strong>
+                        <strong className="block text-xs font-medium text-ink">主稿版本 03</strong>
                         <small className="text-[11px] text-ink-muted">
                           {formatRelativeTime(selected.updatedAt)} · 最新
                         </small>
@@ -850,18 +909,37 @@ export function StudioPage() {
             </div>
           ) : (
             <div className="flex flex-1 flex-col overflow-y-auto p-4">
-              <p className="mb-4 text-[11.5px] leading-relaxed text-ink-secondary">
-                编辑过程会自动保留本地快照。恢复历史版本将创建一个新的当前版本。
+              <p className="mb-3 text-[11.5px] leading-relaxed text-ink-secondary">
+                版本存储在应用数据目录中的独立 Git 仓库，不会在工作区创建 .git；自动保存不会创建版本。
               </p>
+              <div className="mb-4 flex gap-2">
+                <input
+                  value={revisionLabel}
+                  onChange={(event) => setRevisionLabel(event.target.value)}
+                  aria-label="版本说明"
+                  placeholder="版本说明（可选）"
+                  maxLength={120}
+                  className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs text-ink outline-none focus:border-accent"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    void createRevision(revisionLabel.trim() || undefined);
+                    setRevisionLabel("");
+                  }}
+                  disabled={!selected || saveState === "saving" || saveState === "error"}
+                  className="shrink-0 rounded-lg bg-accent px-2.5 py-1.5 text-xs font-medium text-accent-on disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  保存版本
+                </button>
+              </div>
               <div className="space-y-4">
                 {revisions.map((revision, index) => (
                   <div key={revision.id} className="relative flex gap-3">
                     <div className="flex flex-col items-center">
                       <span
                         className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full border-2 ${
-                          index === 0
-                            ? "border-accent bg-accent"
-                            : "border-line-strong bg-surface"
+                          index === 0 ? "border-accent bg-accent" : "border-line-strong bg-surface"
                         }`}
                       />
                       {index < revisions.length - 1 && (
@@ -870,9 +948,7 @@ export function StudioPage() {
                     </div>
                     <div className="min-w-0 flex-1 pb-2">
                       <div className="flex items-center gap-2">
-                        <strong className="text-xs font-medium text-ink">
-                          {revision.label}
-                        </strong>
+                        <strong className="text-xs font-medium text-ink">{revision.label}</strong>
                         {index === 0 && (
                           <span className="rounded-md bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent-deep">
                             当前
@@ -885,6 +961,18 @@ export function StudioPage() {
                       <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-ink-secondary">
                         {revision.preview}
                       </p>
+                      {selectedRevisionId === revision.id && revision.diff && (
+                        <pre className="mt-2 max-h-48 overflow-auto rounded-lg bg-hover p-2 font-mono text-[10px] leading-relaxed text-ink-secondary">
+                          {revision.diff}
+                        </pre>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRevisionId((current) => current === revision.id ? "" : revision.id)}
+                        className="mt-2 mr-3 text-[11px] font-medium text-accent hover:text-accent-deep"
+                      >
+                        {selectedRevisionId === revision.id ? "隐藏差异" : "查看差异"}
+                      </button>
                       {index > 0 && (
                         <button
                           onClick={() => void restoreRevision(revision)}
@@ -900,7 +988,7 @@ export function StudioPage() {
               </div>
               <div className="mt-auto flex items-center gap-2 border-t border-line pt-3 text-[11px] text-ink-muted">
                 <History size={12} />
-                <span>最多保留最近 30 个版本</span>
+                <span>Git 历史保存在应用数据目录</span>
               </div>
             </div>
           )}

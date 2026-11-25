@@ -3,7 +3,6 @@ import { PageHeader } from "../components/PageHeader";
 import { PlatformLogo } from "../components/PlatformLogo";
 import { PLATFORM_CATEGORIES, type AccountStatus, type PlatformCategory } from "../data/demoData";
 import { useContentStore, useUiStore } from "../stores";
-import { getPlatformVisual } from "../utils/platformStyle";
 
 const accountStatusLabel: Record<AccountStatus, { label: string; className: string }> = {
   ACTIVE: { label: "会话有效", className: "bg-mint-bg text-mint-text" },
@@ -110,7 +109,6 @@ export function PlatformsPage() {
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 {group.accounts.map((account) => {
                   const status = accountStatusLabel[account.status];
-                  const visual = getPlatformVisual(account.platformName);
                   return (
                     <article
                       key={account.id}
@@ -118,13 +116,11 @@ export function PlatformsPage() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3">
-                          <div
-                            className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border ${visual.badgeClass}`}
-                          >
+                          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-white shadow-[0_1px_2px_rgba(35,28,25,0.04)]">
                             <PlatformLogo
                               platformId={account.platformId}
                               platformName={account.platformName}
-                              size={22}
+                              size={28}
                             />
                           </div>
                           <div>

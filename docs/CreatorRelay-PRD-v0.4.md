@@ -666,8 +666,9 @@ ACTIVE
       ┌───────▼──────┐  ┌─────▼────────────┐
       │ Data Layer   │  │ Security Layer  │
       │ SQLite       │  │ OS Keychain     │
-      │ Markdown     │  │ Credential Ref  │
-      │ Local Assets │  │ Session Access  │
+      │ Content Pkgs │  │ Credential Ref  │
+      │ Article .md  │  │ Session Access  │
+      │ Local Assets │  │                 │
       └──────────────┘  └──────────────────┘
               │
       ┌───────▼─────────────────────────────┐
@@ -692,7 +693,7 @@ ACTIVE
   Core           Rust                      核心业务逻辑
   Database       SQLite                    业务元数据
   DB Access      SQLx 或 rusqlite          数据访问
-  File           Rust 文件系统能力         Markdown 和素材管理
+  File           Rust 文件系统能力         内容包、Markdown 正文和素材管理
   Security       OS Keychain               API Key、Token 等
   AI             Provider Adapter          模型供应商接入
   MCP            MCP Client / Host         工具发现与调用
@@ -775,9 +776,11 @@ creator-relay/
 -   Account：账号信息和登录状态。
 -   Data：账号数据和作品数据读取。
 -   Content：作品列表和详情读取。
--   Publish：内容发布、草稿和定时发布。
+-   Publish：视频、图文、图文文章和纯文章的分形态发布、草稿和定时发布。
 -   Analytics：作品及账号指标。
 -   AI：平台相关的内容处理工具或上下文能力。
+
+Publish 和 ContentRead 能力必须按 `ContentKind` 分别声明/返回状态，不能只声明一个笼统的 `contentPublish`。
 
 ### 7.3 Adapter 接口概念
 
@@ -813,13 +816,19 @@ interface ContentReadCapability {
 }
 
 interface ContentPublishCapability {
+  getPublishCapabilities(
+    accountId: string
+  ): Promise<Record<ContentKind, CapabilityStatus>>;
+
   publishContent(
     input: PublishInput
   ): Promise<PublishResult>;
 }
 ```
 
-实际项目中还需定义错误类型、分页、速率限制、取消、超时、幂等和数据来源信息。
+`PublishInput` 必须携带 `kind` 和该形态所需的完整媒体引用顺序。Core 通过受控资产服务向 Adapter 提供素材访问，不要求 Adapter 直接访问任意工作区路径。
+
+实际项目中还需定义错误类型、分页、速率限制、取消、超时、幂等、内容形态不支持和数据来源信息。
 
 ### 7.4 MCP 工具命名
 
@@ -836,7 +845,7 @@ interface ContentPublishCapability {
   `analytics_get_trend`   获取数据趋势
   `analytics_compare`     跨平台对比
 
-平台特有参数通过经过 Schema 校验的扩展字段提供。
+内容读取、更新和发布工具须显式接收 `ContentKind`，并按对应形态 Schema 校验正文、媒体顺序、封面和必填元数据。平台特有参数通过经过 Schema 校验的扩展字段提供。
 
 ### 7.5 MCP 运行方式
 
@@ -868,8 +877,8 @@ interface PlatformManifest {
     accountInfo: CapabilityStatus;
     accountMetrics: CapabilityStatus;
     contentRead: CapabilityStatus;
-    contentPublish: CapabilityStatus;
-    contentSchedule: CapabilityStatus;
+    contentPublishByKind: Record<ContentKind, CapabilityStatus>;
+    contentScheduleByKind: Record<ContentKind, CapabilityStatus>;
     contentAnalytics: CapabilityStatus;
   };
 
@@ -879,7 +888,7 @@ interface PlatformManifest {
 }
 ```
 
-能力状态必须基于实际实现和运行检测，不得仅依据插件声明就展示为可用。
+能力状态必须基于实际实现和运行检测，不得仅依据插件声明就展示为可用。例如某平台可以发布图文但暂不支持视频时，必须返回 `image_text: supported`、`video: unsupported/experimental`，而不是笼统显示“支持发布”。
 
 ------------------------------------------------------------------------
 
@@ -944,7 +953,7 @@ AI Layer
 ### 8.5 数据隐私
 
 BYOK
-不等于数据完全留在本地。使用云端模型时，发送给模型服务商的数据可能包含文章正文、Prompt
+不等于数据完全留在本地。使用云端模型时，发送给模型服务商的数据可能包含文章正文、视频/图文文案、素材元数据、Prompt
 和上下文。
 
 必须：
@@ -986,9 +995,14 @@ BYOK
   "capabilities": [
     "account.read",
     "content.read",
-    "content.publish",
+    "content.publish.plain_article",
+    "content.publish.rich_article",
     "analytics.read"
   ],
+  "contentKinds": {
+    "read": ["plain_article", "rich_article"],
+    "publish": ["plain_article", "rich_article"]
+  },
   "permissions": [
     "network",
     "account.credentials"
@@ -996,7 +1010,7 @@ BYOK
 }
 ```
 
-Manifest 是能力和权限申请声明，不代表插件自动获得对应权限。
+Manifest 是能力和权限申请声明，不代表插件自动获得对应权限。平台插件须按 `ContentKind` 声明读取和发布能力；未声明的形态默认不可用。
 
 ### 9.3 插件安全要求
 
@@ -1037,10 +1051,11 @@ ENABLED
 ### 10.1 数据职责
 
   存储               内容
-  ------------------ ----------------------------------
-  Markdown           主稿、平台稿和正文
-  SQLite             平台、账号、索引、任务、指标快照
-  Local Assets       图片、视频、封面和附件
+  ------------------ ------------------------------------------------------------
+  Content Manifest   内容形态、元数据、封面、媒体顺序、平台稿关联
+  Markdown           图文文章和纯文章的正文权威来源
+  SQLite             平台、账号、索引、任务、指标快照和素材元数据
+  Local Assets       视频、图片、封面、字幕和附件
   OS Keychain        密码、Token、API Key 等敏感凭据
   Browser Profiles   独立浏览器会话数据
 
@@ -1085,7 +1100,8 @@ browser-profiles/
 -   `platforms`
 -   `accounts`
 -   `platform_sessions`
--   `master_drafts`
+-   `content_drafts`
+-   `content_versions`
 -   `platform_drafts`
 -   `contents`
 -   `publish_tasks`
@@ -1101,14 +1117,17 @@ browser-profiles/
 -   `ai_messages`
 -   `tool_invocations`
 -   `media_assets`
--   `article_versions`
+-   `content_media_refs`
 -   `operation_logs`
 
 ### 11.2 主要关系
 
 ``` text
 WORKSPACES
-  ├── MASTER_DRAFTS
+  ├── CONTENT_DRAFTS
+  │      ├── CONTENT_VERSIONS
+  │      ├── CONTENT_MEDIA_REFS
+  │      │      └── MEDIA_ASSETS
   │      └── PLATFORM_DRAFTS
   ├── ACCOUNTS
   │      ├── ACCOUNT_METRICS
@@ -1131,12 +1150,16 @@ AI_PROVIDERS
 
 ### 11.3 关键数据规则
 
--   主稿正文不只存 SQLite，正文权威来源是 Markdown 文件。
--   平台稿单独保存并关联主稿。
--   外部平台作品与本地稿件通过平台 ID、账号 ID 和关联记录连接。
--   指标快照保留采集时间和来源。
--   发布任务记录每个平台、每个账号的独立状态。
+-   `content_drafts.kind` 必须为 `video`、`image_text`、`rich_article`、`plain_article` 之一。
+-   图文文章和纯文章的正文不只存 SQLite，正文权威来源是 Markdown 文件；内容形态、元数据和媒体顺序以内容清单为权威来源。
+-   视频和图文不要求 Markdown 正文，媒体资产与清单共同构成主内容。
+-   平台稿单独保存并关联 Content Draft，保留形态、来源版本、正文/媒体快照和素材顺序。
+-   `content_media_refs` 是媒体顺序、角色和说明的关系投影，不能替代原始媒体文件。
+-   外部平台作品与本地稿件通过平台 ID、账号 ID 和关联记录连接，并保留平台原始内容类型。
+-   指标快照保留采集时间和来源；不得默认把视频播放量与文章阅读量合并为同一口径。
+-   发布任务记录每个平台、每个账号、内容形态和最终内容版本的独立状态。
 -   账号删除与历史作品数据删除应分开处理，避免意外丢失运营历史。
+-   跨形态转换创建新的 Content Draft 并记录来源，不原地修改 `kind`。
 -   数据库使用迁移机制，不能依赖启动时随意修改表结构。
 
 ------------------------------------------------------------------------
@@ -1146,11 +1169,15 @@ AI_PROVIDERS
 ### 12.1 多平台发布
 
 ``` text
-创建 Master Draft
+创建 Content Draft
       ↓
-编辑文章
+选择内容形态（视频 / 图文 / 图文文章 / 纯文章）
       ↓
-选择目标平台和账号
+使用形态专属编辑器编辑
+      ↓
+检查必填字段、正文和媒体完整性
+      ↓
+选择支持该形态的目标平台和账号
       ↓
 AI 平台适配
       ↓
@@ -1158,7 +1185,7 @@ AI 平台适配
       ↓
 用户检查和修改
       ↓
-确认发布
+确认发布内容包
       ↓
 创建独立发布任务
       ↓
@@ -1168,6 +1195,15 @@ AI 平台适配
       ↓
 同步作品和数据
 ```
+
+形态专属步骤：
+
+| ContentKind     | 进入适配前的最低完整度                                             |
+| --------------- | ------------------------------------------------------------------ |
+| `video`         | 可读视频、封面（平台要求时）、标题、简介和平台要求的时长/格式信息 |
+| `image_text`    | 至少一张可读图片、明确封面、稳定顺序、标题和短文案                 |
+| `rich_article`  | 可渲染 Markdown 正文、可解析的媒体引用、标题和媒体说明             |
+| `plain_article` | 可渲染且非空的 Markdown 正文、标题                                 |
 
 ### 12.2 数据同步
 
@@ -1211,6 +1247,8 @@ AI 平台适配
   本地优先     核心内容和业务数据默认存储本机
   数据安全     敏感凭据使用系统安全存储
   文件安全     文件操作限制在用户授权工作区
+  媒体完整性   视频、图片、封面和顺序在保存、适配、发布中不得静默丢失
+  形态兼容     平台能力按内容形态声明，不支持时提供明确降级路径
   插件安全     第三方插件独立运行并实施权限控制
   AI 隐私      调用云端模型前明确数据发送范围
   操作安全     发布、删除等外部操作需要确认
@@ -1229,16 +1267,19 @@ AI 平台适配
 -   Tauri 2 桌面应用和基础导航。
 -   Rust Core 与 React IPC。
 -   SQLite 数据库及迁移机制。
--   Markdown 工作区和素材管理。
+-   内容包工作区、媒体素材管理和索引/搜索。
+-   四类内容创建：视频、图文、图文文章、纯文章。
+-   视频导入、预览、封面、标题/简介和发布打包。
+-   图文的图片导入、排序、封面、逐图说明和短文案。
+-   图文文章和纯文章的 Markdown 编辑、预览、版本与媒体引用。
 -   本地账号管理和系统凭据管理。
 -   内置及外部浏览器访问。
 -   Platform Adapter 注册机制。
--   至少两个经过实际验证的平台适配器。
--   Markdown 内容工作室。
+-   至少两个经过实际验证的平台适配器，验证范围至少覆盖一种媒体优先形态和一种文章形态。
 -   BYOK 和多模型配置。
--   主稿到平台稿的 AI 适配。
+-   按内容形态生成平台稿的 AI 适配。
 -   发布任务和结果管理。
--   统一作品列表。
+-   统一作品列表，可按四种形态筛选。
 -   基础数据分析。
 -   MCP Host 和平台工具调用。
 
@@ -1247,7 +1288,9 @@ AI 平台适配
 -   完整第三方插件市场。
 -   团队实时协作。
 -   云端同步。
--   专业视频剪辑。
+-   专业视频剪辑、转码工作台和专业图像处理。
+-   AI 视频生成、自动剪辑和无确认的自动换图。
+-   跨形态的无损/高保真自动转换；MVP 只要求保留来源的派生草稿。
 -   复杂多 Agent 编排。
 -   所有平台的全部自动发布能力。
 
@@ -1257,13 +1300,13 @@ AI 平台适配
 
 1.  在 CreatorRelay 中添加多个平台账号。
 2.  重启应用后恢复仍然有效的登录会话。
-3.  创建并编辑一篇本地 Markdown 主稿。
-4.  选择两个平台生成独立平台稿。
-5.  手动调整平台稿。
-6.  对支持的目标平台创建发布任务；不支持自动发布的平台进入人工发布流程。
-7.  查看每个平台独立的发布结果。
-8.  同步已发布作品和可用指标。
-9.  通过 AI 助手调用 MCP 工具查询账号和作品数据。
+3.  分别创建并编辑视频、图文、图文文章和纯文章，重启后正文、元数据、封面和媒体顺序均可恢复。
+4.  为至少两种不同内容形态选择兼容平台和账号，生成独立平台稿。
+5.  手动调整平台稿；修改一个平台稿不改变其他平台稿或主内容。
+6.  对支持的目标平台创建发布任务；不支持自动发布或当前形态的平台进入人工发布流程。
+7.  查看每个平台、账号和内容形态独立的发布结果。
+8.  同步已发布作品和可用指标，并能在 Content 中识别四种内容形态。
+9.  通过 AI 助手调用 MCP 工具查询账号/作品数据并创建指定形态的本地内容草稿。
 
 ------------------------------------------------------------------------
 
@@ -1272,11 +1315,11 @@ AI 平台适配
   阶段   核心任务       交付物
   ------ -------------- ------------------------------
   M1     桌面基础设施   Tauri、Rust Core、SQLite
-  M2     本地工作区     Markdown、素材、搜索
+  M2     本地工作区     四类内容包、素材、索引、搜索
   M3     账号体系       平台注册、登录、凭据
-  M4     插件体系       Manifest、Adapter Runtime
-  M5     内容工作室     编辑器、AI 创作、平台适配
-  M6     发布与同步     发布任务、作品同步、指标快照
+  M4     插件体系       Manifest、分形态 Adapter Runtime
+  M5     内容工作室     四类编辑器、AI 创作、平台适配
+  M6     发布与同步     分形态发布、作品同步、指标快照
   M7     MCP 与 Agent   工具调用、跨模块工作流
   M8     生态扩展       更多平台和第三方插件
 
@@ -1296,14 +1339,14 @@ AI 平台适配
 
 建议：首期优先 Node.js + TypeScript，后续扩展 Rust 等 Runtime。
 
-### 16.2 Markdown 版本管理
+### 16.2 内容包与 Markdown 版本管理
 
 -   内置 Git。
--   自行实现文件快照。
+-   自行实现内容包快照。
 -   Git + 自动快照。
 
 建议：Git
-负责可追溯版本历史，自动快照负责编辑过程中的意外恢复；但需控制实现复杂度。
+负责可追溯的正文、清单和平台稿历史，自动快照负责编辑过程中的意外恢复。版本必须包含 `kind`、正文、媒体引用、图片顺序、封面和生成来源；大型视频文件是否纳入 Git、使用 Git LFS 还是仅做引用快照，须在 TDD 中明确，避免无意复制导致存储膨胀。
 
 ### 16.3 本地备份
 
@@ -1331,7 +1374,7 @@ Creator Platform Runtime。
 
 核心能力包括：
 
-1.  **统一内容模型：** 让不同平台的作品能够统一管理、检索和分析。
+1.  **统一内容模型：** 用 `ContentKind` 统一视频、图文、图文文章和纯文章的本地创作、平台适配、检索与分析。
 2.  **平台适配体系：** 降低新增平台的开发和维护成本。
 3.  **本地 AI 执行环境：** 让 AI
     能够在用户授权下查询、创作、发布和分析。
@@ -1342,7 +1385,7 @@ Creator Platform Runtime。
   核心资产       说明
   -------------- --------------------------------
   Accounts       创作者账号和授权关系
-  Contents       主稿、平台稿和外部作品
+  Contents       四类主内容、平台稿和外部作品
   Analytics      运营指标和历史快照
   Capabilities   平台适配器、MCP 工具和 AI 能力
 
@@ -1372,14 +1415,15 @@ Creator Platform Runtime。
 -   Rust Core 设计。
 -   React 与 Tauri IPC。
 -   SQLite ER 图和迁移。
--   文件系统和凭据管理。
+-   内容包 Schema、媒体顺序和 Markdown 正文边界。
+-   文件系统、媒体元数据和凭据管理。
 -   AI Runtime 与 MCP Host。
 -   测试和异常恢复。
 
 ### PLUGIN_SPEC.md
 
--   Platform Adapter 接口。
--   Manifest Schema。
+-   Platform Adapter 接口及 `ContentKind` 载荷。
+-   Manifest Schema 和逐形态能力声明。
 -   MCP 工具规范。
 -   插件生命周期。
 -   权限模型。
@@ -1388,5 +1432,5 @@ Creator Platform Runtime。
 
 ------------------------------------------------------------------------
 
-**文档说明：** 本文档是 CreatorRelay V0.3
-产品需求与技术架构基线草案。已明确的产品定位和技术选型作为当前基线；平台接口可用性、第三方插件隔离、浏览器会话和部分架构细节仍需在工程验证阶段确认。文档不将未经验证的平台能力描述为已实现能力。
+**文档说明：** 本文档是 CreatorRelay V0.4
+产品需求与技术架构基线草案。V0.4 将 Studio 的内容范围从 Markdown 文章扩展为视频、图文、图文文章和纯文章，并把内容包、媒体顺序和逐形态平台能力纳入阶段基线。已明确的产品定位和技术选型作为当前基线；平台接口可用性、第三方插件隔离、浏览器会话、内容包文件细节和部分架构细节仍需在工程验证阶段确认。文档不将未经验证的平台能力描述为已实现能力。

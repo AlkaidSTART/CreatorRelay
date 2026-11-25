@@ -1,10 +1,9 @@
 use chrono::{DateTime, TimeZone, Utc};
 use git2::{Commit, DiffFormat, Repository, Signature, Sort, Tree};
-use rusqlite::{Connection, OptionalExtension, Transaction, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
-    collections::HashSet,
     fs,
     path::{Component, Path, PathBuf},
     sync::Mutex,
@@ -61,6 +60,12 @@ fn digest(content: &str) -> String {
     format!("{:x}", Sha256::digest(content.as_bytes()))
 }
 
+fn ensure_base_hash(content: &str, base_hash: Option<&str>) -> Result<(), String> {
+    if base_hash.is_some_and(|expected| expected != digest(content)) {
+        return Err("此文档已在其他位置修改。为避免覆盖，请重新载入后再操作。".to_string());
+    }
+    Ok(())
+}
 
 fn history_repository_path(history_root: &Path, workspace: &Path) -> Result<PathBuf, String> {
     let workspace = workspace.canonicalize().map_err(|e| e.to_string())?;
@@ -95,7 +100,8 @@ fn managed_history_path(relative: &str) -> Result<(String, String), String> {
         .to_str()
         .ok_or("文章目录名不是有效 UTF-8")?
         .to_string();
-    Ok((document_id, relative.replace('\\', "/")))
+    let normalized = relative.replace('\\', "/");
+    Ok((document_id, normalized))
 }
 
 fn copy_tree_entries(
@@ -105,7 +111,7 @@ fn copy_tree_entries(
 ) -> Result<(), String> {
     if let Some(tree) = tree {
         for entry in tree.iter() {
-            let name = entry.name().ok_or("Git 树包含无效文件名")?;
+            let name = entry.name().map_err(|e| e.message().to_string())?;
             if name != excluded_name {
                 builder
                     .insert(name, entry.id(), entry.filemode())
@@ -117,7 +123,9 @@ fn copy_tree_entries(
 }
 
 fn tree_blob_id(tree: &Tree<'_>, relative: &str) -> Option<git2::Oid> {
-    tree.get_path(Path::new(relative)).ok().map(|entry| entry.id())
+    tree.get_path(Path::new(relative))
+        .ok()
+        .map(|entry| entry.id())
 }
 
 fn tree_with_document<'repo>(
@@ -128,12 +136,12 @@ fn tree_with_document<'repo>(
 ) -> Result<Tree<'repo>, String> {
     let (document_id, _) = managed_history_path(relative)?;
     let base_articles = base
-        .and_then(|tree| tree.get_name("articles").ok())
+        .and_then(|tree| tree.get_name("articles"))
         .and_then(|entry| entry.to_object(repo).ok())
         .and_then(|object| object.peel_to_tree().ok());
     let base_document = base_articles
         .as_ref()
-        .and_then(|tree| tree.get_name(&document_id).ok())
+        .and_then(|tree| tree.get_name(&document_id))
         .and_then(|entry| entry.to_object(repo).ok())
         .and_then(|object| object.peel_to_tree().ok());
 
@@ -168,9 +176,7 @@ fn tree_with_document<'repo>(
     root_builder
         .insert("articles", articles_tree, 0o040000)
         .map_err(|e| e.message().to_string())?;
-    let root_tree = root_builder
-        .write()
-        .map_err(|e| e.message().to_string())?;
+    let root_tree = root_builder.write().map_err(|e| e.message().to_string())?;
     repo.find_tree(root_tree)
         .map_err(|e| e.message().to_string())
 }
@@ -218,14 +224,13 @@ fn commit_document_content(
     }
     .map_err(|e| e.message().to_string())?;
     let parents = head.iter().collect::<Vec<_>>();
-    let parent_refs = parents.iter().collect::<Vec<_>>();
     repo.commit(
         Some("HEAD"),
         &signature,
         &signature,
         message,
         &tree,
-        &parent_refs,
+        &parents,
     )
     .map(Some)
     .map_err(|e| e.message().to_string())
@@ -259,7 +264,9 @@ fn ensure_document_history(
     }
 
     let mut statement = conn
-        .prepare("SELECT content, label, created_at FROM revisions WHERE document_id=?1 ORDER BY id ASC")
+        .prepare(
+            "SELECT content, label, created_at FROM revisions WHERE document_id=?1 ORDER BY id ASC",
+        )
         .map_err(|e| e.to_string())?;
     let rows = statement
         .query_map([document_id], |row| {
@@ -270,7 +277,9 @@ fn ensure_document_history(
             ))
         })
         .map_err(|e| e.to_string())?;
-    let snapshots = rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+    let snapshots = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
     drop(statement);
 
     for (content, label, created_at) in snapshots {
@@ -289,15 +298,21 @@ fn ensure_document_history(
     Ok(())
 }
 
-fn format_revision_diff(repo: &Repository, commit: &Commit<'_>) -> Result<String, String> {
+fn format_revision_diff(
+    repo: &Repository,
+    commit: &Commit<'_>,
+    relative: &str,
+) -> Result<String, String> {
     let current_tree = commit.tree().map_err(|e| e.message().to_string())?;
-    let parent_tree = commit
-        .parent(0)
-        .ok()
-        .and_then(|parent| parent.tree().ok());
+    let parent_tree = commit.parent(0).ok().and_then(|parent| parent.tree().ok());
     let mut options = git2::DiffOptions::new();
+    options.pathspec(relative);
     let diff = repo
-        .diff_tree_to_tree(parent_tree.as_ref(), Some(&current_tree), Some(&mut options))
+        .diff_tree_to_tree(
+            parent_tree.as_ref(),
+            Some(&current_tree),
+            Some(&mut options),
+        )
         .map_err(|e| e.message().to_string())?;
     let mut output = String::new();
     diff.print(DiffFormat::Patch, |_delta, _hunk, line| {
@@ -308,10 +323,7 @@ fn format_revision_diff(repo: &Repository, commit: &Commit<'_>) -> Result<String
     Ok(output)
 }
 
-fn list_document_revisions(
-    repo: &Repository,
-    relative: &str,
-) -> Result<Vec<Revision>, String> {
+fn list_document_revisions(repo: &Repository, relative: &str) -> Result<Vec<Revision>, String> {
     let mut revwalk = repo.revwalk().map_err(|e| e.message().to_string())?;
     let Some(head) = current_head(repo)? else {
         return Ok(Vec::new());
@@ -360,7 +372,7 @@ fn list_document_revisions(
             created_at,
             label: commit.message().unwrap_or("本地版本").trim().to_string(),
             preview,
-            diff: format_revision_diff(repo, &commit)?,
+            diff: format_revision_diff(repo, &commit, relative)?,
         });
     }
     Ok(revisions)
@@ -542,60 +554,6 @@ fn resolve_document(workspace: &Path, relative: &str) -> Result<PathBuf, String>
     Ok(candidate)
 }
 
-fn create_revision(
-    conn: &Connection,
-    document_id: &str,
-    content: &str,
-    label: &str,
-) -> Result<(), String> {
-    conn.execute(
-        "INSERT INTO revisions(document_id, content, content_hash, label, created_at)
-         VALUES(?1, ?2, ?3, ?4, ?5)",
-        params![
-            document_id,
-            content,
-            digest(content),
-            label,
-            Utc::now().to_rfc3339()
-        ],
-    )
-    .map_err(|e| e.to_string())?;
-    conn.execute(
-        "DELETE FROM revisions WHERE document_id = ?1 AND id NOT IN
-         (SELECT id FROM revisions WHERE document_id = ?1 ORDER BY id DESC LIMIT 30)",
-        [document_id],
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-fn create_revision_tx(
-    tx: &Transaction<'_>,
-    document_id: &str,
-    content: &str,
-    label: &str,
-) -> Result<(), String> {
-    tx.execute(
-        "INSERT INTO revisions(document_id, content, content_hash, label, created_at)
-         VALUES(?1, ?2, ?3, ?4, ?5)",
-        params![
-            document_id,
-            content,
-            digest(content),
-            label,
-            Utc::now().to_rfc3339()
-        ],
-    )
-    .map_err(|e| e.to_string())?;
-    tx.execute(
-        "DELETE FROM revisions WHERE document_id = ?1 AND id NOT IN
-         (SELECT id FROM revisions WHERE document_id = ?1 ORDER BY id DESC LIMIT 30)",
-        [document_id],
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
 fn database_document_path(workspace: &Path, relative: &str) -> Result<String, String> {
     let canonical_workspace = workspace.canonicalize().map_err(|e| e.to_string())?;
     let path = canonical_workspace.join(relative);
@@ -634,7 +592,6 @@ fn sync_index(conn: &Connection, workspace: &Path) -> Result<(), String> {
     }
     normalize_legacy_paths(conn, workspace)?;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
-    let mut seen = HashSet::new();
     for entry in WalkDir::new(workspace.join("articles"))
         .follow_links(false)
         .into_iter()
@@ -659,7 +616,6 @@ fn sync_index(conn: &Connection, workspace: &Path) -> Result<(), String> {
             .to_string_lossy()
             .replace('\\', "/");
         let database_path = database_document_path(workspace, &relative)?;
-        seen.insert(database_path.clone());
         let indexed: Option<(String, String)> = tx
             .query_row(
                 "SELECT id, content_hash FROM documents WHERE path = ?1",
@@ -673,37 +629,12 @@ fn sync_index(conn: &Connection, workspace: &Path) -> Result<(), String> {
             .map(|(id, _)| id.clone())
             .unwrap_or_else(|| Uuid::new_v4().to_string());
         let document = document_from_file(id.clone(), path, workspace)?;
-        let changed =
-            indexed.as_ref().map(|(_, hash)| hash.as_str()) != Some(document.content_hash.as_str());
         tx.execute(
             "INSERT INTO documents(id, path, title, updated_at, content_hash) VALUES(?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(path) DO UPDATE SET title=excluded.title, updated_at=excluded.updated_at, content_hash=excluded.content_hash",
             params![document.id, database_path, document.title, document.updated_at, document.content_hash],
         )
         .map_err(|e| e.to_string())?;
-        if changed {
-            let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-            let latest_hash: Option<String> = tx
-                .query_row(
-                    "SELECT content_hash FROM revisions WHERE document_id=?1 ORDER BY id DESC LIMIT 1",
-                    [&id],
-                    |row| row.get(0),
-                )
-                .optional()
-                .map_err(|e| e.to_string())?;
-            if latest_hash.as_deref() != Some(document.content_hash.as_str()) {
-                create_revision_tx(
-                    &tx,
-                    &id,
-                    &content,
-                    if indexed.is_some() {
-                        "检测到外部修改"
-                    } else {
-                        "导入"
-                    },
-                )?;
-            }
-        }
     }
     // Keep missing-file rows and revision snapshots. The file is authoritative,
     // but an external deletion should not silently destroy recoverable history.
@@ -803,6 +734,15 @@ fn list_documents(
 }
 
 #[tauri::command]
+fn rebuild_workspace_index(state: State<'_, AppState>) -> Result<usize, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+    sync_index(&conn, &workspace)?;
+    conn.query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn read_document(path: String, state: State<'_, AppState>) -> Result<DocumentContent, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
@@ -815,10 +755,7 @@ fn read_document(path: String, state: State<'_, AppState>) -> Result<DocumentCon
 }
 
 #[tauri::command]
-fn create_document(
-    title: String,
-    state: State<'_, AppState>,
-) -> Result<Document, String> {
+fn create_document(title: String, state: State<'_, AppState>) -> Result<Document, String> {
     let title = title.trim();
     if title.is_empty() {
         return Err("标题不能为空".to_string());
@@ -852,7 +789,7 @@ fn save_document(
     base_hash: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Document, String> {
-    let mut conn = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
     let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
     let file = resolve_document(&workspace, &path)?;
     let database_path = database_document_path(&workspace, &path)?;
@@ -865,12 +802,7 @@ fn save_document(
         .map_err(|e| e.to_string())?;
     let existing = fs::read_to_string(&file).map_err(|e| e.to_string())?;
     let current_hash = digest(&existing);
-    if base_hash
-        .as_deref()
-        .is_some_and(|expected| expected != current_hash)
-    {
-        return Err("此文档已在其他位置修改。为避免覆盖，请重新载入或另存副本。".to_string());
-    }
+    ensure_base_hash(&existing, base_hash.as_deref())?;
     if existing == content {
         return document_from_file(id, &file, &workspace);
     }
@@ -889,17 +821,14 @@ fn save_document(
 }
 
 #[tauri::command]
-fn list_revisions(
-    path: String,
-    state: State<'_, AppState>,
-) -> Result<Vec<Revision>, String> {
+fn list_revisions(path: String, state: State<'_, AppState>) -> Result<Vec<Revision>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
     let file = resolve_document(&workspace, &path)?;
     if !file.exists() {
         return Err("文档文件已不存在".to_string());
     }
-    let (document_id, relative) = managed_history_path(&path)?;
+    let (_, relative) = managed_history_path(&path)?;
     let database_path = database_document_path(&workspace, &path)?;
     let indexed_id: String = conn
         .query_row(
@@ -911,7 +840,6 @@ fn list_revisions(
     let current = fs::read_to_string(&file).map_err(|e| e.to_string())?;
     let repository = open_history_repository(&state.history_root, &workspace)?;
     ensure_document_history(&repository, &conn, &indexed_id, &relative, &current)?;
-    let _ = document_id;
     list_document_revisions(&repository, &relative)
 }
 
@@ -951,9 +879,10 @@ fn create_document_revision(
 fn restore_revision(
     path: String,
     revision_id: String,
+    base_hash: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Document, String> {
-    let mut conn = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
     let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
     let file = resolve_document(&workspace, &path)?;
     if !file.exists() {
@@ -969,8 +898,10 @@ fn restore_revision(
         )
         .map_err(|e| e.to_string())?;
     let current = fs::read_to_string(&file).map_err(|e| e.to_string())?;
+    ensure_base_hash(&current, base_hash.as_deref())?;
     let repository = open_history_repository(&state.history_root, &workspace)?;
     ensure_document_history(&repository, &conn, &id, &relative, &current)?;
+    commit_document_content(&repository, &relative, &current, "恢复前保留当前版本", None)?;
     let oid = git2::Oid::from_str(&revision_id).map_err(|e| e.message().to_string())?;
     let revision = repository
         .find_commit(oid)
@@ -1019,8 +950,7 @@ pub fn run() {
                     id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL,
                     content TEXT NOT NULL, content_hash TEXT NOT NULL, label TEXT NOT NULL,
                     created_at TEXT NOT NULL, FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE CASCADE
-                 );
-                 CREATE INDEX IF NOT EXISTS idx_revisions_document ON revisions(document_id, id DESC);",
+                 );",
             )
             .map_err(std::io::Error::other)?;
             conn.execute(
@@ -1043,6 +973,7 @@ pub fn run() {
             get_workspace,
             set_workspace_path,
             list_documents,
+            rebuild_workspace_index,
             read_document,
             create_document,
             save_document,
@@ -1117,10 +1048,6 @@ mod tests {
             .query_row("SELECT title FROM documents", [], |row| row.get(0))
             .unwrap();
         assert_eq!(title, "Updated");
-        let revisions: i64 = connection
-            .query_row("SELECT COUNT(*) FROM revisions", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(revisions, 2);
     }
 
     #[test]
@@ -1175,53 +1102,124 @@ mod tests {
         let rows: i64 = connection
             .query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))
             .unwrap();
-        let revisions: i64 = connection
-            .query_row("SELECT COUNT(*) FROM revisions", [], |row| row.get(0))
-            .unwrap();
         assert_eq!(rows, 2);
-        assert_eq!(revisions, 2);
     }
 
     #[test]
-    fn save_conflict_is_detected_and_versions_are_bounded() {
+    fn git_history_tracks_manual_article_versions_and_path_scoped_diffs() {
         let temp = tempfile::tempdir().unwrap();
         let workspace = temp.path().join("workspace");
         setup_workspace(&workspace).unwrap();
-        let path = workspace.join("articles/doc/article.md");
-        let original = "---\ntitle: Draft\ntags: []\n---\n\n# Draft\n";
-        atomic_write(&path, original).unwrap();
+        let history_root = temp.path().join("app-data/article-history");
+        let article_path = "articles/doc-a/article.md";
+        let first = "---\ntitle: Draft\ncustom: preserved\n---\n\n# Draft\n";
+        let second = first.replace("# Draft", "# Updated");
+        let other_path = "articles/doc-b/article.md";
+        let other = "# Other article\n";
+        let repo = open_history_repository(&history_root, &workspace).unwrap();
+
+        commit_document_content(&repo, article_path, first, "创建文章", None).unwrap();
+        commit_document_content(&repo, other_path, other, "创建另一篇", None).unwrap();
+        commit_document_content(&repo, article_path, &second, "手动保存版本", None).unwrap();
+        commit_document_content(&repo, article_path, &second, "重复快照", None).unwrap();
+
+        let revisions = list_document_revisions(&repo, article_path).unwrap();
+        assert_eq!(revisions.len(), 2);
+        assert!(revisions[0].diff.contains("# Updated"));
+        assert!(!revisions[0].diff.contains("Other article"));
+        assert!(revisions[1].diff.contains("custom: preserved"));
+    }
+
+    #[test]
+    fn git_history_migrates_legacy_snapshots_without_changing_markdown_files() {
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = temp.path().join("workspace");
+        setup_workspace(&workspace).unwrap();
+        let file = workspace.join("articles/doc/article.md");
+        let current = "---\ntitle: Current\ncustom: keep\n---\n\n# Current\n";
+        atomic_write(&file, current).unwrap();
+        let before = digest(&fs::read_to_string(&file).unwrap());
         let connection = test_db();
-        let id = "doc-1";
+        let created_at = Utc::now().to_rfc3339();
         connection
             .execute(
                 "INSERT INTO documents VALUES(?1, ?2, ?3, ?4, ?5)",
                 params![
-                    id,
-                    "articles/doc/article.md",
-                    "Draft",
-                    Utc::now().to_rfc3339(),
-                    digest(original)
+                    "doc",
+                    file.to_string_lossy(),
+                    "Current",
+                    created_at,
+                    digest(current)
                 ],
             )
             .unwrap();
-        create_revision(&connection, id, original, "创建").unwrap();
-        let external = original.replace("Draft", "External");
-        fs::write(&path, &external).unwrap();
-        assert_ne!(
-            digest(&fs::read_to_string(&path).unwrap()),
-            digest(original)
+        let old = "---\ntitle: Old\ncustom: keep\n---\n\n# Old\n";
+        connection.execute(
+            "INSERT INTO revisions(document_id, content, content_hash, label, created_at) VALUES(?1, ?2, ?3, ?4, ?5)",
+            params!["doc", old, digest(old), "旧版本", created_at],
+        ).unwrap();
+        let history_root = temp.path().join("history");
+        let repo = open_history_repository(&history_root, &workspace).unwrap();
+        ensure_document_history(
+            &repo,
+            &connection,
+            "doc",
+            "articles/doc/article.md",
+            current,
+        )
+        .unwrap();
+
+        let revisions = list_document_revisions(&repo, "articles/doc/article.md").unwrap();
+        assert_eq!(revisions.len(), 2);
+        assert!(
+            revisions
+                .iter()
+                .any(|revision| revision.preview.contains("# Old"))
         );
-        for index in 0..35 {
-            create_revision(&connection, id, &format!("revision {index}"), "自动保存").unwrap();
-        }
-        let count: i64 = connection
-            .query_row(
-                "SELECT COUNT(*) FROM revisions WHERE document_id=?1",
-                [id],
-                |row| row.get(0),
-            )
+        assert_eq!(digest(&fs::read_to_string(file).unwrap()), before);
+    }
+
+    #[test]
+    fn restoring_a_git_version_creates_a_new_recoverable_tip() {
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = temp.path().join("workspace");
+        setup_workspace(&workspace).unwrap();
+        let root = temp.path().join("history");
+        let path = "articles/doc/article.md";
+        let first = "# First\n";
+        let second = "# Second\n";
+        let repo = open_history_repository(&root, &workspace).unwrap();
+        commit_document_content(&repo, path, first, "创建", None).unwrap();
+        let first_id = list_document_revisions(&repo, path).unwrap()[0].id.clone();
+        commit_document_content(&repo, path, second, "更新", None).unwrap();
+        let selected = repo
+            .find_commit(git2::Oid::from_str(&first_id).unwrap())
             .unwrap();
-        assert_eq!(count, 30);
-        assert!(resolve_document(&workspace, "articles/doc/article.md").is_ok());
+        let selected_tree = selected.tree().unwrap();
+        let selected_blob = repo
+            .find_blob(tree_blob_id(&selected_tree, path).unwrap())
+            .unwrap();
+        let restored = std::str::from_utf8(selected_blob.content()).unwrap();
+        commit_document_content(&repo, path, second, "恢复前保留当前版本", None).unwrap();
+        commit_document_content(&repo, path, restored, "恢复选定版本", None).unwrap();
+
+        let revisions = list_document_revisions(&repo, path).unwrap();
+        assert_eq!(revisions.len(), 4);
+        assert_eq!(revisions[0].preview, "# First");
+        assert!(
+            revisions
+                .iter()
+                .any(|revision| revision.preview == "# Second")
+        );
+    }
+
+    #[test]
+    fn save_and_restore_base_hash_reject_external_changes() {
+        let original = "# Original\n";
+        let external = "# External\n";
+        assert!(ensure_base_hash(original, Some(&digest(original))).is_ok());
+        let error = ensure_base_hash(external, Some(&digest(original))).unwrap_err();
+        assert!(error.contains("其他位置修改"));
+        assert!(ensure_base_hash(external, None).is_ok());
     }
 }

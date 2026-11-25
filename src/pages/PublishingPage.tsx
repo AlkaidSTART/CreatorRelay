@@ -11,7 +11,6 @@ import { PageHeader } from "../components/PageHeader";
 import { PlatformLogo } from "../components/PlatformLogo";
 import type { PublishTaskStatus } from "../data/demoData";
 import { useContentStore, useUiStore } from "../stores";
-import { getPlatformVisual } from "../utils/platformStyle";
 
 const statusMeta: Record<PublishTaskStatus, { label: string; className: string }> = {
   PENDING: { label: "等待执行", className: "bg-sidebar text-ink-secondary" },
@@ -97,23 +96,18 @@ export function PublishingPage() {
         <div className="space-y-3">
           {visibleTasks.map((task) => {
             const meta = statusMeta[task.status];
-            const visual = getPlatformVisual(task.platform);
             return (
               <article
                 key={task.id}
                 className="flex flex-col justify-between gap-4 rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_10px_rgba(74,58,48,0.03)] transition-colors hover:border-line-strong sm:flex-row sm:items-center"
               >
                 <div className="flex min-w-0 flex-1 items-start gap-3.5">
-                  <div
-                    className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border ${visual.badgeClass}`}
-                  >
-                    <PlatformLogo platformName={task.platform} size={22} />
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-white shadow-[0_1px_2px_rgba(35,28,25,0.04)]">
+                    <PlatformLogo platformName={task.platform} size={28} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <strong className="text-sm font-medium text-ink">
-                        {task.articleTitle}
-                      </strong>
+                      <strong className="text-sm font-medium text-ink">{task.articleTitle}</strong>
                       <span
                         className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${meta.className}`}
                       >

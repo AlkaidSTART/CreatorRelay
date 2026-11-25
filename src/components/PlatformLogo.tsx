@@ -1,17 +1,17 @@
 import type { CSSProperties } from "react";
 
-import bilibiliLogo from "../assets/platforms/bilibili.svg";
-import csdnLogo from "../assets/platforms/csdn.svg";
-import douyinLogo from "../assets/platforms/douyin.svg";
-import juejinLogo from "../assets/platforms/juejin.svg";
-import kuaishouLogo from "../assets/platforms/kuaishou.svg";
-import wechatLogo from "../assets/platforms/wechat.svg";
-import weiboLogo from "../assets/platforms/weibo.svg";
-import xiaohongshuLogo from "../assets/platforms/xiaohongshu.svg";
-import youtubeLogo from "../assets/platforms/youtube.svg";
-import zhihuLogo from "../assets/platforms/zhihu.svg";
+import bilibiliLogo from "../assets/platforms/bilibili.png";
+import csdnLogo from "../assets/platforms/csdn.png";
+import douyinLogo from "../assets/platforms/douyin.png";
+import juejinLogo from "../assets/platforms/juejin.png";
+import kuaishouLogo from "../assets/platforms/kuaishou.png";
+import wechatLogo from "../assets/platforms/wechat.png";
+import weiboLogo from "../assets/platforms/weibo.png";
+import xiaohongshuLogo from "../assets/platforms/xiaohongshu.png";
+import youtubeLogo from "../assets/platforms/youtube.png";
+import zhihuLogo from "../assets/platforms/zhihu.png";
 
-const PLATFORM_LOGOS: Record<string, string> = {
+export const PLATFORM_LOGOS: Record<string, string> = {
   bilibili: bilibiliLogo,
   csdn: csdnLogo,
   douyin: douyinLogo,
