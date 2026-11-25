@@ -5,8 +5,8 @@
 - **阶段：** M8 生态扩展
 - **记录日期：** 2026-11-25
 - **验证环境：** macOS 26.6.2（arm64）；Tauri 2；Chrome Playwright 浏览器预览
-- **M8 实施起点：** `73307e5`（M6/M7 功能实现完成后进入 M8）
-- **验证 HEAD：** `48c07a7` + 2026-11-25 M8 最终工作树修订（v7 原始字段迁移、发布门禁、MCP 能力工具、M8 文档与回归测试）
+- **M8 实施起点：** `e50c9e1`（M6/M7/M8 并发实施前的功能基线；验收只计入 M8 相关文件与行为）
+- **验证 HEAD：** `e871d11`（M8 实现、MCP 模块化后的最终验证修订）
 - **总体状态：** M8-AC-01 至 M8-AC-09 自动化证据 `pass`；阶段验收 `blocked`，因为前置 M6 仍未 accepted（M6 受 M2 前置门阻塞）
 
 ## 实现范围
@@ -38,7 +38,7 @@
 | 前端构建 | `pnpm build` | pass；仅既有 chunk > 500 kB 警告 |
 | M8 前端格式 | `pnpm exec prettier --check src/components/EcosystemPanel.tsx src/stores/ecosystemStore.ts src/types/ecosystem.ts src/pages/PlatformsPage.tsx src/stores/index.ts src/types/operations.ts src/stores/operationsStore.ts src/utils/operations.test.ts` | pass |
 | 全仓库格式 | `pnpm format:check` | fail；M8 范围外既有文件 `StudioWorkspaceEmpty.tsx`、`StudioPage.css` 未格式化 |
-| Tauri Debug 打包 | `pnpm tauri build --debug --bundles app --no-sign` | pass；`src-tauri/target/debug/bundle/macos/creatorrelay.app`（52.48 MiB） |
+| Tauri Debug 打包 | `pnpm tauri build --debug --bundles app --no-sign` | pass；`src-tauri/target/debug/bundle/macos/creatorrelay.app`（52.50 MiB） |
 | JSON 文件 | `python3 -m json.tool <admissions/marketplace/schema files>` | pass |
 | 官方来源可达性 | 对准入登记中的 13 个官方入口执行 `curl -L -sS --max-time 15 -o /dev/null -w '%{http_code}'` | 12 个返回 200；`https://open.zhihu.com/` 返回 422，登记中明确记录为入口异常且不声明 API 可用 |
 
