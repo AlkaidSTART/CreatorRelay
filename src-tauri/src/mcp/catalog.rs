@@ -30,6 +30,33 @@ pub fn tool_catalog() -> Vec<McpToolDefinition> {
             ),
         ),
         tool(
+            "creator_browser_status",
+            "查看专用浏览器状态",
+            "查看 CreatorRelay 专用 Chrome 是否运行及当前页面信息。不会连接用户日常浏览器配置。",
+            ToolPermission::Read,
+            object_schema(json!({}), vec![]),
+        ),
+        tool(
+            "creator_browser_open",
+            "在专用浏览器打开创作者中心",
+            "仅在隔离的 CreatorRelay Chrome 配置中打开 SQLite 已配置的创作者中心 HTTPS 链接。页面会显示给用户；此工具不会提交表单或发布内容。",
+            ToolPermission::ExternalAction,
+            object_schema(
+                json!({ "platformId": { "type": "string", "minLength": 1, "maxLength": 64 } }),
+                vec!["platformId"],
+            ),
+        ),
+        tool(
+            "creator_browser_read_page",
+            "读取当前创作者中心页面",
+            "仅返回 MCP 专用浏览器中、通过 creator_browser_open 打开的已配置平台页面可见文本。不会执行页面脚本、读取 Cookie/隐藏网络响应或触发页面动作。",
+            ToolPermission::Read,
+            object_schema(
+                json!({ "platformId": { "type": "string", "minLength": 1, "maxLength": 64 } }),
+                vec!["platformId"],
+            ),
+        ),
+        tool(
             "creator_centers_list",
             "列出创作者中心链接",
             "读取用户配置的创作者中心网址。该工具只返回链接配置，不会登录平台、读取平台实时作品或执行发布；请用 platform_capabilities_get 查看已验证能力。",

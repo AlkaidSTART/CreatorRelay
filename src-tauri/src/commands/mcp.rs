@@ -82,6 +82,8 @@ pub(crate) fn mcp_call_tool(
 ) -> Result<mcp::McpCallResult, String> {
     let mut conn = state.db.lock().map_err(|error| error.to_string())?;
     let workspace = active_workspace(&conn)?.ok_or_else(|| "请先选择工作区".to_string())?;
+    let mut request = request;
+    request.browser_bridge = Some(state.browser_bridge.clone());
     mcp::call_tool(
         &mut conn,
         &state.plugin_runtime,

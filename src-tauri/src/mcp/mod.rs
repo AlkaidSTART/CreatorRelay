@@ -198,6 +198,8 @@ pub struct McpCallRequest {
     pub timeout_ms: Option<u64>,
     #[serde(default)]
     pub context_scope: Option<ModelContextScope>,
+    #[serde(skip)]
+    pub(crate) browser_bridge: Option<crate::browser_bridge::BrowserBridge>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

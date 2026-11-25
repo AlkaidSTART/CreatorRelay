@@ -372,92 +372,23 @@ export function PlatformsPage() {
     <main className="flex h-full min-w-0 flex-col bg-canvas">
       <PageHeader
         eyebrow="PLATFORMS"
-        title="平台管理"
-        description={
-          managementView === "accounts"
-            ? "管理平台账号、真实会话校验、系统凭据与隔离会话容器；未验证身份不会显示为已连接。"
-            : managementView === "adapters"
-              ? "发现、安装并审查平台适配器；按内容形态探测真实能力，限制插件对账号、凭据和本地数据的访问。"
-              : managementView === "ecosystem"
-                ? "核对平台准入来源、账号级逐形态能力、Adapter 兼容性与第三方插件市场门禁。"
-                : "管理创作者中心网址，并查看 MCP 对平台实时数据与发布能力的实际边界。"
-        }
+        title="平台账号"
+        description="管理平台账号、真实会话校验、系统凭据与隔离会话容器；未验证身份不会显示为已连接。"
         actions={
-          managementView === "accounts" ? (
-            <button
-              className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.24)] transition-colors hover:bg-accent-hover"
-              onClick={() => {
-                setAddPlatformId(catalog[0]?.id ?? null);
-                setAddAlias("");
-              }}
-            >
-              <Plus size={13} />
-              接入平台账号
-            </button>
-          ) : null
+          <button
+            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.24)] transition-colors hover:bg-accent-hover"
+            onClick={() => {
+              setAddPlatformId(catalog[0]?.id ?? null);
+              setAddAlias("");
+            }}
+          >
+            <Plus size={13} />
+            接入平台账号
+          </button>
         }
       />
 
-      <div className="border-b border-line px-7 pt-4">
-        <div className="flex gap-1" role="tablist" aria-label="平台与适配器管理视图">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={managementView === "accounts"}
-            onClick={() => setManagementView("accounts")}
-            className={`h-9 cursor-pointer rounded-t-xl border-b-2 px-3 text-xs font-medium transition-colors ${
-              managementView === "accounts"
-                ? "border-accent text-accent-deep"
-                : "border-transparent text-ink-muted hover:text-ink-secondary"
-            }`}
-          >
-            平台账号
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={managementView === "adapters"}
-            onClick={() => setManagementView("adapters")}
-            className={`h-9 cursor-pointer rounded-t-xl border-b-2 px-3 text-xs font-medium transition-colors ${
-              managementView === "adapters"
-                ? "border-accent text-accent-deep"
-                : "border-transparent text-ink-muted hover:text-ink-secondary"
-            }`}
-          >
-            适配器与插件
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={managementView === "creator-centers"}
-            onClick={() => setManagementView("creator-centers")}
-            className={`h-9 cursor-pointer rounded-t-xl border-b-2 px-3 text-xs font-medium transition-colors ${
-              managementView === "creator-centers"
-                ? "border-accent text-accent-deep"
-                : "border-transparent text-ink-muted hover:text-ink-secondary"
-            }`}
-          >
-            创作者中心
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={managementView === "ecosystem"}
-            onClick={() => setManagementView("ecosystem")}
-            className={`inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-t-xl border-b-2 px-3 text-xs font-medium transition-colors ${
-              managementView === "ecosystem"
-                ? "border-accent text-accent-deep"
-                : "border-transparent text-ink-muted hover:text-ink-secondary"
-            }`}
-          >
-            <ShieldCheck size={11} />
-            生态治理
-          </button>
-        </div>
-      </div>
-
-      {managementView === "accounts" ? (
-        <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-7 py-6">
+      <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-7 py-6">
           <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="平台类型筛选">
             {categoryFilterOptions.map((option) => {
               const count =
@@ -712,18 +643,7 @@ export function PlatformsPage() {
               ))}
             </div>
           </section>
-        </div>
-      ) : managementView === "adapters" ? (
-        <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
-          <PluginManager />
-        </div>
-      ) : managementView === "ecosystem" ? (
-        <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
-          <EcosystemPanel />
-        </div>
-      ) : (
-        <CreatorCentersPanel />
-      )}
+      </div>
 
       {addPlatformId && selectedPlatform && (
         <ModalShell label="添加平台账号" onClose={() => setAddPlatformId(null)}>

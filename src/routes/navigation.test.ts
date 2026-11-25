@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { findRouteByPathname, PRD_ROUTES, PRIMARY_ROUTES, SECONDARY_ROUTES } from "./navigation";
+import {
+  ECOSYSTEM_ROUTES,
+  findRouteByPathname,
+  NAV_GROUPS,
+  PRD_ROUTES,
+  SYSTEM_ROUTES,
+  WORKSPACE_ROUTES,
+} from "./navigation";
 
 describe("PRD route navigation definitions", () => {
-  it("defines all 8 independent PRD modules with unique paths", () => {
+  it("defines all 13 independent routes across 3 sidebar groups with unique paths", () => {
     const ids = PRD_ROUTES.map((route) => route.id);
     const paths = PRD_ROUTES.map((route) => route.path);
 
@@ -14,29 +21,44 @@ describe("PRD route navigation definitions", () => {
       "analytics",
       "assistant",
       "platforms",
+      "adapters",
+      "creator-centers",
+      "ecosystem",
       "settings",
+      "settings-ai",
+      "settings-diagnostics",
     ]);
-    expect(new Set(paths).size).toBe(8);
-    expect(PRIMARY_ROUTES.length + SECONDARY_ROUTES.length).toBe(PRD_ROUTES.length);
+    expect(new Set(paths).size).toBe(13);
+    expect(NAV_GROUPS.map((group) => group.id)).toEqual(["workspace", "ecosystem", "system"]);
+    expect(WORKSPACE_ROUTES.length + ECOSYSTEM_ROUTES.length + SYSTEM_ROUTES.length).toBe(
+      PRD_ROUTES.length,
+    );
   });
 
-  it("resolves active route metadata from pathname and falls back to studio", () => {
+  it("resolves active route metadata from pathname including nested settings routes", () => {
     expect(findRouteByPathname("/dashboard").id).toBe("dashboard");
     expect(findRouteByPathname("/publishing/task-1").id).toBe("publishing");
+    expect(findRouteByPathname("/adapters").id).toBe("adapters");
+    expect(findRouteByPathname("/creator-centers").id).toBe("creator-centers");
+    expect(findRouteByPathname("/ecosystem").id).toBe("ecosystem");
+    expect(findRouteByPathname("/settings").id).toBe("settings");
+    expect(findRouteByPathname("/settings/ai").id).toBe("settings-ai");
+    expect(findRouteByPathname("/settings/diagnostics").id).toBe("settings-diagnostics");
     expect(findRouteByPathname("/unknown").id).toBe("studio");
   });
 
-  it("marks M1-open and later-stage modules instead of presenting all as complete", () => {
+  it("marks route availability and exact matching for parent routes with children", () => {
     const settings = findRouteByPathname("/settings");
-    const studio = findRouteByPathname("/studio");
-    const analytics = findRouteByPathname("/analytics");
+    const aiSettings = findRouteByPathname("/settings/ai");
+    const platforms = findRouteByPathname("/platforms");
+    const adapters = findRouteByPathname("/adapters");
 
     expect(settings.availability).toBe("available");
-    expect(findRouteByPathname("/platforms").availability).toBe("available");
-    expect(findRouteByPathname("/platforms").milestone).toBe("M3 / M4");
-    expect(studio.availability).toBe("available");
-    expect(studio.label).toBe("内容工作室");
-    expect(analytics.availability).toBe("available");
-    expect(analytics.milestone).toBe("M6");
+    expect(settings.exact).toBe(true);
+    expect(aiSettings.availability).toBe("available");
+    expect(platforms.availability).toBe("available");
+    expect(platforms.milestone).toBe("M3");
+    expect(adapters.availability).toBe("available");
+    expect(adapters.milestone).toBe("M4");
   });
 });

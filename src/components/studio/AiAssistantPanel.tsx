@@ -136,10 +136,10 @@ export function AiAssistantPanel() {
         </p>
         <button
           type="button"
-          onClick={() => navigate("/settings")}
+          onClick={() => navigate("/settings/ai")}
           className="rounded-xl bg-accent px-3 py-2 text-xs font-medium text-accent-on"
         >
-          前往系统设置配置模型
+          前往 AI 模型配置
         </button>
       </div>
     );

@@ -44,6 +44,7 @@ pub(crate) struct AppState {
     started_at: Instant,
     plugin_runtime: plugins::PluginRuntime,
     mcp_host: mcp::McpHost,
+    browser_bridge: browser_bridge::BrowserBridge,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -538,6 +539,8 @@ pub fn run() {
             .map_err(std::io::Error::other)?;
             let mcp_settings = mcp::get_settings(&conn).unwrap_or_default();
             let mcp_host = mcp::McpHost::new(runner_executable);
+            let browser_bridge = browser_bridge::BrowserBridge::new(data_dir.clone())
+                .map_err(std::io::Error::other)?;
             if let Err(error) = mcp_host.start(Some(mcp::McpHostConfig {
                 auto_restart: mcp_settings.auto_restart,
                 max_restarts: mcp_settings.max_restarts,
@@ -562,6 +565,7 @@ pub fn run() {
                 started_at: Instant::now(),
                 plugin_runtime,
                 mcp_host,
+                browser_bridge,
             });
             Ok(())
         })

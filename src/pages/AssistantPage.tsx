@@ -188,7 +188,7 @@ export function AssistantPage() {
 
           <button
             type="button"
-            onClick={() => navigate("/settings")}
+            onClick={() => navigate("/settings/ai")}
             className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-accent-border bg-accent-soft px-2.5 text-[11.5px] font-medium text-accent-deep transition-colors hover:opacity-90"
           >
             <Sparkles size={11} />
@@ -249,7 +249,7 @@ export function AssistantPage() {
             onSendModel={() => void generateReply()}
             onCancelCall={() => void mcp.cancelCall()}
             onOpenPrivacyInspector={() => setInspectorTab("privacy")}
-            onNavigateSettings={() => navigate("/settings")}
+            onNavigateSettings={() => navigate("/settings/ai")}
           />
         </section>
 
