@@ -50,6 +50,11 @@ fn execute_core_tool(
             conn, runtime, workspace, tool_name, arguments, cancel,
         );
     }
+    if super::platform_mcp::find_platform_tool(tool_name).is_some() {
+        return super::platform_mcp::execute_platform_tool(
+            conn, workspace, tool_name, arguments,
+        );
+    }
     Err(McpCallError {
         code: "TOOL_NOT_FOUND".to_string(),
         message: format!("未注册工具：{tool_name}"),

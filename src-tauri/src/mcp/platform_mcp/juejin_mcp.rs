@@ -1,0 +1,102 @@
+use super::*;
+
+pub(super) fn profile() -> PlatformMcpProfile {
+    PlatformMcpProfile {
+        server_name: "juejin_mcp".to_string(),
+        platform_id: "juejin".to_string(),
+        platform_name: "掘金".to_string(),
+        description: "掘金工具面：文章编辑器、草稿/文章标识、分类与标签字段、阅读/点赞/评论/收藏指标。当前未取得官方文章发布 API 权限，使用人工网页交接。".to_string(),
+        transport: "core_bridge".to_string(),
+        auth_mode: "browser_session_manual".to_string(),
+        admission_status: "evaluation_only".to_string(),
+        auto_publish_allowed: false,
+        publish_dispatch: "manual_only".to_string(),
+        native_work_id_field: "articleId".to_string(),
+        interfaces: vec![
+            interface(
+                "article_editor",
+                "write",
+                "manual_web",
+                None,
+                Some("https://juejin.cn/editor/drafts/new"),
+                "人工登录会话",
+                "manual_web",
+                "https://juejin.cn/creator",
+                "编辑器字段：标题、Markdown 正文、摘要、分类、标签、封面。",
+            ),
+            interface(
+                "article_manage",
+                "read",
+                "manual_web",
+                None,
+                Some("https://juejin.cn/creator/content/article/essays"),
+                "人工登录会话",
+                "manual_web",
+                "https://juejin.cn/creator",
+                "文章以 article_id 标识；列表可查看阅读与互动数据。",
+            ),
+            interface(
+                "open_platform",
+                "read",
+                "official_http",
+                None,
+                Some("https://open.juejin.cn/"),
+                "开放平台应用授权",
+                "not_available_for_publish",
+                "https://open.juejin.cn/",
+                "开放平台入口存在，但未取得文章发布接口权限或官方文档证据。",
+            ),
+        ],
+        tools: vec![
+            account_tool("juejin", "读取掘金账号", "读取 Core 中掘金账号的脱敏状态与人工发布准备情况。"),
+            work_list_tool(
+                "juejin",
+                "articleId",
+                "掘金文章",
+                json!({
+                    "categoryId": optional_string_property(64),
+                    "tagId": optional_string_property(64),
+                }),
+                "按 articleId、分类、标签、发布时间和关键词查询已同步的掘金文章。",
+            ),
+            analytics_tool(
+                "juejin",
+                "articleId",
+                "掘金文章",
+                vec!["view_count", "digg_count", "comment_count", "collect_count"],
+                json!({
+                    "categoryId": optional_string_property(64),
+                }),
+            ),
+            publish_validate_tool("juejin", "掘金", "articleId", "掘金文章"),
+        ],
+        field_mappings: vec![
+            mapping("title", "title", "write", true, "文章标题。"),
+            mapping("summary", "brief_content", "write", false, "文章摘要。"),
+            mapping("body", "mark_content", "write", true, "Markdown 正文。"),
+            mapping("tags", "tag_ids", "write", false, "标签数组/ID 列表，需在编辑器中选择。"),
+            mapping("cover", "cover_image", "write", false, "封面图片。"),
+            mapping("category", "category_id", "write", false, "文章分类。"),
+            mapping("externalId", "article_id", "read", true, "文章回读主键。"),
+            mapping("metrics.view", "view_count", "read", true, "阅读数。"),
+            mapping("metrics.like", "digg_count", "read", true, "点赞数。"),
+            mapping("metrics.comment", "comment_count", "read", true, "评论数。"),
+            mapping("metrics.collect", "collect_count", "read", true, "收藏数。"),
+        ],
+        content_rules: vec![
+            content_rule("article", vec![], 0, Some(0), None, None, None, false, false, "技术文章必须有 Markdown 正文；封面可选。"),
+            content_rule("imageArticle", vec!["image"], 1, None, None, None, None, false, false, "图文文章按 Markdown + 图片素材交接。"),
+        ],
+        handoff: handoff(
+            "https://juejin.cn/editor/drafts/new",
+            "https://juejin.cn/creator/content/article/essays",
+            Some("https://juejin.cn/creator/data"),
+            vec![
+                "校验标题、摘要、Markdown 正文、分类和标签。",
+                "在掘金编辑器人工粘贴正文并上传封面。",
+                "发布后复制 article_id 或链接回填。",
+            ],
+            "掘金未提供已核实的官方文章发布 API；juejin_mcp 不调用编辑器内部接口。",
+        ),
+    }
+}

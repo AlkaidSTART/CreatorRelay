@@ -807,6 +807,11 @@ fn mcp_health_check(state: State<'_, AppState>) -> Result<mcp::McpHostStatus, St
 }
 
 #[tauri::command]
+fn list_platform_mcp_servers() -> Vec<mcp::PlatformMcpProfile> {
+    mcp::platform_mcp_catalog()
+}
+
+#[tauri::command]
 fn mcp_list_tools(state: State<'_, AppState>) -> Result<Vec<mcp::McpToolDefinition>, String> {
     state.mcp_host.list_tools()
 }
@@ -2923,6 +2928,7 @@ pub fn run() {
             start_mcp_server,
             stop_mcp_server,
             mcp_health_check,
+            list_platform_mcp_servers,
             mcp_list_tools,
             mcp_cancel_tool,
             get_mcp_settings,

@@ -21,7 +21,7 @@ mod xiaohongshu_mcp;
 mod youtube_mcp;
 mod zhihu_mcp;
 
-pub use execute::execute_platform_tool;
+pub(crate) use execute::execute_platform_tool;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

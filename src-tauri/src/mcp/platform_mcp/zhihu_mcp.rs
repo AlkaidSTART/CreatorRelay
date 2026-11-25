@@ -1,0 +1,101 @@
+use super::*;
+
+pub(super) fn profile() -> PlatformMcpProfile {
+    PlatformMcpProfile {
+        server_name: "zhihu_mcp".to_string(),
+        platform_id: "zhihu".to_string(),
+        platform_name: "知乎".to_string(),
+        description: "知乎工具面：专栏文章编辑器、标题/正文/话题/封面字段与赞同、评论、感谢、收藏指标。当前无已核实的官方发布 API，使用人工网页交接。".to_string(),
+        transport: "core_bridge".to_string(),
+        auth_mode: "browser_session_manual".to_string(),
+        admission_status: "evaluation_only".to_string(),
+        auto_publish_allowed: false,
+        publish_dispatch: "manual_only".to_string(),
+        native_work_id_field: "articleId".to_string(),
+        interfaces: vec![
+            interface(
+                "article_editor",
+                "write",
+                "manual_web",
+                None,
+                Some("https://zhuanlan.zhihu.com/write"),
+                "人工登录会话",
+                "manual_web",
+                "https://www.zhihu.com/",
+                "专栏字段：标题、正文、话题、封面。",
+            ),
+            interface(
+                "article_manage",
+                "read",
+                "manual_web",
+                None,
+                Some("https://www.zhihu.com/creator/manage/creation/all"),
+                "人工登录会话",
+                "manual_web",
+                "https://www.zhihu.com/creator",
+                "文章以 article_id 标识；创作者中心展示互动数据。",
+            ),
+            interface(
+                "open_platform",
+                "read",
+                "official_http",
+                None,
+                Some("https://open.zhihu.com/"),
+                "开放平台应用授权",
+                "not_available_for_publish",
+                "https://open.zhihu.com/",
+                "开放平台入口存在，但未取得文章发布接口权限或官方文档证据。",
+            ),
+        ],
+        tools: vec![
+            account_tool("zhihu", "读取知乎账号", "读取 Core 中知乎账号的脱敏状态与人工发布准备情况。"),
+            work_list_tool(
+                "zhihu",
+                "articleId",
+                "知乎文章",
+                json!({
+                    "topicId": optional_string_property(64),
+                    "columnId": optional_string_property(64),
+                }),
+                "按 articleId、话题、专栏、发布时间和关键词查询已同步的知乎文章。",
+            ),
+            analytics_tool(
+                "zhihu",
+                "articleId",
+                "知乎文章",
+                vec!["voteup_count", "comment_count", "thanks_count", "favlists_count"],
+                json!({
+                    "topicId": optional_string_property(64),
+                }),
+            ),
+            publish_validate_tool("zhihu", "知乎", "articleId", "知乎文章"),
+        ],
+        field_mappings: vec![
+            mapping("title", "title", "write", true, "专栏标题。"),
+            mapping("summary", "excerpt", "write", false, "文章摘要。"),
+            mapping("body", "content", "write", true, "富文本/HTML 正文，需从 Markdown 受控转换。"),
+            mapping("tags", "topics", "write", false, "话题选择，不是普通字符串标签。"),
+            mapping("cover", "image_url", "write", false, "文章封面。"),
+            mapping("externalId", "article_id", "read", true, "文章回读主键。"),
+            mapping("metrics.like", "voteup_count", "read", true, "赞同数。"),
+            mapping("metrics.comment", "comment_count", "read", true, "评论数。"),
+            mapping("metrics.thanks", "thanks_count", "read", true, "感谢数。"),
+            mapping("metrics.collect", "favlists_count", "read", true, "收藏数。"),
+        ],
+        content_rules: vec![
+            content_rule("article", vec![], 0, Some(0), None, None, None, false, false, "专栏文章必须有正文；封面可选。"),
+            content_rule("imageArticle", vec!["image"], 1, None, None, None, None, false, false, "图文文章按富文本 + 图片素材交接。"),
+        ],
+        handoff: handoff(
+            "https://zhuanlan.zhihu.com/write",
+            "https://www.zhihu.com/creator/manage/creation/all",
+            Some("https://www.zhihu.com/creator"),
+            vec![
+                "校验标题、正文、话题和封面。",
+                "在知乎专栏编辑器人工发布。",
+                "发布后复制 article_id 或链接回填。",
+            ],
+            "知乎没有已核实的官方专栏发布 API；zhihu_mcp 不调用编辑器内部接口。",
+        ),
+    }
+}

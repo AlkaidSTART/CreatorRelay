@@ -8,7 +8,7 @@ use creatorrelay_lib::{
     plugins,
 };
 use rusqlite::Connection;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::path::PathBuf;
 
 struct Fixture {
@@ -428,4 +428,136 @@ fn m8_plugin_upgrade_requires_review_of_new_permission_and_denial_is_effective()
     );
     let events = plugins::list_plugin_events(&fixture.conn, Some(plugin_id), None).unwrap();
     assert!(events.iter().any(|event| event.action == "VERSION_CHANGED"));
+}
+
+
+#[test]
+fn m8_platform_mcp_profiles_keep_native_fields_and_manual_safety_boundaries() {
+    let profiles = mcp::platform_mcp_catalog();
+    assert_eq!(profiles.len(), 10);
+    assert!(
+        profiles
+            .iter()
+            .all(|profile| !profile.auto_publish_allowed
+                && profile.publish_dispatch == "manual_only")
+    );
+
+    let douyin = profiles
+        .iter()
+        .find(|profile| profile.platform_id == "douyin")
+        .unwrap();
+    assert_eq!(douyin.server_name, "douyin_mcp");
+    assert_eq!(douyin.native_work_id_field, "itemId");
+    assert!(
+        douyin
+            .interfaces
+            .iter()
+            .any(|interface| interface.endpoint.as_deref().is_some_and(|endpoint| {
+                endpoint.contains("/api/douyin/v1/video/create_video/")
+            }))
+    );
+    assert!(
+        douyin
+            .field_mappings
+            .iter()
+            .any(|mapping| mapping.unified_field == "externalId" && mapping.platform_field == "item_id")
+    );
+
+    let xiaohongshu = profiles
+        .iter()
+        .find(|profile| profile.platform_id == "xiaohongshu")
+        .unwrap();
+    assert_eq!(xiaohongshu.server_name, "xiaohongshu_mcp");
+    assert_eq!(xiaohongshu.native_work_id_field, "noteId");
+    assert!(
+        xiaohongshu
+            .interfaces
+            .iter()
+            .any(|interface| interface.transport == "manual_web"
+                && interface.endpoint.as_deref().is_some_and(|endpoint| {
+                    endpoint.contains("creator.xiaohongshu.com/publish")
+                }))
+    );
+    assert!(
+        xiaohongshu
+            .interfaces
+            .iter()
+            .all(|interface| interface.verification != "verified"
+                || interface.name == "identity_nav")
+    );
+
+    let tools = mcp::tool_catalog();
+    let property_names = |name: &str| {
+        tools
+            .iter()
+            .find(|tool| tool.name == name)
+            .unwrap()
+            .input_schema
+            .pointer("/properties")
+            .and_then(Value::as_object)
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect::<std::collections::HashSet<_>>()
+    };
+    assert!(property_names("douyin_work_list").contains("itemId"));
+    assert!(property_names("xiaohongshu_work_list").contains("noteId"));
+    assert!(property_names("youtube_work_list").contains("videoId"));
+    assert!(property_names("wechat_work_list").contains("msgId"));
+    assert!(property_names("bilibili_work_list").contains("bvid"));
+    assert!(property_names("weibo_work_list").contains("statusId"));
+}
+
+#[test]
+fn m8_platform_publish_validate_is_read_only_and_returns_field_mapping() {
+    let mut fixture = fixture();
+    let package = content::create_content_package(&fixture.workspace, ContentKind::Video, "抖音待校验视频")
+        .unwrap();
+    let host = mcp::McpHost::new(PathBuf::from(env!("CARGO_BIN_EXE_creatorrelay")));
+    host.start(None).unwrap();
+    let result = mcp::call_tool(
+        &mut fixture.conn,
+        &fixture.runtime,
+        &fixture.workspace,
+        &host,
+        mcp::McpCallRequest {
+            call_id: None,
+            tool_name: "douyin_publish_validate".to_string(),
+            arguments: json!({ "contentId": package.manifest.id }),
+            thread_id: None,
+            authorization_token: None,
+            timeout_ms: None,
+            context_scope: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(result.status, "success");
+    let value = result.result.unwrap();
+    assert_eq!(value["serverName"], "douyin_mcp");
+    assert_eq!(value["platformId"], "douyin");
+    assert_eq!(value["autoPublishAllowed"], false);
+    assert_eq!(value["publishDispatch"], "manual_only");
+    assert_eq!(value["valid"], false);
+    assert!(
+        value["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| issue["field"] == "media")
+    );
+    assert!(
+        value["fieldMappings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|mapping| mapping["unifiedField"] == "media.video"
+                && mapping["platformField"] == "video_id")
+    );
+    assert!(
+        value["handoff"]["publishUrl"]
+            .as_str()
+            .unwrap()
+            .contains("creator.douyin.com")
+    );
+    host.stop().unwrap();
 }

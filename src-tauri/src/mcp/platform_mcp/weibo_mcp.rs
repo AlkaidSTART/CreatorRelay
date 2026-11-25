@@ -1,0 +1,101 @@
+use super::*;
+
+pub(super) fn profile() -> PlatformMcpProfile {
+    PlatformMcpProfile {
+        server_name: "weibo_mcp".to_string(),
+        platform_id: "weibo".to_string(),
+        platform_name: "微博".to_string(),
+        description: "微博开放平台工具面：OAuth access_token、statuses/share 文本分享与图片字段、微博原始计数。分享接口明确要求文本包含调用方安全域名下的链接。".to_string(),
+        transport: "core_bridge".to_string(),
+        auth_mode: "oauth2".to_string(),
+        admission_status: "evaluation_only".to_string(),
+        auto_publish_allowed: false,
+        publish_dispatch: "manual_only".to_string(),
+        native_work_id_field: "statusId".to_string(),
+        interfaces: vec![
+            interface(
+                "statuses_share",
+                "write",
+                "official_http",
+                Some("POST"),
+                Some("https://api.weibo.com/2/statuses/share.json"),
+                "OAuth access_token + rip",
+                "documented_unverified",
+                "https://open.weibo.com/wiki/2/statuses/share",
+                "请求字段：access_token、status、pic、rip；status 不超过 140 个汉字且必须包含绑定安全域名下的网页链接。",
+            ),
+            interface(
+                "media_upload",
+                "write",
+                "official_http",
+                Some("POST"),
+                Some("https://upload.api.weibo.com/2/media/upload.json"),
+                "OAuth access_token",
+                "documented_unverified",
+                "https://open.weibo.com/wiki/2/media/upload",
+                "图片上传后返回 pic_id，供微博正文引用。",
+            ),
+            interface(
+                "statuses_show",
+                "read",
+                "official_http",
+                Some("GET"),
+                Some("https://api.weibo.com/2/statuses/show.json"),
+                "OAuth access_token",
+                "documented_unverified",
+                "https://open.weibo.com/wiki/2/statuses/show",
+                "返回 idstr、mid、text、visible、pic_ids、reposts_count、comments_count、attitudes_count。",
+            ),
+        ],
+        tools: vec![
+            account_tool("weibo", "读取微博账号", "读取 Core 中微博账号的脱敏状态与 OAuth 准备情况；不返回 access_token。"),
+            work_list_tool(
+                "weibo",
+                "statusId",
+                "微博",
+                json!({
+                    "uid": optional_string_property(64),
+                    "visibleType": { "type": "integer", "minimum": 0, "maximum": 4 },
+                }),
+                "按 statusId、uid、可见范围、发布时间和关键词查询已同步的微博。",
+            ),
+            analytics_tool(
+                "weibo",
+                "statusId",
+                "微博",
+                vec!["reposts_count", "comments_count", "attitudes_count"],
+                json!({
+                    "uid": optional_string_property(64),
+                }),
+            ),
+            publish_validate_tool("weibo", "微博", "statusId", "微博"),
+        ],
+        field_mappings: vec![
+            mapping("title", "status", "write", true, "微博没有独立标题；标题语义合并进 status 文本。"),
+            mapping("summary", "status", "write", true, "微博正文，最多 140 个汉字，且必须包含绑定安全域名链接。"),
+            mapping("body", "status", "write", false, "长文需要先走微博文章能力，当前未验证。"),
+            mapping("tags", "status", "write", false, "话题词以 #话题# 形式写入正文。"),
+            mapping("media.image", "pic", "write", false, "分享接口支持单张 JPEG/GIF/PNG 图片，上传后也可用 pic_id。"),
+            mapping("externalId", "idstr", "read", true, "微博字符串 ID；mid 为兼容数值/字符串 ID。"),
+            mapping("metrics.repost", "reposts_count", "read", true, "转发数。"),
+            mapping("metrics.comment", "comments_count", "read", true, "评论数。"),
+            mapping("metrics.like", "attitudes_count", "read", true, "表态/点赞数。"),
+        ],
+        content_rules: vec![
+            content_rule("article", vec![], 0, Some(0), None, Some(140), None, false, true, "官方 statuses/share 文档限制 status 不超过 140 个汉字，并必须包含安全域名链接。"),
+            content_rule("imageText", vec!["image"], 1, Some(1), None, Some(140), None, false, true, "分享接口单图字段为 pic，只能上传 JPEG/GIF/PNG。"),
+            content_rule("video", vec!["video"], 1, Some(1), None, Some(140), None, false, false, "视频微博需要额外媒体上传与审核能力，当前未验证。"),
+        ],
+        handoff: handoff(
+            "https://weibo.com/",
+            "https://weibo.com/",
+            Some("https://data.weibo.com/"),
+            vec![
+                "校验正文长度、话题和绑定安全域名链接。",
+                "在微博主站人工发布，或等待 OAuth 发布适配器验收。",
+                "发布后复制 idstr 或链接回填 CreatorRelay。",
+            ],
+            "微博 statuses/share 明确要求安全域名链接；weibo_mcp 不会替用户伪造回调域名或绕过频次限制。",
+        ),
+    }
+}

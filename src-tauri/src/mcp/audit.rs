@@ -119,6 +119,32 @@ pub(super) fn target_summary_for(tool_name: &str, arguments: &Value) -> String {
                 .and_then(Value::as_str)
                 .unwrap_or("day")
         ),
+        name if name.ends_with("_account_get_info") => arguments
+            .get("accountId")
+            .and_then(Value::as_str)
+            .map(|id| format!("平台账号 {id}"))
+            .unwrap_or_else(|| "平台账号列表".to_string()),
+        name if name.ends_with("_work_list") => arguments
+            .get("keyword")
+            .and_then(Value::as_str)
+            .map(|keyword| format!("平台作品搜索：{keyword}"))
+            .unwrap_or_else(|| "平台作品列表".to_string()),
+        name if name.ends_with("_analytics_get_trend") => format!(
+            "{} 趋势 / 粒度 {}",
+            arguments
+                .get("range")
+                .and_then(Value::as_str)
+                .unwrap_or("7d"),
+            arguments
+                .get("granularity")
+                .and_then(Value::as_str)
+                .unwrap_or("day")
+        ),
+        name if name.ends_with("_publish_validate") => arguments
+            .get("contentId")
+            .and_then(Value::as_str)
+            .map(|id| format!("平台发布校验：内容 {id}"))
+            .unwrap_or_else(|| "平台发布校验".to_string()),
         _ => "本地测试 MCP Server".to_string(),
     }
 }

@@ -389,6 +389,10 @@ pub use audit::list_audit;
 pub use catalog::{server_tool_descriptors, tool_catalog};
 pub use core::{call_tool, preview_tool_call};
 pub use host::McpHost;
+pub use platform_mcp::{
+    PlatformContentRule, PlatformFieldMapping, PlatformHandoff, PlatformInterface, PlatformMcpProfile,
+    PlatformToolKind, PlatformToolSpec, platform_mcp_catalog, platform_mcp_profile,
+};
 pub use security::{redact_text, security_evidence};
 pub use server::test_server_main;
 pub use settings::{McpSettingsInput, get_settings, save_settings};

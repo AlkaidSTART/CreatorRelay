@@ -2,7 +2,7 @@ use super::schema::{cover_ref_schema, media_ref_schema, object_schema, string_ar
 use super::*;
 
 pub fn tool_catalog() -> Vec<McpToolDefinition> {
-    vec![
+    let mut tools = vec![
         tool(
             "account_get_info",
             "读取账号信息",
@@ -207,7 +207,9 @@ pub fn tool_catalog() -> Vec<McpToolDefinition> {
                 vec!["milliseconds"],
             ),
         ),
-    ]
+    ];
+    tools.extend(super::platform_mcp::platform_tool_definitions());
+    tools
 }
 
 pub fn server_tool_descriptors() -> Vec<Value> {
