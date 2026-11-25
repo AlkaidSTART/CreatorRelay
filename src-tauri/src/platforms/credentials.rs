@@ -64,7 +64,7 @@ impl Default for PlatformHttpVerifier {
 
 impl PlatformHttpVerifier {
     #[cfg(test)]
-    fn with_bilibili_url(url: String) -> Self {
+    pub(super) fn with_bilibili_url(url: String) -> Self {
         Self { bilibili_url: url }
     }
 }
@@ -101,7 +101,7 @@ impl IdentityVerifier for PlatformHttpVerifier {
     }
 }
 
-fn parse_bilibili_identity(body: &str) -> VerificationOutcome {
+pub(super) fn parse_bilibili_identity(body: &str) -> VerificationOutcome {
     let value: serde_json::Value = match serde_json::from_str(body) {
         Ok(value) => value,
         Err(_) => return VerificationOutcome::Failed("平台身份响应格式无效".to_string()),
@@ -176,4 +176,3 @@ pub(super) fn set_private_mode(path: &Path, mode: u32) -> Result<(), String> {
 fn set_private_mode(_path: &Path, _mode: u32) -> Result<(), String> {
     Ok(())
 }
-

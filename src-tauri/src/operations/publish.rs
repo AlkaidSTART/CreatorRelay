@@ -1,5 +1,6 @@
+use super::external_works::parse_datetime;
+use super::types::{SourceSnapshot, TaskRow};
 use super::*;
-use serde::{Deserialize, Serialize};
 
 fn digest(value: &str) -> String {
     format!("{:x}", Sha256::digest(value.as_bytes()))
@@ -85,7 +86,7 @@ fn task_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<TaskRow> {
     })
 }
 
-fn task_record(conn: &Connection, task_id: &str) -> Result<TaskRow, String> {
+pub(super) fn task_record(conn: &Connection, task_id: &str) -> Result<TaskRow, String> {
     conn.query_row(
         &format!("{} WHERE id=?1", task_select()),
         [task_id],
@@ -136,7 +137,10 @@ fn source_snapshot(
     }
 }
 
-fn validate_source_unchanged(workspace: &Path, task: &TaskRow) -> Result<SourceSnapshot, String> {
+pub(super) fn validate_source_unchanged(
+    workspace: &Path,
+    task: &TaskRow,
+) -> Result<SourceSnapshot, String> {
     let snapshot = source_snapshot(workspace, task.source_type, &task.source_id)?;
     if snapshot.content_version != task.content_version {
         return Err("源内容版本已经变化，请重新创建发布任务以核对最新内容".to_string());
@@ -189,7 +193,7 @@ fn publish_input_from_task(task: &TaskRow) -> Result<PublishInput, String> {
     })
 }
 
-fn insert_task_event(
+pub(super) fn insert_task_event(
     conn: &Connection,
     task_id: &str,
     action: &str,
@@ -631,7 +635,7 @@ fn update_task_failure(
     Ok(())
 }
 
-fn mark_account_invalid(conn: &mut Connection, account_id: &str) -> Result<(), String> {
+pub(super) fn mark_account_invalid(conn: &mut Connection, account_id: &str) -> Result<(), String> {
     if !task_is_real_account(conn, account_id)? {
         return Ok(());
     }
@@ -1303,5 +1307,3 @@ pub fn resume_account_tasks(
         .map(|row| row.to_view())
         .collect()
 }
-
-#[derive(Debug, Clone, Serialize)]

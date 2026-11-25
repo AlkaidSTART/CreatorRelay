@@ -1,6 +1,10 @@
 use super::*;
 use serde::{Deserialize, Serialize};
 
+use super::analytics::range_days;
+use super::external_works::parse_datetime;
+
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DashboardFilter {
     #[serde(default)]

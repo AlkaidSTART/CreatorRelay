@@ -1,10 +1,10 @@
 use super::*;
-use crate::mcp::{McpCallError, McpFieldError};
-use rusqlite::Connection;
-use std::path::Path;
 use crate::mcp::outcome::{CoreToolExecution, success_result};
+use crate::mcp::{McpCallError, McpFieldError};
 use crate::operations::{AnalyticsGranularity, AnalyticsQuery, ExternalWorkFilter};
 use crate::{content, operations, platforms};
+use rusqlite::Connection;
+use std::path::Path;
 
 pub(crate) fn execute_platform_tool(
     conn: &mut Connection,
@@ -23,7 +23,9 @@ pub(crate) fn execute_platform_tool(
         PlatformToolKind::AccountInfo => execute_account(&profile, conn, arguments),
         PlatformToolKind::WorkList => execute_work_list(&profile, conn, arguments),
         PlatformToolKind::AnalyticsTrend => execute_analytics(&profile, conn, arguments),
-        PlatformToolKind::PublishValidate => execute_publish_validate(&profile, workspace, arguments),
+        PlatformToolKind::PublishValidate => {
+            execute_publish_validate(&profile, workspace, arguments)
+        }
     }
 }
 
@@ -158,7 +160,9 @@ fn execute_work_list(
                     // native fields are disclosed rather than treated as a match.
                     return true;
                 };
-                actual == expected || actual.to_string().trim_matches('"') == expected.to_string().trim_matches('"')
+                actual == expected
+                    || actual.to_string().trim_matches('"')
+                        == expected.to_string().trim_matches('"')
             })
         })
         .take(limit)
@@ -237,11 +241,12 @@ fn execute_analytics(
             .map(str::to_string),
         ..ExternalWorkFilter::default()
     };
-    let works = operations::list_external_works(conn, &work_filter).map_err(|error| McpCallError {
-        code: "ANALYTICS_SERVICE_ERROR".to_string(),
-        message: error,
-        field_errors: Vec::new(),
-    })?;
+    let works =
+        operations::list_external_works(conn, &work_filter).map_err(|error| McpCallError {
+            code: "ANALYTICS_SERVICE_ERROR".to_string(),
+            message: error,
+            field_errors: Vec::new(),
+        })?;
     let work_id = native_id.and_then(|native_id| {
         works
             .iter()
@@ -332,16 +337,15 @@ fn execute_publish_validate(
                 message: "必须提供本地内容 ID".to_string(),
             }],
         })?;
-    let package = content::read_content_package(workspace, content_id).map_err(|error| {
-        McpCallError {
+    let package =
+        content::read_content_package(workspace, content_id).map_err(|error| McpCallError {
             code: "CONTENT_NOT_FOUND".to_string(),
             message: error,
             field_errors: vec![McpFieldError {
                 path: "contentId".to_string(),
                 message: "本地内容无法读取".to_string(),
             }],
-        }
-    })?;
+        })?;
     let content_kind = package.manifest.kind.as_str();
     let Some(rule) = profile
         .content_rules

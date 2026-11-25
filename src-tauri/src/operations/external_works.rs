@@ -1,6 +1,9 @@
 use super::*;
 use serde::{Deserialize, Serialize};
 
+use super::publish::mark_account_invalid;
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MetricSnapshot {
     pub id: String,
@@ -326,7 +329,7 @@ pub fn external_work(conn: &Connection, work_id: &str) -> Result<ExternalWork, S
     external_work_from_values(conn, row)
 }
 
-fn parse_datetime(value: &str) -> Option<DateTime<Utc>> {
+pub(super) fn parse_datetime(value: &str) -> Option<DateTime<Utc>> {
     DateTime::parse_from_rfc3339(value)
         .ok()
         .map(|value| value.with_timezone(&Utc))
@@ -646,4 +649,3 @@ pub fn list_sync_runs(conn: &Connection, limit: usize) -> Result<Vec<SyncRunResu
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|error| format!("同步记录解析失败：{error}"))
 }
-

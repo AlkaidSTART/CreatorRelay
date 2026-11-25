@@ -27,6 +27,7 @@ docs/*
 !docs/platform-accounts.md
 !docs/m1-desktop-foundation.md
 !docs/mcp-agent.md
+!docs/platform-mcp.md
 !progress/*.md
 !progress/verification/
 !progress/verification/*.md

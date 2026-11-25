@@ -30,7 +30,7 @@ impl PublishTaskStatus {
         }
     }
 
-    fn parse(value: &str) -> Result<Self, String> {
+    pub(super) fn parse(value: &str) -> Result<Self, String> {
         match value {
             "CREATED" => Ok(Self::Created),
             "VALIDATING" => Ok(Self::Validating),
@@ -54,14 +54,14 @@ pub enum PublishExecutionMode {
 }
 
 impl PublishExecutionMode {
-    fn as_str(self) -> &'static str {
+    pub(super) fn as_str(self) -> &'static str {
         match self {
             Self::Auto => "auto",
             Self::Manual => "manual",
         }
     }
 
-    fn parse(value: &str) -> Result<Self, String> {
+    pub(super) fn parse(value: &str) -> Result<Self, String> {
         match value {
             "auto" => Ok(Self::Auto),
             "manual" => Ok(Self::Manual),
@@ -78,14 +78,14 @@ pub enum PublishSourceType {
 }
 
 impl PublishSourceType {
-    fn as_str(self) -> &'static str {
+    pub(super) fn as_str(self) -> &'static str {
         match self {
             Self::PlatformDraft => "platformDraft",
             Self::Content => "content",
         }
     }
 
-    fn parse(value: &str) -> Result<Self, String> {
+    pub(super) fn parse(value: &str) -> Result<Self, String> {
         match value {
             "platformDraft" => Ok(Self::PlatformDraft),
             "content" => Ok(Self::Content),
@@ -244,58 +244,58 @@ pub struct PublishTaskEvent {
 }
 
 #[derive(Debug, Clone)]
-struct SourceSnapshot {
-    source_type: PublishSourceType,
-    source_id: String,
-    content_id: String,
-    content_version: String,
-    content_kind: ContentKind,
-    title: String,
-    body: String,
-    tags: Vec<String>,
-    cover: Option<ContentAsset>,
-    media: Vec<ContentAsset>,
+pub(super) struct SourceSnapshot {
+    pub(super) source_type: PublishSourceType,
+    pub(super) source_id: String,
+    pub(super) content_id: String,
+    pub(super) content_version: String,
+    pub(super) content_kind: ContentKind,
+    pub(super) title: String,
+    pub(super) body: String,
+    pub(super) tags: Vec<String>,
+    pub(super) cover: Option<ContentAsset>,
+    pub(super) media: Vec<ContentAsset>,
 }
 
 #[derive(Debug, Clone)]
-struct TaskRow {
-    id: String,
-    source_type: PublishSourceType,
-    source_id: String,
-    content_id: String,
-    content_version: String,
-    content_kind: ContentKind,
-    platform_id: String,
-    platform_name: String,
-    account_id: String,
-    account_alias: String,
-    adapter_id: Option<String>,
-    title: String,
-    body: String,
-    tags_json: String,
-    cover_json: Option<String>,
-    media_json: String,
-    execution_mode: PublishExecutionMode,
-    status: PublishTaskStatus,
-    paused: bool,
-    pause_reason: Option<String>,
-    scheduled_at: Option<String>,
-    confirmation_token: Option<String>,
-    confirmation_hash: Option<String>,
-    confirmation_expires_at: Option<String>,
-    external_id: Option<String>,
-    external_url: Option<String>,
-    error_code: Option<String>,
-    error_message: Option<String>,
-    next_action: Option<String>,
-    attempt_count: u32,
-    idempotency_key: String,
-    created_at: String,
-    updated_at: String,
+pub(super) struct TaskRow {
+    pub(super) id: String,
+    pub(super) source_type: PublishSourceType,
+    pub(super) source_id: String,
+    pub(super) content_id: String,
+    pub(super) content_version: String,
+    pub(super) content_kind: ContentKind,
+    pub(super) platform_id: String,
+    pub(super) platform_name: String,
+    pub(super) account_id: String,
+    pub(super) account_alias: String,
+    pub(super) adapter_id: Option<String>,
+    pub(super) title: String,
+    pub(super) body: String,
+    pub(super) tags_json: String,
+    pub(super) cover_json: Option<String>,
+    pub(super) media_json: String,
+    pub(super) execution_mode: PublishExecutionMode,
+    pub(super) status: PublishTaskStatus,
+    pub(super) paused: bool,
+    pub(super) pause_reason: Option<String>,
+    pub(super) scheduled_at: Option<String>,
+    pub(super) confirmation_token: Option<String>,
+    pub(super) confirmation_hash: Option<String>,
+    pub(super) confirmation_expires_at: Option<String>,
+    pub(super) external_id: Option<String>,
+    pub(super) external_url: Option<String>,
+    pub(super) error_code: Option<String>,
+    pub(super) error_message: Option<String>,
+    pub(super) next_action: Option<String>,
+    pub(super) attempt_count: u32,
+    pub(super) idempotency_key: String,
+    pub(super) created_at: String,
+    pub(super) updated_at: String,
 }
 
 impl TaskRow {
-    fn cover(&self) -> Result<Option<ContentAsset>, String> {
+    pub(super) fn cover(&self) -> Result<Option<ContentAsset>, String> {
         self.cover_json
             .as_deref()
             .map(|value| {
@@ -305,17 +305,17 @@ impl TaskRow {
             .transpose()
     }
 
-    fn media(&self) -> Result<Vec<ContentAsset>, String> {
+    pub(super) fn media(&self) -> Result<Vec<ContentAsset>, String> {
         serde_json::from_str::<Vec<ContentAsset>>(&self.media_json)
             .map_err(|error| format!("媒体快照无法解析：{error}"))
     }
 
-    fn tags(&self) -> Result<Vec<String>, String> {
+    pub(super) fn tags(&self) -> Result<Vec<String>, String> {
         serde_json::from_str::<Vec<String>>(&self.tags_json)
             .map_err(|error| format!("标签快照无法解析：{error}"))
     }
 
-    fn to_view(&self) -> Result<PublishTask, String> {
+    pub(super) fn to_view(&self) -> Result<PublishTask, String> {
         Ok(PublishTask {
             id: self.id.clone(),
             source_type: self.source_type,
@@ -349,4 +349,3 @@ impl TaskRow {
         })
     }
 }
-

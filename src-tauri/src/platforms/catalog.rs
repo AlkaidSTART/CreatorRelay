@@ -252,4 +252,3 @@ pub fn platform_catalog() -> Vec<PlatformCatalogEntry> {
     .map(|definition| catalog_entry(&definition))
     .collect()
 }
-

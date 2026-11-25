@@ -1,6 +1,8 @@
+use super::external_works::parse_datetime;
 use super::*;
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AnalyticsGranularity {
     Day,
@@ -70,7 +72,7 @@ pub struct AnalyticsResult {
     pub warnings: Vec<String>,
 }
 
-fn range_days(range: &str) -> Result<i64, String> {
+pub(super) fn range_days(range: &str) -> Result<i64, String> {
     match range {
         "7d" => Ok(7),
         "30d" => Ok(30),
@@ -202,5 +204,3 @@ pub fn analytics_trend(
         warnings,
     })
 }
-
-#[derive(Debug, Clone, Default, Deserialize)]

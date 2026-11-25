@@ -1,6 +1,6 @@
-use super::*;
 use super::catalog::{auth_methods, capabilities, platform_definition};
 use super::credentials::{normalize_credential, set_private_mode};
+use super::*;
 use chrono::Utc;
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use std::{fs, path::Path};
@@ -38,7 +38,10 @@ fn create_profile(
     Ok(profile_id)
 }
 
-fn profile_directory(session_root: &Path, profile_id: &str) -> Result<std::path::PathBuf, String> {
+pub(super) fn profile_directory(
+    session_root: &Path,
+    profile_id: &str,
+) -> Result<std::path::PathBuf, String> {
     if profile_id.is_empty()
         || !profile_id
             .chars()
@@ -73,20 +76,20 @@ fn validate_alias(alias: &str) -> Result<String, String> {
 }
 
 #[derive(Debug, Clone)]
-struct AccountRecord {
-    id: String,
-    platform_id: String,
-    alias: String,
-    nickname: String,
-    uid: String,
-    status: AccountStatus,
-    enabled: bool,
-    is_default: bool,
-    profile_id: String,
-    credential_ref: String,
-    last_checked_at: Option<String>,
-    last_error: Option<String>,
-    challenge_id: Option<String>,
+pub(super) struct AccountRecord {
+    pub(super) id: String,
+    pub(super) platform_id: String,
+    pub(super) alias: String,
+    pub(super) nickname: String,
+    pub(super) uid: String,
+    pub(super) status: AccountStatus,
+    pub(super) enabled: bool,
+    pub(super) is_default: bool,
+    pub(super) profile_id: String,
+    pub(super) credential_ref: String,
+    pub(super) last_checked_at: Option<String>,
+    pub(super) last_error: Option<String>,
+    pub(super) challenge_id: Option<String>,
 }
 
 const ACCOUNT_SELECT: &str = "SELECT a.id, a.platform_id, a.alias, a.nickname, a.uid, a.status,
@@ -120,7 +123,7 @@ fn account_record_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AccountR
     })
 }
 
-fn account_record(conn: &Connection, account_id: &str) -> Result<AccountRecord, String> {
+pub(super) fn account_record(conn: &Connection, account_id: &str) -> Result<AccountRecord, String> {
     conn.query_row(
         &format!("{ACCOUNT_SELECT} WHERE a.id = ?1"),
         params![account_id],
@@ -758,4 +761,3 @@ pub fn list_audit_logs(conn: &Connection, limit: usize) -> Result<Vec<AccountAud
     .collect::<Result<Vec<_>, _>>()
     .map_err(|_| "账号日志解析失败".to_string())
 }
-

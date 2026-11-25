@@ -191,11 +191,7 @@ fn optional_string_property(max_length: usize) -> Value {
     json!({ "type": "string", "maxLength": max_length })
 }
 
-pub(super) fn account_tool(
-    platform_id: &str,
-    title: &str,
-    description: &str,
-) -> PlatformToolSpec {
+pub(super) fn account_tool(platform_id: &str, title: &str, description: &str) -> PlatformToolSpec {
     PlatformToolSpec {
         name: format!("{platform_id}_account_get_info"),
         title: title.to_string(),
@@ -219,14 +215,8 @@ pub(super) fn work_list_tool(
     description: &str,
 ) -> PlatformToolSpec {
     let mut properties = Map::new();
-    properties.insert(
-        "accountId".to_string(),
-        optional_string_property(128),
-    );
-    properties.insert(
-        native_id_field.to_string(),
-        optional_string_property(160),
-    );
+    properties.insert("accountId".to_string(), optional_string_property(128));
+    properties.insert(native_id_field.to_string(), optional_string_property(160));
     properties.insert(
         "contentKind".to_string(),
         json!({ "type": "string", "enum": ["video", "imageText", "imageArticle", "article", "unknown"] }),
@@ -261,14 +251,8 @@ pub(super) fn analytics_tool(
     extra_properties: Value,
 ) -> PlatformToolSpec {
     let mut properties = Map::new();
-    properties.insert(
-        "accountId".to_string(),
-        optional_string_property(128),
-    );
-    properties.insert(
-        native_id_field.to_string(),
-        optional_string_property(160),
-    );
+    properties.insert("accountId".to_string(), optional_string_property(128));
+    properties.insert(native_id_field.to_string(), optional_string_property(160));
     properties.insert(
         "range".to_string(),
         json!({ "type": "string", "enum": ["7d", "30d", "90d"] }),
@@ -330,6 +314,7 @@ pub(super) fn publish_validate_tool(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn interface(
     name: &str,
     direction: &str,
@@ -370,6 +355,7 @@ pub(super) fn mapping(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn content_rule(
     kind: &str,
     allowed_media: Vec<&str>,

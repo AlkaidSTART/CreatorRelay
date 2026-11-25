@@ -430,7 +430,6 @@ fn m8_plugin_upgrade_requires_review_of_new_permission_and_denial_is_effective()
     assert!(events.iter().any(|event| event.action == "VERSION_CHANGED"));
 }
 
-
 #[test]
 fn m8_platform_mcp_profiles_keep_native_fields_and_manual_safety_boundaries() {
     let profiles = mcp::platform_mcp_catalog();
@@ -448,20 +447,15 @@ fn m8_platform_mcp_profiles_keep_native_fields_and_manual_safety_boundaries() {
         .unwrap();
     assert_eq!(douyin.server_name, "douyin_mcp");
     assert_eq!(douyin.native_work_id_field, "itemId");
-    assert!(
-        douyin
-            .interfaces
-            .iter()
-            .any(|interface| interface.endpoint.as_deref().is_some_and(|endpoint| {
-                endpoint.contains("/api/douyin/v1/video/create_video/")
-            }))
-    );
-    assert!(
-        douyin
-            .field_mappings
-            .iter()
-            .any(|mapping| mapping.unified_field == "externalId" && mapping.platform_field == "item_id")
-    );
+    assert!(douyin.interfaces.iter().any(|interface| {
+        interface
+            .endpoint
+            .as_deref()
+            .is_some_and(|endpoint| endpoint.contains("/api/douyin/v1/video/create_video/"))
+    }));
+    assert!(douyin.field_mappings.iter().any(
+        |mapping| mapping.unified_field == "externalId" && mapping.platform_field == "item_id"
+    ));
 
     let xiaohongshu = profiles
         .iter()
@@ -469,15 +463,13 @@ fn m8_platform_mcp_profiles_keep_native_fields_and_manual_safety_boundaries() {
         .unwrap();
     assert_eq!(xiaohongshu.server_name, "xiaohongshu_mcp");
     assert_eq!(xiaohongshu.native_work_id_field, "noteId");
-    assert!(
-        xiaohongshu
-            .interfaces
-            .iter()
-            .any(|interface| interface.transport == "manual_web"
-                && interface.endpoint.as_deref().is_some_and(|endpoint| {
-                    endpoint.contains("creator.xiaohongshu.com/publish")
-                }))
-    );
+    assert!(xiaohongshu.interfaces.iter().any(|interface| {
+        interface.transport == "manual_web"
+            && interface
+                .endpoint
+                .as_deref()
+                .is_some_and(|endpoint| endpoint.contains("creator.xiaohongshu.com/publish"))
+    }));
     assert!(
         xiaohongshu
             .interfaces
@@ -511,8 +503,9 @@ fn m8_platform_mcp_profiles_keep_native_fields_and_manual_safety_boundaries() {
 #[test]
 fn m8_platform_publish_validate_is_read_only_and_returns_field_mapping() {
     let mut fixture = fixture();
-    let package = content::create_content_package(&fixture.workspace, ContentKind::Video, "抖音待校验视频")
-        .unwrap();
+    let package =
+        content::create_content_package(&fixture.workspace, ContentKind::Video, "抖音待校验视频")
+            .unwrap();
     let host = mcp::McpHost::new(PathBuf::from(env!("CARGO_BIN_EXE_creatorrelay")));
     host.start(None).unwrap();
     let result = mcp::call_tool(
