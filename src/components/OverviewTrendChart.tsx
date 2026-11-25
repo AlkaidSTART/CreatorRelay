@@ -76,7 +76,8 @@ export function buildOverviewTrendOption(dataset: OverviewTrendDataset): Overvie
         const rows = items.map((item) => {
           const name = item.seriesName ?? "";
           const metricLabel = metricByPlatform.get(name) ?? name;
-          const numericValue = typeof item.value === "number" ? item.value : Number(item.value ?? 0);
+          const numericValue =
+            typeof item.value === "number" ? item.value : Number(item.value ?? 0);
           const formatted = Number.isNaN(numericValue)
             ? String(item.value ?? "-")
             : numericValue.toLocaleString("zh-CN");

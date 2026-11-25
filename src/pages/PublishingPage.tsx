@@ -1,17 +1,16 @@
-import { useState } from "react";
 import { AlertCircle, CheckCircle2, Clock3, ExternalLink, Plus, RefreshCw } from "lucide-react";
-import { useNavigate, useOutletContext } from "react-router";
+import { useNavigate } from "react-router";
 import { PageHeader } from "../components/PageHeader";
-import { demoPublishTasks, type PublishTaskStatus } from "../data/demoData";
-import type { AppOutletContext } from "../layouts/AppLayout";
+import type { PublishTaskStatus } from "../data/demoData";
+import { useContentStore, useUiStore } from "../stores";
 
-const statusMeta: Record<PublishTaskStatus, { label: string; tone: string }> = {
-  PENDING: { label: "等待执行", tone: "neutral" },
-  SCHEDULED: { label: "定时发布", tone: "info" },
-  PUBLISHING: { label: "发布中", tone: "info" },
-  SUCCESS: { label: "发布成功", tone: "ok" },
-  FAILED: { label: "发布失败", tone: "danger" },
-  NEEDS_MANUAL_ACTION: { label: "需人工确认", tone: "warn" },
+const statusMeta: Record<PublishTaskStatus, { label: string; className: string }> = {
+  PENDING: { label: "等待执行", className: "bg-zinc-100 text-zinc-600" },
+  SCHEDULED: { label: "定时发布", className: "bg-blue-50 text-blue-700" },
+  PUBLISHING: { label: "发布中", className: "bg-blue-50 text-blue-700" },
+  SUCCESS: { label: "发布成功", className: "bg-emerald-50 text-emerald-700" },
+  FAILED: { label: "发布失败", className: "bg-red-50 text-red-700" },
+  NEEDS_MANUAL_ACTION: { label: "需人工确认", className: "bg-amber-50 text-amber-700" },
 };
 
 const filterOptions: Array<{ id: "ALL" | PublishTaskStatus; label: string }> = [
@@ -23,15 +22,17 @@ const filterOptions: Array<{ id: "ALL" | PublishTaskStatus; label: string }> = [
 ];
 
 export function PublishingPage() {
-  const { showToast } = useOutletContext<AppOutletContext>();
   const navigate = useNavigate();
-  const [filter, setFilter] = useState<"ALL" | PublishTaskStatus>("ALL");
+  const showToast = useUiStore((state) => state.showToast);
+  const publishTasks = useContentStore((state) => state.publishTasks);
+  const filter = useContentStore((state) => state.publishingFilter);
+  const setFilter = useContentStore((state) => state.setPublishingFilter);
 
   const visibleTasks =
-    filter === "ALL" ? demoPublishTasks : demoPublishTasks.filter((task) => task.status === filter);
+    filter === "ALL" ? publishTasks : publishTasks.filter((task) => task.status === filter);
 
   return (
-    <main className="page-shell">
+    <main className="flex h-full min-w-0 flex-col bg-white">
       <PageHeader
         eyebrow="PUBLISHING"
         title="发布中心"
@@ -39,7 +40,7 @@ export function PublishingPage() {
         priority="P0/P1"
         actions={
           <button
-            className="publish-button"
+            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-zinc-900 px-3 text-xs font-medium text-white transition-colors hover:bg-zinc-800"
             onClick={() => {
               showToast("请先在写作空间选择主稿或平台稿发起发布");
               navigate("/studio");
@@ -51,52 +52,67 @@ export function PublishingPage() {
         }
       />
 
-      <div className="page-body">
-        <div className="callout-bar">
-          <span className="note-line" />
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-7 py-6">
+        <div className="flex items-center gap-3 rounded-xl border border-zinc-200/80 bg-zinc-50/80 px-4 py-3 text-xs text-zinc-500">
+          <span className="h-4 w-0.5 shrink-0 rounded-full bg-zinc-400" />
           <span>
             业务约束：多平台分发拆分为多个独立任务，单平台失败不影响其他任务；请求超时后先核对平台作品状态，避免重复发布。
           </span>
         </div>
 
-        <div className="filter-tabs" role="tablist" aria-label="任务状态筛选">
+        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="任务状态筛选">
           {filterOptions.map((option) => (
             <button
               key={option.id}
               role="tab"
               aria-selected={filter === option.id}
-              className={`filter-tab ${filter === option.id ? "active" : ""}`}
               onClick={() => setFilter(option.id)}
+              className={`h-8 cursor-pointer rounded-lg border px-3 text-xs font-medium transition-colors ${
+                filter === option.id
+                  ? "border-zinc-900 bg-zinc-900 text-white"
+                  : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
+              }`}
             >
               {option.label}
             </button>
           ))}
         </div>
 
-        <div className="stack-list">
+        <div className="space-y-3">
           {visibleTasks.map((task) => {
             const meta = statusMeta[task.status];
             return (
-              <article className="surface-card task-card" key={task.id}>
-                <div className="task-main">
-                  <div className="platform-mark juejin-mark">{task.platformMark}</div>
-                  <div className="list-row-copy">
-                    <div className="task-title-line">
-                      <strong>{task.articleTitle}</strong>
-                      <span className={`status-badge ${meta.tone}`}>{meta.label}</span>
+              <article
+                key={task.id}
+                className="flex flex-col justify-between gap-4 rounded-xl border border-zinc-200/80 bg-white p-5 sm:flex-row sm:items-center"
+              >
+                <div className="flex min-w-0 flex-1 items-start gap-3.5">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-zinc-100 text-xs font-semibold text-zinc-700">
+                    {task.platformMark}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <strong className="text-sm font-medium text-zinc-900">
+                        {task.articleTitle}
+                      </strong>
+                      <span
+                        className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${meta.className}`}
+                      >
+                        {meta.label}
+                      </span>
                     </div>
-                    <small>
+                    <small className="mt-1 block text-xs text-zinc-400">
                       {task.platform} · {task.accountAlias} · {task.draftType} · 更新于{" "}
                       {task.updatedAt}
                       {task.scheduledAt ? ` · 计划时间 ${task.scheduledAt}` : ""}
                     </small>
-                    <p className="task-note">{task.note}</p>
+                    <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">{task.note}</p>
                   </div>
                 </div>
-                <div className="task-actions">
+                <div className="flex shrink-0 items-center gap-2">
                   {task.status === "NEEDS_MANUAL_ACTION" && (
                     <button
-                      className="primary-button"
+                      className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-zinc-900 px-3 text-xs font-medium text-white hover:bg-zinc-800"
                       onClick={() => showToast(`已打开 ${task.platform} 人工发布辅助核对清单`)}
                     >
                       <ExternalLink size={13} />
@@ -105,7 +121,7 @@ export function PublishingPage() {
                   )}
                   {task.status === "FAILED" && (
                     <button
-                      className="secondary-button"
+                      className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
                       onClick={() => showToast("请先在平台管理中验证账号会话，再核对发布结果")}
                     >
                       <RefreshCw size={13} />
@@ -113,12 +129,12 @@ export function PublishingPage() {
                     </button>
                   )}
                   {task.status === "SCHEDULED" && (
-                    <span className="muted-inline">
+                    <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500">
                       <Clock3 size={13} /> 排队中
                     </span>
                   )}
                   {task.status === "SUCCESS" && (
-                    <span className="ok-inline">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600">
                       <CheckCircle2 size={13} /> 已记录外部 ID
                     </span>
                   )}
@@ -126,10 +142,13 @@ export function PublishingPage() {
               </article>
             );
           })}
+
           {!visibleTasks.length && (
-            <div className="surface-card empty-state-card">
+            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-zinc-200/80 bg-white py-14 text-zinc-400">
               <AlertCircle size={20} />
-              <strong>当前筛选条件下暂无发布任务</strong>
+              <strong className="text-xs font-medium text-zinc-600">
+                当前筛选条件下暂无发布任务
+              </strong>
             </div>
           )}
         </div>
