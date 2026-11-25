@@ -209,7 +209,7 @@ impl BrowserBridge {
             .map_err(|error| error.to_string())?
             .devtools_port
             .ok_or_else(|| "Chrome DevTools 端口不可用".to_string())?;
-        let page = open_or_reuse_tab(port, &allowed, &link.url)?;
+        let page = open_or_reuse_tab(port, platform_id, &allowed, &link.url)?;
         let mut page = wait_for_page_text(&page, platform_id, &link.platform_name)?;
         page.platform_id = platform_id.to_string();
         page.platform_name = link.platform_name.clone();
@@ -259,7 +259,9 @@ impl BrowserBridge {
             .find_map(|value| {
                 let target: CdpTarget = serde_json::from_value(value).ok()?;
                 let configured = Url::parse(&link.url).ok()?;
-                if target.target_type == "page" && url_matches_platform(&configured, &target.url) {
+                if target.target_type == "page"
+                    && url_matches_platform_id(platform_id, &configured, &target.url)
+                {
                     Some(target)
                 } else {
                     None
@@ -416,7 +418,44 @@ fn url_matches_platform(configured: &Url, candidate: &str) -> bool {
         .is_ok_and(|url| url.scheme() == "https" && url.host_str() == configured.host_str())
 }
 
-fn open_or_reuse_tab(port: u16, configured: &Url, destination: &str) -> Result<CdpTarget, String> {
+fn url_matches_platform_id(platform_id: &str, configured: &Url, candidate: &str) -> bool {
+    let Ok(url) = Url::parse(candidate) else {
+        return false;
+    };
+    if url.scheme() != "https" {
+        return false;
+    }
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    if host == configured.host_str().unwrap_or_default() {
+        return true;
+    }
+    let official_domains: &[&str] = match platform_id {
+        "douyin" => &["douyin.com", "iesdouyin.com"],
+        "xiaohongshu" => &["xiaohongshu.com", "xiaohongshu.net"],
+        "zhihu" => &["zhihu.com"],
+        "wechat" => &["weixin.qq.com"],
+        "kuaishou" => &["kuaishou.com"],
+        "bilibili" => &["bilibili.com"],
+        "juejin" => &["juejin.cn"],
+        "csdn" => &["csdn.net"],
+        _ => &[],
+    };
+    official_domains.iter().any(|domain| {
+        host == *domain
+            || host
+                .strip_suffix(domain)
+                .is_some_and(|prefix| prefix.ends_with('.'))
+    })
+}
+
+fn open_or_reuse_tab(
+    port: u16,
+    platform_id: &str,
+    configured: &Url,
+    destination: &str,
+) -> Result<CdpTarget, String> {
     let targets = get_json(&format!("http://127.0.0.1:{port}/json/list"))?;
     let reusable = targets
         .as_array()
@@ -426,7 +465,7 @@ fn open_or_reuse_tab(port: u16, configured: &Url, destination: &str) -> Result<C
         .find(|target| {
             target.target_type == "page"
                 && (target.url.starts_with("about:")
-                    || url_matches_platform(configured, &target.url))
+                    || url_matches_platform_id(platform_id, configured, &target.url))
         });
     if let Some(target) = reusable {
         cdp_command(
@@ -502,7 +541,7 @@ fn wait_for_page_text(
         .and_then(Value::as_str)
         .unwrap_or(&target.url)
         .to_string();
-    if !url_matches_platform(&platform, &url) {
+    if !url_matches_platform_id(platform_id, &platform, &url) {
         return Err("页面重定向到未获准的平台域名".to_string());
     }
     let text = value
@@ -687,6 +726,17 @@ mod tests {
         assert!(!url_matches_platform(
             &configured,
             "http://creator.douyin.com/"
+        ));
+        let bili = Url::parse("https://member.bilibili.com/platform/home").unwrap();
+        assert!(url_matches_platform_id(
+            "bilibili",
+            &bili,
+            "https://passport.bilibili.com/login"
+        ));
+        assert!(!url_matches_platform_id(
+            "bilibili",
+            &bili,
+            "https://bilibili.com.attacker.example/"
         ));
     }
     #[test]

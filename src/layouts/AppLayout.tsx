@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   ChevronsUpDown,
@@ -61,6 +61,14 @@ const QUICK_STARTER_TITLES = [
   "从零搭建个人多平台内容工作流",
 ];
 
+interface CollapsedRouteTooltip {
+  id: string;
+  label: string;
+  enLabel: string;
+  top: number;
+  left: number;
+}
+
 export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -93,6 +101,27 @@ export function AppLayout() {
   const activeRoute = findRouteByPathname(location.pathname);
   const isStudioRoute = location.pathname.startsWith("/studio");
   const prevPathnameRef = useRef(location.pathname);
+  const [hoveredRoute, setHoveredRoute] = useState<CollapsedRouteTooltip | null>(null);
+
+  useEffect(() => {
+    if (sidebarOpen) {
+      setHoveredRoute(null);
+    }
+  }, [sidebarOpen]);
+
+  function showRouteTooltip(
+    item: { id: string; label: string; enLabel: string },
+    target: HTMLElement,
+  ) {
+    const rect = target.getBoundingClientRect();
+    setHoveredRoute({
+      id: item.id,
+      label: item.label,
+      enLabel: item.enLabel,
+      top: rect.top + rect.height / 2,
+      left: rect.right + 14,
+    });
+  }
 
   useEffect(() => {
     if (prevPathnameRef.current !== location.pathname) {
@@ -360,6 +389,8 @@ export function AppLayout() {
                 transition={{ duration: reducedMotion ? 0 : 0.12 }}
                 className="mx-auto flex h-full min-h-0 w-10 flex-col items-center gap-1 overflow-y-auto pb-2"
                 aria-label="快捷导航"
+                onMouseLeave={() => setHoveredRoute(null)}
+                onScroll={() => setHoveredRoute(null)}
               >
                 {NAV_GROUPS.map((group, groupIndex) => (
                   <div
@@ -375,8 +406,14 @@ export function AppLayout() {
                           key={item.id}
                           to={item.path}
                           end={item.exact}
-                          title={`${item.label} (${item.enLabel})`}
                           aria-label={item.label}
+                          aria-describedby={
+                            hoveredRoute?.id === item.id ? "collapsed-nav-tooltip" : undefined
+                          }
+                          onMouseEnter={(event) => showRouteTooltip(item, event.currentTarget)}
+                          onFocus={(event) => showRouteTooltip(item, event.currentTarget)}
+                          onBlur={() => setHoveredRoute(null)}
+                          onClick={() => setHoveredRoute(null)}
                           className={({ isActive }) =>
                             `relative grid h-8.5 w-10 place-items-center rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
                               isActive
@@ -481,6 +518,36 @@ export function AppLayout() {
         </div>
       </div>
       </div>
+
+      {/* Collapsed Sidebar Route Tooltip */}
+      <AnimatePresence>
+        {!sidebarOpen && hoveredRoute && (
+          <motion.div
+            id="collapsed-nav-tooltip"
+            key="collapsed-nav-tooltip"
+            role="tooltip"
+            initial={reducedMotion ? false : { opacity: 0, x: -6, y: "-50%", scale: 0.96 }}
+            animate={{ opacity: 1, x: 0, y: "-50%", scale: 1 }}
+            exit={reducedMotion ? undefined : { opacity: 0, x: -4, y: "-50%", scale: 0.97 }}
+            transition={{ duration: reducedMotion ? 0 : 0.14, ease: ROUTE_ENTER_EASE }}
+            style={{ top: hoveredRoute.top, left: hoveredRoute.left }}
+            className="pointer-events-none fixed z-50"
+          >
+            <div className="relative flex items-baseline gap-2 rounded-xl bg-toast-bg px-3.5 py-2 text-toast-ink shadow-[0_10px_28px_rgba(30,24,22,0.26)]">
+              <span
+                aria-hidden="true"
+                className="absolute top-1/2 -left-1.5 h-3 w-3 -translate-y-1/2 rotate-45 rounded-[2px] bg-toast-bg"
+              />
+              <span className="relative whitespace-nowrap text-[15px] font-semibold tracking-tight">
+                {hoveredRoute.label}
+              </span>
+              <span className="relative whitespace-nowrap text-[11px] font-medium tracking-wide opacity-70">
+                {hoveredRoute.enLabel}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Create Document Modal */}
       {isCreating && (

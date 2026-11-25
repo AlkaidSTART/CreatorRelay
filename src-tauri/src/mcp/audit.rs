@@ -66,6 +66,12 @@ pub(super) fn target_summary_for(tool_name: &str, arguments: &Value) -> String {
                 (None, None) => "全部脱敏账号状态".to_string(),
             }
         }
+        "creator_browser_status" => "CreatorRelay 隔离浏览器状态".to_string(),
+        "creator_browser_open" | "creator_browser_read_page" => arguments
+            .get("platformId")
+            .and_then(Value::as_str)
+            .map(|platform| format!("平台 {platform} 的专用浏览器页面"))
+            .unwrap_or_else(|| "创作者中心专用浏览器页面".to_string()),
         "platform_capabilities_get" => {
             let platform = arguments.get("platformId").and_then(Value::as_str);
             let account = arguments.get("accountId").and_then(Value::as_str);

@@ -1,6 +1,5 @@
 use crate::{browser_bridge::BrowserBridge, database};
 use rusqlite::Connection;
-use std::path::PathBuf;
 
 #[test]
 fn live_creator_centers_are_opened_in_isolated_chrome() {
@@ -29,17 +28,28 @@ fn live_creator_centers_are_opened_in_isolated_chrome() {
                     || page.text.contains("请重新登录")
                     || page.text.contains("扫码登录")
                     || page.text.contains("验证码登录");
+                let rendered = page.text.trim().chars().count() >= 20
+                    && !page.text.contains("加载中，请稍候")
+                    && !page.text.contains("加载中");
+                let status = if login {
+                    "login_required"
+                } else if rendered {
+                    "creator_page_visible"
+                } else {
+                    "page_shell_or_loading"
+                };
                 println!(
-                    "LIVE_CREATOR_BROWSER platform={} status={} title={} url={} visible_chars={}",
+                    "LIVE_CREATOR_BROWSER platform={} status={} title={} url={} visible_chars={} preview={}",
                     platform_id,
-                    if login {
-                        "login_required"
-                    } else {
-                        "creator_page_loaded"
-                    },
+                    status,
                     page.title,
                     page.url,
-                    page.text.chars().count()
+                    page.text.chars().count(),
+                    page.text
+                        .chars()
+                        .take(80)
+                        .collect::<String>()
+                        .replace('\n', " ")
                 );
             }
             Err(error) => println!(
