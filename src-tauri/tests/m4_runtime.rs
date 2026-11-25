@@ -697,3 +697,60 @@ fn m4_ac_02_04_permission_denials_are_visible_to_adapter_probe() {
     );
     let _ = &fixture.temp;
 }
+
+#[test]
+fn m4_ac_10_capability_status_is_scoped_to_the_probed_account() {
+    let mut fixture = fixture();
+    let installed = install_test_adapter(&mut fixture);
+    grant_required(&mut fixture, &installed.id);
+    plugins::enable_plugin(&mut fixture.conn, &fixture.runtime, &installed.id).unwrap();
+    plugins::probe_plugin_capabilities(
+        &mut fixture.conn,
+        &fixture.runtime,
+        &installed.id,
+        Some("fixture-image-text".to_string()),
+    )
+    .unwrap();
+    fixture
+        .conn
+        .execute(
+            "INSERT INTO plugin_capability_checks(
+                plugin_id, account_ref, content_kind, read_state, publish_state, reason, checked_at
+             ) VALUES(?1, 'fixture-account-without-image-text', 'imageText', 'supported', 'unsupported', '该账号不支持图文', ?2)",
+            rusqlite::params![installed.id, "2026-11-25T23:59:59Z"],
+        )
+        .unwrap();
+    let input = PublishInput {
+        content_kind: ContentKind::ImageText,
+        title: "账号能力隔离".to_string(),
+        body: Some("说明".to_string()),
+        media: vec![image("asset-1", 1)],
+        cover: Some(image("asset-cover", 1)),
+    };
+    let supported = plugins::validate_plugin_publish_input(
+        &mut fixture.conn,
+        &fixture.runtime,
+        &installed.id,
+        Some("fixture-image-text".to_string()),
+        &input,
+    )
+    .unwrap();
+    assert!(supported.ok, "{supported:?}");
+    let unsupported = plugins::validate_plugin_publish_input(
+        &mut fixture.conn,
+        &fixture.runtime,
+        &installed.id,
+        Some("fixture-account-without-image-text".to_string()),
+        &input,
+    )
+    .unwrap();
+    assert!(!unsupported.ok);
+    assert_eq!(unsupported.capability, Some(CapabilityLevel::Unsupported));
+    assert!(
+        unsupported
+            .payload
+            .issues
+            .iter()
+            .any(|issue| issue.code == "capability_not_available")
+    );
+}

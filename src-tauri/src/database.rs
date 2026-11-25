@@ -2,7 +2,7 @@ use chrono::Utc;
 use rusqlite::{Connection, params};
 use serde::Serialize;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 3;
+pub const CURRENT_SCHEMA_VERSION: i64 = 4;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -186,6 +186,31 @@ fn migration_sql(version: i64) -> Result<&'static str, String> {
             );
             CREATE INDEX IF NOT EXISTS plugin_events_plugin_id ON plugin_events(plugin_id, id);
             CREATE INDEX IF NOT EXISTS plugin_capability_checks_plugin_id ON plugin_capability_checks(plugin_id);"),
+        4 => Ok("CREATE TABLE IF NOT EXISTS ai_providers(
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                base_url TEXT NOT NULL,
+                model TEXT NOT NULL,
+                api_style TEXT NOT NULL,
+                is_default INTEGER NOT NULL DEFAULT 0,
+                has_secret INTEGER NOT NULL DEFAULT 0,
+                last_test_status TEXT,
+                last_test_error TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ai_providers_one_default
+                ON ai_providers(is_default) WHERE is_default = 1;
+            CREATE TABLE IF NOT EXISTS ai_call_audit(
+                id TEXT PRIMARY KEY,
+                provider_id TEXT NOT NULL,
+                operation TEXT NOT NULL,
+                content_kind TEXT NOT NULL,
+                status TEXT NOT NULL,
+                error_code TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS ai_call_audit_provider_id ON ai_call_audit(provider_id, created_at);"),
         _ => Err(format!("没有定义 schema v{version} 的迁移脚本")),
     }
 }
@@ -217,7 +242,7 @@ mod tests {
         let report = migrate(&mut conn).unwrap();
         assert_eq!(report.from_version, 0);
         assert_eq!(report.to_version, CURRENT_SCHEMA_VERSION);
-        assert_eq!(report.applied_versions, vec![1, 2, 3]);
+        assert_eq!(report.applied_versions, vec![1, 2, 3, 4]);
         assert_eq!(current_version(&conn).unwrap(), CURRENT_SCHEMA_VERSION);
     }
 
@@ -227,8 +252,8 @@ mod tests {
         let mut conn = v1_fixture(&temp.path().join("legacy.sqlite3"));
         let report = migrate(&mut conn).unwrap();
         assert_eq!(report.from_version, 1);
-        assert_eq!(report.to_version, 3);
-        assert_eq!(report.applied_versions, vec![2, 3]);
+        assert_eq!(report.to_version, 4);
+        assert_eq!(report.applied_versions, vec![2, 3, 4]);
         let workspace: String = conn
             .query_row(
                 "SELECT value FROM app_settings WHERE key='workspace_path'",
@@ -256,12 +281,52 @@ mod tests {
     }
 
     #[test]
+    fn migrates_v2_fixture_and_preserves_existing_account_data() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut conn = Connection::open(temp.path().join("m3.sqlite3")).unwrap();
+        conn.execute_batch(
+            "PRAGMA foreign_keys=ON;
+             CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+             INSERT INTO schema_migrations(version, applied_at) VALUES(1, '2026-01-01T00:00:00Z');
+             INSERT INTO schema_migrations(version, applied_at) VALUES(2, '2026-01-01T00:00:00Z');
+             CREATE TABLE platform_accounts(
+                id TEXT PRIMARY KEY,
+                platform_id TEXT NOT NULL,
+                alias TEXT NOT NULL
+             );
+             INSERT INTO platform_accounts(id, platform_id, alias)
+             VALUES('account-m3', 'bilibili', '主账号');",
+        )
+        .unwrap();
+        let report = migrate(&mut conn).unwrap();
+        assert_eq!(report.from_version, 2);
+        assert_eq!(report.to_version, 4);
+        assert_eq!(report.applied_versions, vec![3, 4]);
+        let alias: String = conn
+            .query_row(
+                "SELECT alias FROM platform_accounts WHERE id='account-m3'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(alias, "主账号");
+        let plugin_tables: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='plugins'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(plugin_tables, 1);
+    }
+
+    #[test]
     fn migration_is_idempotent() {
         let mut conn = Connection::open_in_memory().unwrap();
         migrate(&mut conn).unwrap();
         let report = migrate(&mut conn).unwrap();
-        assert_eq!(report.from_version, 3);
-        assert_eq!(report.to_version, 3);
+        assert_eq!(report.from_version, 4);
+        assert_eq!(report.to_version, 4);
         assert!(report.applied_versions.is_empty());
     }
 

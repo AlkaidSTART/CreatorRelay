@@ -783,7 +783,7 @@ pub fn probe_plugin_capabilities(
             host_access: Vec::new(),
             capabilities: capability_views(
                 &row.manifest,
-                &load_capability_checks(conn, plugin_id)?,
+                &load_capability_checks(conn, plugin_id, Some(&account_ref))?,
             ),
         });
     }
@@ -828,7 +828,7 @@ pub fn probe_plugin_capabilities(
             )?;
             Ok(PluginProbeResult {
                 plugin_id: plugin_id.to_string(),
-                account_ref: parsed.account_ref,
+                account_ref: parsed.account_ref.clone(),
                 ok: true,
                 error: None,
                 checked_at,
@@ -836,7 +836,7 @@ pub fn probe_plugin_capabilities(
                 host_access: parsed.host_access,
                 capabilities: capability_views(
                     &row.manifest,
-                    &load_capability_checks(conn, plugin_id)?,
+                    &load_capability_checks(conn, plugin_id, Some(&parsed.account_ref))?,
                 ),
             })
         }
@@ -870,7 +870,7 @@ pub fn probe_plugin_capabilities(
                 host_access: Vec::new(),
                 capabilities: capability_views(
                     &row.manifest,
-                    &load_capability_checks(conn, plugin_id)?,
+                    &load_capability_checks(conn, plugin_id, Some(&account_ref))?,
                 ),
             })
         }
@@ -1053,10 +1053,10 @@ pub fn validate_plugin_publish_input(
     }
     let row = plugin_row(conn, plugin_id)?.ok_or_else(|| format!("未找到插件 `{plugin_id}`"))?;
     let account_ref = account_ref.unwrap_or_else(|| "fixture-image-text".to_string());
-    let mut checks = load_capability_checks(conn, plugin_id)?;
+    let mut checks = load_capability_checks(conn, plugin_id, Some(&account_ref))?;
     if !checks.contains_key(&input.content_kind) {
         let _ = probe_plugin_capabilities(conn, runtime, plugin_id, Some(account_ref.clone()))?;
-        checks = load_capability_checks(conn, plugin_id)?;
+        checks = load_capability_checks(conn, plugin_id, Some(&account_ref))?;
     }
     let Some(check) = checks.get(&input.content_kind).cloned() else {
         return Ok(PluginPublishValidationResult {
@@ -1215,7 +1215,7 @@ fn plugin_summary(
     row: &PluginRow,
 ) -> Result<PluginSummary, String> {
     let grants = load_grants(conn, &row.id)?;
-    let checks = load_capability_checks(conn, &row.id)?;
+    let checks = load_capability_checks(conn, &row.id, None)?;
     let isolation = runtime.isolation_summary(&row.manifest);
     let runtime_state = if runtime.is_running(&row.id) {
         "running"
@@ -1347,45 +1347,80 @@ fn load_grants(conn: &Connection, plugin_id: &str) -> Result<HashMap<String, boo
 fn load_capability_checks(
     conn: &Connection,
     plugin_id: &str,
+    account_ref: Option<&str>,
 ) -> Result<HashMap<ContentKind, CapabilityCheck>, String> {
-    let mut statement = conn
-        .prepare(
-            "SELECT content_kind, read_state, publish_state, reason, checked_at
-             FROM plugin_capability_checks WHERE plugin_id=?1",
-        )
-        .map_err(|error| format!("无法读取能力探测结果：{error}"))?;
-    let rows = statement
-        .query_map([plugin_id], |row| {
-            let kind: String = row.get(0)?;
-            let read: String = row.get(1)?;
-            let publish: String = row.get(2)?;
-            Ok((
-                kind,
-                read,
-                publish,
-                row.get::<_, Option<String>>(3)?,
-                row.get::<_, String>(4)?,
-            ))
-        })
-        .map_err(|error| format!("无法读取能力探测结果：{error}"))?;
-    let mut checks = HashMap::new();
-    for row in rows {
-        let (kind, read, publish, reason, checked_at) =
-            row.map_err(|error| format!("无法解析能力探测结果：{error}"))?;
-        let Some(kind) = ContentKind::parse(&kind) else {
-            continue;
-        };
-        checks.insert(
+    let map_row = |row: &rusqlite::Row<'_>| {
+        let kind: String = row.get(0)?;
+        let read: String = row.get(1)?;
+        let publish: String = row.get(2)?;
+        Ok((
             kind,
-            CapabilityCheck {
-                read: CapabilityLevel::parse(&read).unwrap_or(CapabilityLevel::Unavailable),
-                publish: CapabilityLevel::parse(&publish).unwrap_or(CapabilityLevel::Unavailable),
-                reason,
-                checked_at,
-            },
-        );
+            read,
+            publish,
+            row.get::<_, Option<String>>(3)?,
+            row.get::<_, String>(4)?,
+        ))
+    };
+    let mut checks = HashMap::new();
+    if let Some(account_ref) = account_ref {
+        let mut statement = conn
+            .prepare(
+                "SELECT content_kind, read_state, publish_state, reason, checked_at
+                 FROM plugin_capability_checks WHERE plugin_id=?1 AND account_ref=?2",
+            )
+            .map_err(|error| format!("无法读取能力探测结果：{error}"))?;
+        let rows = statement
+            .query_map(params![plugin_id, account_ref], map_row)
+            .map_err(|error| format!("无法读取能力探测结果：{error}"))?;
+        for row in rows {
+            insert_capability_check(
+                &mut checks,
+                row.map_err(|error| format!("无法解析能力探测结果：{error}"))?,
+            );
+        }
+    } else {
+        let mut statement = conn
+            .prepare(
+                "SELECT content_kind, read_state, publish_state, reason, checked_at
+                 FROM plugin_capability_checks WHERE plugin_id=?1",
+            )
+            .map_err(|error| format!("无法读取能力探测结果：{error}"))?;
+        let rows = statement
+            .query_map([plugin_id], map_row)
+            .map_err(|error| format!("无法读取能力探测结果：{error}"))?;
+        for row in rows {
+            insert_capability_check(
+                &mut checks,
+                row.map_err(|error| format!("无法解析能力探测结果：{error}"))?,
+            );
+        }
     }
     Ok(checks)
+}
+
+fn insert_capability_check(
+    checks: &mut HashMap<ContentKind, CapabilityCheck>,
+    row: (String, String, String, Option<String>, String),
+) {
+    let (kind, read, publish, reason, checked_at) = row;
+    let Some(kind) = ContentKind::parse(&kind) else {
+        return;
+    };
+    if checks
+        .get(&kind)
+        .is_some_and(|existing| existing.checked_at >= checked_at)
+    {
+        return;
+    }
+    checks.insert(
+        kind,
+        CapabilityCheck {
+            read: CapabilityLevel::parse(&read).unwrap_or(CapabilityLevel::Unavailable),
+            publish: CapabilityLevel::parse(&publish).unwrap_or(CapabilityLevel::Unavailable),
+            reason,
+            checked_at,
+        },
+    );
 }
 
 fn permissions_complete(manifest: &AdapterManifest, grants: &HashMap<String, bool>) -> bool {

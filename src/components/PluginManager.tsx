@@ -298,6 +298,8 @@ function PluginCard({
   onShowEvents: () => void;
 }) {
   const status = statusCopy[plugin.status];
+  const displayCapabilities = probe?.capabilities ?? plugin.capabilities;
+  const displayAccount = probe?.accountRef ?? accountRef;
   const reviewDone = plugin.permissions.every(
     (permission) => typeof permission.granted === "boolean",
   );
@@ -414,7 +416,7 @@ function PluginCard({
           <div>
             <h4 className="text-xs font-semibold text-ink">逐形态能力状态</h4>
             <p className="text-[11px] text-ink-muted">
-              账号 {accountRef} · Core 以实际探测覆盖 Manifest 声明，不显示笼统的“支持发布”
+              账号 {displayAccount} · Core 以实际探测覆盖 Manifest 声明，不显示笼统的“支持发布”
             </p>
           </div>
           <button
@@ -428,7 +430,7 @@ function PluginCard({
           </button>
         </div>
         <div className="grid gap-1.5">
-          {plugin.capabilities.map((capability) => (
+          {displayCapabilities.map((capability) => (
             <CapabilityRow key={capability.kind} capability={capability} compact />
           ))}
         </div>

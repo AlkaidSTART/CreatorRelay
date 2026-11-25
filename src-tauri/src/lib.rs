@@ -14,6 +14,8 @@ use tempfile::NamedTempFile;
 use uuid::Uuid;
 use walkdir::WalkDir;
 
+pub mod ai;
+pub mod content;
 pub mod database;
 mod diagnostics;
 mod logging;
@@ -577,9 +579,213 @@ fn validate_asset_references(
 
 fn setup_workspace(path: &Path) -> Result<(), String> {
     fs::create_dir_all(path.join("articles")).map_err(|e| e.to_string())?;
+    fs::create_dir_all(path.join("contents")).map_err(|e| e.to_string())?;
+    fs::create_dir_all(path.join("platform-drafts")).map_err(|e| e.to_string())?;
     fs::create_dir_all(path.join("assets")).map_err(|e| e.to_string())?;
     fs::create_dir_all(path.join("exports")).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+fn require_active_workspace(state: &State<'_, AppState>) -> Result<PathBuf, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    active_workspace(&conn)?.ok_or_else(|| "请先选择工作区".to_string())
+}
+
+#[tauri::command]
+fn list_content_packages(
+    state: State<'_, AppState>,
+) -> Result<Vec<content::ContentPackageSummary>, String> {
+    content::list_content_packages(&require_active_workspace(&state)?)
+}
+
+#[tauri::command]
+fn create_content_package(
+    kind: content::ContentKind,
+    title: String,
+    state: State<'_, AppState>,
+) -> Result<content::ContentPackage, String> {
+    content::create_content_package(&require_active_workspace(&state)?, kind, &title)
+}
+
+#[tauri::command]
+fn read_content_package(
+    package_id: String,
+    state: State<'_, AppState>,
+) -> Result<content::ContentPackage, String> {
+    content::read_content_package(&require_active_workspace(&state)?, &package_id)
+}
+
+#[tauri::command]
+fn save_content_package(
+    package_id: String,
+    input: content::ContentSaveInput,
+    state: State<'_, AppState>,
+) -> Result<content::ContentPackage, String> {
+    content::save_content_package(&require_active_workspace(&state)?, &package_id, input)
+}
+
+#[tauri::command]
+fn import_content_asset(
+    package_id: String,
+    role: String,
+    source_name: String,
+    mime_type: String,
+    bytes: Vec<u8>,
+    state: State<'_, AppState>,
+) -> Result<content::ContentAsset, String> {
+    content::import_content_asset(
+        &require_active_workspace(&state)?,
+        &package_id,
+        &role,
+        &source_name,
+        &mime_type,
+        &bytes,
+    )
+}
+
+#[tauri::command]
+fn read_content_asset(
+    package_id: String,
+    asset_id: String,
+    state: State<'_, AppState>,
+) -> Result<content::ContentAssetContent, String> {
+    content::read_content_asset(&require_active_workspace(&state)?, &package_id, &asset_id)
+}
+
+#[tauri::command]
+fn derive_content_package(
+    source_id: String,
+    target_kind: content::ContentKind,
+    title: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<content::ContentPackage, String> {
+    content::derive_content_package(
+        &require_active_workspace(&state)?,
+        &source_id,
+        target_kind,
+        title,
+    )
+}
+
+#[tauri::command]
+fn list_platform_drafts(
+    content_id: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<Vec<content::PlatformDraft>, String> {
+    content::list_platform_drafts(
+        &require_active_workspace(&state)?,
+        content_id.as_deref(),
+    )
+}
+
+#[tauri::command]
+fn create_platform_drafts(
+    content_id: String,
+    targets: Vec<content::DraftTarget>,
+    state: State<'_, AppState>,
+) -> Result<Vec<content::PlatformDraft>, String> {
+    if targets.len() > 12 {
+        return Err("一次最多生成 12 个平台稿".to_string());
+    }
+    content::create_platform_drafts(
+        &require_active_workspace(&state)?,
+        &content_id,
+        &targets,
+    )
+}
+
+#[tauri::command]
+fn read_platform_draft(
+    draft_id: String,
+    state: State<'_, AppState>,
+) -> Result<content::PlatformDraft, String> {
+    content::read_platform_draft(&require_active_workspace(&state)?, &draft_id)
+}
+
+#[tauri::command]
+fn save_platform_draft(
+    draft_id: String,
+    input: content::DraftSaveInput,
+    state: State<'_, AppState>,
+) -> Result<content::PlatformDraft, String> {
+    content::save_platform_draft(&require_active_workspace(&state)?, &draft_id, input)
+}
+
+#[tauri::command]
+fn acknowledge_platform_draft(
+    draft_id: String,
+    state: State<'_, AppState>,
+) -> Result<content::PlatformDraft, String> {
+    content::acknowledge_platform_draft_source(&require_active_workspace(&state)?, &draft_id)
+}
+
+#[tauri::command]
+fn regenerate_platform_draft(
+    draft_id: String,
+    state: State<'_, AppState>,
+) -> Result<content::PlatformDraft, String> {
+    content::regenerate_platform_draft(&require_active_workspace(&state)?, &draft_id)
+}
+
+#[tauri::command]
+fn read_platform_draft_asset(
+    draft_id: String,
+    asset_id: String,
+    state: State<'_, AppState>,
+) -> Result<content::ContentAssetContent, String> {
+    content::read_platform_draft_asset(
+        &require_active_workspace(&state)?,
+        &draft_id,
+        &asset_id,
+    )
+}
+
+#[tauri::command]
+fn list_ai_providers(state: State<'_, AppState>) -> Result<Vec<ai::AiProviderSummary>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    ai::list_providers(&conn)
+}
+
+#[tauri::command]
+fn save_ai_provider(
+    input: ai::AiProviderInput,
+    state: State<'_, AppState>,
+) -> Result<ai::AiProviderSummary, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    ai::save_provider_with_vault(&conn, &input, &ai::keyring_vault())
+}
+
+#[tauri::command]
+fn delete_ai_provider(provider_id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    ai::delete_provider_with_vault(&conn, &provider_id, &ai::keyring_vault())
+}
+
+#[tauri::command]
+fn set_default_ai_provider(
+    provider_id: String,
+    state: State<'_, AppState>,
+) -> Result<ai::AiProviderSummary, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    ai::set_default_provider(&conn, &provider_id)
+}
+
+#[tauri::command]
+fn test_ai_provider(
+    provider_id: String,
+    state: State<'_, AppState>,
+) -> Result<ai::AiTestResult, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    ai::test_provider_with_vault(&conn, &provider_id, &ai::keyring_vault())
+}
+
+#[tauri::command]
+fn ai_generate(
+    request: ai::AiGenerateRequest,
+    state: State<'_, AppState>,
+) -> Result<ai::AiGenerateResult, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    ai::generate_with_vault(&conn, &request, &ai::keyring_vault())
 }
 
 fn active_workspace(conn: &Connection) -> Result<Option<PathBuf>, String> {
@@ -2171,6 +2377,26 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            list_content_packages,
+            create_content_package,
+            read_content_package,
+            save_content_package,
+            import_content_asset,
+            read_content_asset,
+            derive_content_package,
+            list_platform_drafts,
+            create_platform_drafts,
+            read_platform_draft,
+            save_platform_draft,
+            acknowledge_platform_draft,
+            regenerate_platform_draft,
+            read_platform_draft_asset,
+            list_ai_providers,
+            save_ai_provider,
+            delete_ai_provider,
+            set_default_ai_provider,
+            test_ai_provider,
+            ai_generate,
             get_workspace,
             set_workspace_path,
             list_documents,

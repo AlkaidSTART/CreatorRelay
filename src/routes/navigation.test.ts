@@ -32,6 +32,8 @@ describe("PRD route navigation definitions", () => {
     const analytics = findRouteByPathname("/analytics");
 
     expect(settings.availability).toBe("available");
+    expect(findRouteByPathname("/platforms").availability).toBe("available");
+    expect(findRouteByPathname("/platforms").milestone).toBe("M3 / M4");
     expect(studio.availability).toBe("development");
     expect(analytics.availability).toBe("planned");
     expect(analytics.milestone).toBe("M6");

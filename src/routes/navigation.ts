@@ -127,7 +127,7 @@ export const PRD_ROUTES: RouteMeta[] = [
     priority: "P0",
     group: "secondary",
     icon: Globe2,
-    availability: "development",
+    availability: "available",
     milestone: "M3 / M4",
   },
   {
