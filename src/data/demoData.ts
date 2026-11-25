@@ -241,10 +241,42 @@ export const demoPublishedContents: PublishedContentItem[] = [
 
 export type AccountStatus = "ACTIVE" | "EXPIRED" | "NEEDS_REAUTH" | "UNAUTHORIZED";
 
+export type PlatformCategory = "tech" | "article" | "video" | "social";
+
+export interface PlatformCategoryMeta {
+  id: PlatformCategory;
+  label: string;
+  description: string;
+}
+
+export const PLATFORM_CATEGORIES: PlatformCategoryMeta[] = [
+  {
+    id: "tech",
+    label: "技术社区",
+    description: "面向开发者的技术专栏与 Markdown 博客平台",
+  },
+  {
+    id: "article",
+    label: "深度图文",
+    description: "长文章、问答专栏与公众号图文分发渠道",
+  },
+  {
+    id: "video",
+    label: "视频平台",
+    description: "中长视频、频道内容与短视频创作平台",
+  },
+  {
+    id: "social",
+    label: "社交与种草",
+    description: "图文种草笔记与轻量社交动态平台",
+  },
+];
+
 export interface PlatformAccountItem {
   id: string;
   platformId: string;
   platformName: string;
+  category: PlatformCategory;
   contentFormats: string;
   authMode: "browser" | "oauth" | "manual";
   alias: string;
@@ -263,6 +295,7 @@ export const demoPlatformAccounts: PlatformAccountItem[] = [
     id: "acc-juejin-1",
     platformId: "juejin",
     platformName: "掘金",
+    category: "tech",
     contentFormats: "技术文章",
     authMode: "browser",
     alias: "技术主号",
@@ -279,6 +312,7 @@ export const demoPlatformAccounts: PlatformAccountItem[] = [
     id: "acc-csdn-1",
     platformId: "csdn",
     platformName: "CSDN",
+    category: "tech",
     contentFormats: "技术博客",
     authMode: "browser",
     alias: "Rust 专栏号",
@@ -292,25 +326,10 @@ export const demoPlatformAccounts: PlatformAccountItem[] = [
     },
   },
   {
-    id: "acc-bilibili-1",
-    platformId: "bilibili",
-    platformName: "Bilibili",
-    contentFormats: "视频、专栏",
-    authMode: "oauth",
-    alias: "林工视频号",
-    uid: "mid_3210948",
-    status: "ACTIVE",
-    lastSyncedAt: "2 小时前",
-    capabilities: {
-      contentRead: "supported",
-      contentPublish: "restricted",
-      analytics: "supported",
-    },
-  },
-  {
     id: "acc-zhihu-1",
     platformId: "zhihu",
     platformName: "知乎",
+    category: "article",
     contentFormats: "问答、文章",
     authMode: "browser",
     alias: "林工笔记",
@@ -327,6 +346,7 @@ export const demoPlatformAccounts: PlatformAccountItem[] = [
     id: "acc-wechat-1",
     platformId: "wechat",
     platformName: "微信公众号",
+    category: "article",
     contentFormats: "图文、视频",
     authMode: "manual",
     alias: "工程手记",
@@ -340,9 +360,27 @@ export const demoPlatformAccounts: PlatformAccountItem[] = [
     },
   },
   {
+    id: "acc-bilibili-1",
+    platformId: "bilibili",
+    platformName: "Bilibili",
+    category: "video",
+    contentFormats: "视频、专栏",
+    authMode: "oauth",
+    alias: "林工视频号",
+    uid: "mid_3210948",
+    status: "ACTIVE",
+    lastSyncedAt: "2 小时前",
+    capabilities: {
+      contentRead: "supported",
+      contentPublish: "restricted",
+      analytics: "supported",
+    },
+  },
+  {
     id: "acc-youtube-1",
     platformId: "youtube",
     platformName: "YouTube",
+    category: "video",
     contentFormats: "视频、频道",
     authMode: "oauth",
     alias: "CreatorRelay Lab",
@@ -355,13 +393,74 @@ export const demoPlatformAccounts: PlatformAccountItem[] = [
       analytics: "supported",
     },
   },
-];
-
-export const plannedPlatforms = [
-  { name: "小红书", formats: "图文、视频", note: "按实际授权能力接入，支持人工发布辅助" },
-  { name: "抖音", formats: "短视频、图文", note: "按实际授权能力接入" },
-  { name: "快手", formats: "短视频", note: "按实际授权能力接入" },
-  { name: "微博", formats: "社交动态", note: "轻量动态与互动指标" },
+  {
+    id: "acc-douyin-1",
+    platformId: "douyin",
+    platformName: "抖音",
+    category: "video",
+    contentFormats: "短视频、图文",
+    authMode: "oauth",
+    alias: "林工短视频",
+    uid: "dy_829104",
+    status: "ACTIVE",
+    lastSyncedAt: "3 小时前",
+    capabilities: {
+      contentRead: "supported",
+      contentPublish: "restricted",
+      analytics: "supported",
+    },
+  },
+  {
+    id: "acc-kuaishou-1",
+    platformId: "kuaishou",
+    platformName: "快手",
+    category: "video",
+    contentFormats: "短视频",
+    authMode: "oauth",
+    alias: "林工快手号",
+    uid: "ks_441092",
+    status: "ACTIVE",
+    lastSyncedAt: "6 小时前",
+    capabilities: {
+      contentRead: "supported",
+      contentPublish: "restricted",
+      analytics: "experimental",
+    },
+  },
+  {
+    id: "acc-xiaohongshu-1",
+    platformId: "xiaohongshu",
+    platformName: "小红书",
+    category: "social",
+    contentFormats: "图文、视频",
+    authMode: "browser",
+    alias: "林工开发笔记",
+    uid: "xhs_519204",
+    status: "ACTIVE",
+    lastSyncedAt: "1 小时前",
+    capabilities: {
+      contentRead: "supported",
+      contentPublish: "restricted",
+      analytics: "supported",
+    },
+  },
+  {
+    id: "acc-weibo-1",
+    platformId: "weibo",
+    platformName: "微博",
+    category: "social",
+    contentFormats: "社交动态",
+    authMode: "oauth",
+    alias: "林工碎碎念",
+    uid: "wb_773190",
+    status: "ACTIVE",
+    lastSyncedAt: "4 小时前",
+    capabilities: {
+      contentRead: "supported",
+      contentPublish: "supported",
+      analytics: "supported",
+    },
+  },
 ];
 
 export type TrendRange = "7d" | "30d";

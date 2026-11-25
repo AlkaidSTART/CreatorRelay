@@ -1,11 +1,13 @@
 import { create } from "zustand";
 import type { StateCreator } from "zustand";
 import { createStore } from "zustand/vanilla";
+import { applyThemeToDocument, getInitialTheme, type ThemeId } from "../utils/themes";
 
 export type ViewMode = "write" | "preview";
 export type StudioRightPanel = "none" | "info" | "history";
 
 export interface UiStore {
+  theme: ThemeId;
   sidebarOpen: boolean;
   docListOpen: boolean;
   showDemoBanner: boolean;
@@ -15,6 +17,7 @@ export interface UiStore {
   notice: string;
   viewMode: ViewMode;
   rightPanel: StudioRightPanel;
+  setTheme: (theme: ThemeId) => void;
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   setDocListOpen: (open: boolean) => void;
@@ -34,6 +37,7 @@ export interface UiStore {
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 const createUiStoreState: StateCreator<UiStore> = (set) => ({
+  theme: getInitialTheme(),
   sidebarOpen: true,
   docListOpen: true,
   showDemoBanner: false,
@@ -43,6 +47,10 @@ const createUiStoreState: StateCreator<UiStore> = (set) => ({
   notice: "",
   viewMode: "write",
   rightPanel: "none",
+  setTheme: (theme) => {
+    applyThemeToDocument(theme);
+    set({ theme });
+  },
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setDocListOpen: (docListOpen) => set({ docListOpen }),

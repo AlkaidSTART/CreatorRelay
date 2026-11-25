@@ -1,6 +1,21 @@
 /* Co-located Markdown preview typography for StudioPage */
+.studio-onboarding-stage {
+  background-image:
+    radial-gradient(620px 360px at 50% 18%, color-mix(in srgb, var(--accent-soft) 55%, transparent), transparent 72%),
+    radial-gradient(460px 320px at 50% 88%, color-mix(in srgb, var(--bg-subtle) 65%, transparent), transparent 75%);
+}
+
+.studio-onboarding-preview {
+  background-color: color-mix(in srgb, var(--bg-subtle) 72%, var(--bg-surface));
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--border-strong) 55%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 14px 14px;
+}
+
 .studio-markdown-preview {
-  color: #423835;
+  color: var(--ink-primary);
   font-size: 15px;
   line-height: 1.85;
 }
@@ -8,7 +23,7 @@
 .studio-markdown-preview h1,
 .studio-markdown-preview h2,
 .studio-markdown-preview h3 {
-  color: #332b29;
+  color: var(--ink-primary);
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.4;
@@ -22,7 +37,7 @@
 .studio-markdown-preview h2 {
   margin: 32px 0 12px;
   padding-bottom: 6px;
-  border-bottom: 1px solid #efe7de;
+  border-bottom: 1px solid var(--border-hairline);
   font-size: 20px;
 }
 
@@ -36,17 +51,17 @@
 }
 
 .studio-markdown-preview strong {
-  color: #29211f;
+  color: var(--ink-primary);
   font-weight: 600;
 }
 
 .studio-markdown-preview blockquote {
   margin: 20px 0;
   padding: 6px 0 6px 16px;
-  border-left: 3px solid #9d89ca;
+  border-left: 3px solid var(--accent-primary);
   border-radius: 0 8px 8px 0;
-  background: #faf6fe;
-  color: #625855;
+  background: var(--accent-soft);
+  color: var(--ink-secondary);
 }
 
 .studio-markdown-preview ul,
@@ -70,8 +85,8 @@
 .studio-markdown-preview code {
   border-radius: 5px;
   padding: 2px 5px;
-  background: #f5effb;
-  color: #5b4888;
+  background: var(--accent-soft);
+  color: var(--accent-deep);
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 0.85em;
 }
@@ -80,16 +95,16 @@
   overflow-x: auto;
   margin: 18px 0;
   padding: 16px 18px;
-  border: 1px solid #eae2d9;
+  border: 1px solid var(--border-hairline);
   border-radius: 12px;
-  background: #faf7f4;
+  background: var(--bg-subtle);
   line-height: 1.65;
 }
 
 .studio-markdown-preview pre code {
   padding: 0;
   background: transparent;
-  color: #423835;
+  color: var(--ink-primary);
 }
 
 .studio-markdown-preview table {
@@ -102,12 +117,12 @@
 .studio-markdown-preview th,
 .studio-markdown-preview td {
   padding: 8px 12px;
-  border: 1px solid #eae2d9;
+  border: 1px solid var(--border-hairline);
   text-align: left;
 }
 
 .studio-markdown-preview th {
-  background: #f7f2ec;
-  color: #332b29;
+  background: var(--bg-subtle);
+  color: var(--ink-primary);
   font-weight: 600;
 }

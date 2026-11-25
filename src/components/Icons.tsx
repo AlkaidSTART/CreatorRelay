@@ -45,6 +45,7 @@ export const Info = createIcon("circle-info");
 export const KeyRound = createIcon("key");
 export const LayoutDashboard = createIcon("gauge-high");
 export const Library = createIcon("layer-group");
+export const Palette = createIcon("palette");
 export const PanelLeft = createIcon("table-columns");
 export const PanelLeftClose = createIcon("angles-left");
 export const PanelLeftOpen = createIcon("angles-right");

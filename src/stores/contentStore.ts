@@ -6,6 +6,7 @@ import {
   demoPublishedContents,
   demoPublishTasks,
   type PlatformAccountItem,
+  type PlatformCategory,
   type PublishedContentItem,
   type PublishTaskItem,
   type PublishTaskStatus,
@@ -38,11 +39,13 @@ export interface ContentStore {
   publishTasks: PublishTaskItem[];
   publishedContents: PublishedContentItem[];
   platformAccounts: PlatformAccountItem[];
+  platformCategoryFilter: "ALL" | PlatformCategory;
   publishingFilter: "ALL" | PublishTaskStatus;
   contentKeyword: string;
   contentPlatformFilter: string;
   analyticsRange: AnalyticsRange;
   assistantMessages: ChatMessage[];
+  setPlatformCategoryFilter: (category: "ALL" | PlatformCategory) => void;
   setPublishingFilter: (filter: "ALL" | PublishTaskStatus) => void;
   setContentKeyword: (keyword: string) => void;
   setContentPlatformFilter: (platform: string) => void;
@@ -64,12 +67,14 @@ const createContentStoreState: StateCreator<ContentStore> = (set, get) => ({
   publishTasks: demoPublishTasks,
   publishedContents: demoPublishedContents,
   platformAccounts: demoPlatformAccounts,
+  platformCategoryFilter: "ALL",
   publishingFilter: "ALL",
   contentKeyword: "",
   contentPlatformFilter: "全部平台",
   analyticsRange: "7d",
   assistantMessages: initialAssistantMessages,
 
+  setPlatformCategoryFilter: (platformCategoryFilter) => set({ platformCategoryFilter }),
   setPublishingFilter: (publishingFilter) => set({ publishingFilter }),
   setContentKeyword: (contentKeyword) => set({ contentKeyword }),
   setContentPlatformFilter: (contentPlatformFilter) => set({ contentPlatformFilter }),

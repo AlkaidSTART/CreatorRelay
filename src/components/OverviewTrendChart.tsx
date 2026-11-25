@@ -11,6 +11,7 @@ import {
 } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 import type { OverviewTrendDataset } from "../data/demoData";
+import { useUiStore } from "../stores";
 
 echarts.use([LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
@@ -25,7 +26,43 @@ interface TooltipDatum {
   value?: number | string;
 }
 
+interface ChartThemeColors {
+  surface: string;
+  line: string;
+  lineStrong: string;
+  splitLine: string;
+  ink: string;
+  inkSecondary: string;
+  inkMuted: string;
+}
+
+function readChartThemeColors(): ChartThemeColors {
+  if (typeof document === "undefined" || typeof getComputedStyle === "undefined") {
+    return {
+      surface: "#ffffff",
+      line: "#EAE2D9",
+      lineStrong: "#DCD2C7",
+      splitLine: "#F4EFEA",
+      ink: "#332B29",
+      inkSecondary: "#6F6561",
+      inkMuted: "#9A8F8A",
+    };
+  }
+  const styles = getComputedStyle(document.documentElement);
+  const pick = (name: string, fallback: string) => styles.getPropertyValue(name).trim() || fallback;
+  return {
+    surface: pick("--bg-surface", "#ffffff"),
+    line: pick("--border-hairline", "#EAE2D9"),
+    lineStrong: pick("--border-strong", "#DCD2C7"),
+    splitLine: pick("--bg-subtle", "#F4EFEA"),
+    ink: pick("--ink-primary", "#332B29"),
+    inkSecondary: pick("--ink-secondary", "#6F6561"),
+    inkMuted: pick("--ink-muted", "#9A8F8A"),
+  };
+}
+
 export function buildOverviewTrendOption(dataset: OverviewTrendDataset): OverviewTrendOption {
+  const colors = readChartThemeColors();
   const metricByPlatform = new Map(
     dataset.series.map((item) => [item.platformName, item.metricLabel]),
   );
@@ -48,24 +85,24 @@ export function buildOverviewTrendOption(dataset: OverviewTrendDataset): Overvie
       itemHeight: 8,
       itemGap: 16,
       textStyle: {
-        color: "#6F6561",
+        color: colors.inkSecondary,
         fontSize: 12,
       },
     },
     tooltip: {
       trigger: "axis",
-      backgroundColor: "#ffffff",
-      borderColor: "#EAE2D9",
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
       borderWidth: 1,
       padding: [10, 12],
       textStyle: {
-        color: "#332B29",
+        color: colors.ink,
         fontSize: 12,
       },
       axisPointer: {
         type: "line",
         lineStyle: {
-          color: "#DCD2C7",
+          color: colors.lineStrong,
           type: "dashed",
         },
       },
@@ -81,18 +118,18 @@ export function buildOverviewTrendOption(dataset: OverviewTrendDataset): Overvie
           const formatted = Number.isNaN(numericValue)
             ? String(item.value ?? "-")
             : numericValue.toLocaleString("zh-CN");
-          const dotColor = typeof item.color === "string" ? item.color : "#332B29";
+          const dotColor = typeof item.color === "string" ? item.color : colors.ink;
           return [
             `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:6px;">`,
-            `<span style="display:inline-flex;align-items:center;gap:6px;color:#6F6561;">`,
+            `<span style="display:inline-flex;align-items:center;gap:6px;color:${colors.inkSecondary};">`,
             `<span style="width:7px;height:7px;border-radius:999px;background:${dotColor};display:inline-block;"></span>`,
             `${name} · ${metricLabel}`,
             `</span>`,
-            `<strong style="color:#332B29;font-variant-numeric:tabular-nums;">${formatted}</strong>`,
+            `<strong style="color:${colors.ink};font-variant-numeric:tabular-nums;">${formatted}</strong>`,
             `</div>`,
           ].join("");
         });
-        return `<div style="font-weight:600;color:#332B29;margin-bottom:4px;">${dateLabel}</div>${rows.join("")}`;
+        return `<div style="font-weight:600;color:${colors.ink};margin-bottom:4px;">${dateLabel}</div>${rows.join("")}`;
       },
     },
     xAxis: {
@@ -101,14 +138,14 @@ export function buildOverviewTrendOption(dataset: OverviewTrendDataset): Overvie
       data: dataset.dates,
       axisLine: {
         lineStyle: {
-          color: "#EAE2D9",
+          color: colors.line,
         },
       },
       axisTick: {
         show: false,
       },
       axisLabel: {
-        color: "#9A8F8A",
+        color: colors.inkMuted,
         fontSize: 11,
         margin: 10,
       },
@@ -123,12 +160,12 @@ export function buildOverviewTrendOption(dataset: OverviewTrendDataset): Overvie
         show: false,
       },
       axisLabel: {
-        color: "#9A8F8A",
+        color: colors.inkMuted,
         fontSize: 11,
       },
       splitLine: {
         lineStyle: {
-          color: "#F4EFEA",
+          color: colors.splitLine,
         },
       },
     },
@@ -168,6 +205,7 @@ interface OverviewTrendChartProps {
 export function OverviewTrendChart({ dataset, height = 280 }: OverviewTrendChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
+  const theme = useUiStore((state) => state.theme);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -202,7 +240,7 @@ export function OverviewTrendChart({ dataset, height = 280 }: OverviewTrendChart
   useEffect(() => {
     if (!chartRef.current) return;
     chartRef.current.setOption(buildOverviewTrendOption(dataset), true);
-  }, [dataset]);
+  }, [dataset, theme]);
 
   return (
     <div

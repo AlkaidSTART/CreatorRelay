@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PLATFORM_CATEGORIES } from "../data/demoData";
 import { createContentStore, createUiStore, createWorkspaceStore } from "./appStore";
 
 describe("stores", () => {
@@ -44,6 +45,12 @@ describe("stores", () => {
 
     ui.getState().toggleRightPanel("history");
     expect(ui.getState().rightPanel).toBe("none");
+
+    expect(ui.getState().theme).toBe("taro");
+    ui.getState().setTheme("matcha");
+    expect(ui.getState().theme).toBe("matcha");
+    ui.getState().setTheme("espresso");
+    expect(ui.getState().theme).toBe("espresso");
   });
 
   it("manages shared content filters and assistant messages", () => {
@@ -57,5 +64,39 @@ describe("stores", () => {
     const messages = content.getState().assistantMessages;
     expect(messages.length).toBe(initialCount + 2);
     expect(messages[messages.length - 1].toolCall?.name).toBe("studio_adapt_content");
+  });
+
+  it("supports all 10 UI platforms categorized by type", () => {
+    const content = createContentStore();
+    const accounts = content.getState().platformAccounts;
+    const names = accounts.map((account) => account.platformName);
+
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "掘金",
+        "CSDN",
+        "知乎",
+        "微信公众号",
+        "Bilibili",
+        "YouTube",
+        "抖音",
+        "快手",
+        "小红书",
+        "微博",
+      ]),
+    );
+    expect(accounts.length).toBe(10);
+
+    const validCategoryIds = new Set(PLATFORM_CATEGORIES.map((category) => category.id));
+    for (const account of accounts) {
+      expect(validCategoryIds.has(account.category)).toBe(true);
+    }
+    for (const category of PLATFORM_CATEGORIES) {
+      expect(accounts.some((account) => account.category === category.id)).toBe(true);
+    }
+
+    expect(content.getState().platformCategoryFilter).toBe("ALL");
+    content.getState().setPlatformCategoryFilter("video");
+    expect(content.getState().platformCategoryFilter).toBe("video");
   });
 });
