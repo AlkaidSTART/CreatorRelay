@@ -20,11 +20,12 @@
   - [x] 实现 Assistant 对话历史、模型/工具/参数/结果可见、上下文范围披露和敏感值脱敏。
   - [x] 实现调用审计、超时/取消、四类内容工具与形态载荷校验。
   - [x] 添加 `docs/mcp-agent.md` 运行与权限说明。
-- **验证记录：** [M7 验证记录](./verification/M7-verification-2026-11-25.md)（当前状态：`pass`）。
+  - [x] 将 `mcp.rs` 拆分为 Host、Schema、审计、授权、内容、发布、Assistant、Server 等模块；新增 `platform_mcp/` 与 10 个平台 profile。
+- **验证记录：** [M7 验证记录](./verification/M7-verification-2026-11-25.md)（当前状态：`pass`；已补 2026-11-25 模块化回归）。
 - **未完成与阻塞：** 无阻断 M7 的未完成项。真实平台发布能力仍需 M8/平台适配器独立验证；原生 Tauri 窗口视觉检查未能自动附加，已记录为后续 CI/桌面 smoke 风险。
 - **验收状态：** 已验收（`accepted`）。
 - **验收报告：** [M7 验收报告](./M7-acceptance.md)。
-- **下一步：** 在 M8 平台接入中逐个验证真实平台能力，并补上原生桌面窗口自动化 smoke test；保持 MCP 工具不得绕过 Core 的边界。
+- **下一步：** 在 M8 平台接入中逐个验证真实平台能力，并补上原生桌面窗口自动化 smoke test；保持 MCP 工具不得绕过 Core 的边界。模块化后的代码入口见 `src-tauri/src/mcp/` 与 [平台 MCP 文档](./../docs/platform-mcp.md)。
 
 ## 前置条件
 

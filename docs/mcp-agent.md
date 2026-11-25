@@ -1,7 +1,8 @@
 # MCP Host、工具权限与 Assistant 运行说明
 
 本文档描述 M7 的本地 MCP Host、工具注册、授权、隐私和审计实现。代码入口为
-`src-tauri/src/mcp.rs`，桌面 UI 入口为 `src/pages/AssistantPage.tsx`。
+`src-tauri/src/mcp/`（模块化目录），平台工具 profile 位于
+`src-tauri/src/mcp/platform_mcp/`；桌面 UI 入口为 `src/pages/AssistantPage.tsx`。
 
 ## 1. 运行结构
 
@@ -52,6 +53,35 @@ Core Service（内容、账号、发布、分析、AI）
 
 所有 Schema 带 `schemaVersion: "1.0"`。Host 自行校验 `type`、`required`、`enum`、字符串长度、
 数字范围、数组长度、`additionalProperties` 和嵌套对象；非法参数在 Core 调用前即返回字段路径。
+
+## 3.1 平台专属 MCP
+
+通用的内容、账号、发布和数据分析工具继续由 Core 提供；平台字段差异收进独立 profile：
+
+```text
+src-tauri/src/mcp/platform_mcp/
+├── douyin_mcp.rs
+├── xiaohongshu_mcp.rs
+├── bilibili_mcp.rs
+├── youtube_mcp.rs
+├── wechat_mcp.rs
+├── weibo_mcp.rs
+├── kuaishou_mcp.rs
+├── juejin_mcp.rs
+├── csdn_mcp.rs
+└── zhihu_mcp.rs
+```
+
+每个平台注册 `<platform>_account_get_info`、`<platform>_work_list`、
+`<platform>_analytics_get_trend`、`<platform>_publish_validate` 四个只读工具。工具 Schema
+使用平台原生字段，例如抖音 `itemId` / `video_id` / `cover_tsp`，小红书 `noteId` /
+`content` / `images`，YouTube `videoId` / `snippet.title`。
+
+平台 profile 同时记录官方接口/人工网页来源、鉴权方式、验证状态、字段映射、内容规则和人工交接入口。
+在账号级授权、发布与回滚证据完成前，`autoPublishAllowed` 保持 `false`，`publishDispatch` 保持
+`manual_only`；平台工具不会读取 Cookie、Token、AppSecret 或调用网页内部接口。
+
+详细设计、平台矩阵和新增平台步骤见 [平台 MCP 拆分与接口映射](./platform-mcp.md)。
 
 ## 4. 权限与确认
 
@@ -111,6 +141,7 @@ Core Service（内容、账号、发布、分析、AI）
 ## 8. 主要 Tauri 命令
 
 - 生命周期：`get_mcp_host_status`、`start_mcp_server`、`stop_mcp_server`、`mcp_health_check`
+- 平台目录：`list_platform_mcp_servers`
 - 工具：`mcp_list_tools`、`mcp_preview_tool_call`、`mcp_call_tool`、`mcp_cancel_tool`
 - 设置与审计：`get_mcp_settings`、`save_mcp_settings`、`list_mcp_audit`、`mcp_security_self_test`
 - Assistant：`list_assistant_threads`、`create_assistant_thread`、`get_assistant_thread`、

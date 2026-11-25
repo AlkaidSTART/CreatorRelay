@@ -110,3 +110,34 @@
 ## 结论
 
 M8-AC-01 至 M8-AC-09 的实现与自动化证据已通过，UI 和打包检查通过。M8 阶段保持 **implementation complete / acceptance blocked**：只有前置 M6 完成验收后，才可创建 `progress/M8-acceptance.md` 并标记 M8 accepted。
+
+## 2026-11-25 平台 MCP profile 验证补充
+
+- **范围：** 10 个平台 `*_mcp` profile、平台原生字段 Schema、Core 只读执行、发布载荷校验与 M8 回归测试。
+- **基线：** `48c07a7` 及工作树中既有 M7/M8 改动；**验证 HEAD：** `4d95d5f` + 当前工作树文档/测试修订。
+- **实现结果：** 新增 `douyin_mcp`、`xiaohongshu_mcp`、`bilibili_mcp`、`youtube_mcp`、`wechat_mcp`、`weibo_mcp`、`kuaishou_mcp`、`juejin_mcp`、`csdn_mcp`、`zhihu_mcp`；每个 profile 含接口来源、验证状态、原生作品 ID、字段映射、内容规则和人工交接入口。所有 profile 的 `autoPublishAllowed=false`、`publishDispatch=manual_only`。
+- **命令与结果：**
+
+```text
+cargo test --manifest-path src-tauri/Cargo.toml --test m8_ecosystem
+# pass, 8/8；新增 2 项平台 profile/发布校验测试
+cargo test --manifest-path src-tauri/Cargo.toml --all-targets
+# pass, 103 tests
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+# pass
+cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+# pass
+pnpm test
+# pass, 44/44
+pnpm typecheck
+# pass
+pnpm lint
+# pass
+pnpm build
+# pass；仅既有 chunk > 500 kB 警告
+```
+
+- **接口检查：** 抖音开放平台 `upload_video`、`upload_image`、`create_video`、`create_image_text`、`video_list`、`video_data` 路径返回平台 JSON；无有效 token 时为 `access_token无效`。这只证明路径可达，不证明应用资格或发布成功。
+- **未完成：** 10 个平台的账号级 OAuth/应用审核、真实作品回读、媒体上传、发布和指标往返仍未验证；小红书/掘金/CSDN/知乎没有已核实的官方内容发布 API，继续人工网页交接。
+- **结论：** 平台 MCP 实现与自动化回归通过，但 M8 阶段仍为 `implementation in progress / acceptance blocked`，不创建 `M8-acceptance.md`。
+

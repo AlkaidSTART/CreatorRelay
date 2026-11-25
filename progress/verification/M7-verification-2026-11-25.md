@@ -59,3 +59,25 @@ M7 集成测试文件：`src-tauri/tests/m7_mcp.rs`。
 ## 结论
 
 M7 的 12 项验收标准均取得可复现证据，未发现阻断验收的已知缺陷。可以创建 M7 验收报告。
+
+## 2026-11-25 模块化回归补充
+
+> 本节记录拆分后的回归验证，不改变 M7 原有 AC 结论。
+
+- **范围：** `mcp.rs` → `mcp/`（Host、Schema、审计、授权、内容、发布、Assistant、Server、outcome）；`platforms.rs` → `platforms/`；`operations.rs` → `operations/`；新增 `mcp/platform_mcp/` 平台 profile。
+- **基线：** `48c07a7` 及工作树中既有 M7/M8 改动；**验证 HEAD：** `4d95d5f` + 当前工作树文档/测试修订。
+- **回归命令与结果：**
+
+```text
+cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check   # pass
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings  # pass
+cargo test --manifest-path src-tauri/Cargo.toml --all-targets    # pass
+  # 73 lib + 9 M4 + 5 M6 + 8 M7 + 8 M8 = 103 tests
+pnpm test                                                         # pass, 44/44
+pnpm typecheck                                                    # pass
+pnpm lint                                                         # pass
+pnpm build                                                        # pass（仅既有 chunk > 500 kB 警告）
+```
+
+- **结论：** 拆分未改变 M7 的公开命令、Schema、授权、审计或业务边界；M7 保持 `accepted`。真实平台发布能力仍按 M8 单独验证。
+
