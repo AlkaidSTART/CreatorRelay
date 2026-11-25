@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "creatorrelay",
-        "width": 800,
-        "height": 600
+        "title": "CreatorRelay — 写作空间",
+        "width": 1440,
+        "height": 940,
+        "minWidth": 1080,
+        "minHeight": 700
       }
     ],
     "security": {

@@ -6,13 +6,11 @@ import remarkGfm from "remark-gfm";
 import {
   AlignLeft,
   ArrowDownToLine,
-  ArrowLeft,
   ArrowRight,
   ArrowUpRight,
   BookOpen,
   Check,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
   ChevronsUpDown,
   CircleHelp,
@@ -23,17 +21,14 @@ import {
   FolderOpen,
   History,
   Image,
-  LayoutGrid,
   ListFilter,
   MoreHorizontal,
   PanelLeftClose,
-  PanelRightClose,
   Plus,
   Search,
   Settings2,
   Sparkles,
   Tags,
-  Upload,
   X,
 } from "lucide-react";
 import "./App.css";
@@ -47,6 +42,7 @@ type Document = {
   wordCount: number;
   charCount: number;
   tags: string[];
+  contentHash?: string;
 };
 
 type Revision = { id: number; createdAt: string; label: string; preview: string };
@@ -79,12 +75,12 @@ status: draft
 - 使用 WASI 显式开放文件和网络权限
 - 同一份模块可以运行在不同语言的宿主中
 
-```rust
+\`\`\`rust
 let engine = Engine::default();
 let module = Module::from_file(&engine, "transform.wasm")?;
 let mut store = Store::new(&engine, context);
 let instance = linker.instantiate(&mut store, &module)?;
-```
+\`\`\`
 
 这段代码只是最小入口。生产环境中，资源限制、超时、日志采样和能力白名单同样重要。
 
@@ -241,13 +237,16 @@ function App() {
     setError("");
     try {
       let markdown: string;
+      let contentHash = "";
       if (isTauri()) {
-        markdown = await invoke<string>("read_document", { path: document.path });
+        const result = await invoke<{ content: string; contentHash: string }>("read_document", { path: document.path });
+        markdown = result.content;
+        contentHash = result.contentHash;
       } else {
         markdown = localStorage.getItem(`creatorrelay.demo.content.${document.id}`) ?? (document.id === demoDocuments[0].id ? sampleContent : `---\nid: ${document.id}\ntitle: "${document.title}"\ncreated_at: 2026-11-24T10:00:00+08:00\nupdated_at: 2026-11-25T09:00:00+08:00\ntags: []\nstatus: draft\n---\n\n# ${document.title}\n\n${document.preview.replace("……", "。")}`);
       }
       setContent(markdown);
-      setBaseHash(await digest(markdown));
+      setBaseHash(contentHash || await digest(markdown));
       setSaveState("saved");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -298,7 +297,8 @@ function App() {
       setSaveState("saving");
       try {
         if (isTauri()) {
-          await invoke<Document>("save_document", { path: selected.path, content, baseHash });
+          const updated = await invoke<Document>("save_document", { path: selected.path, content, baseHash });
+          setDocuments((current) => current.map((document) => document.id === updated.id ? updated : document));
         } else {
           localStorage.setItem(`creatorrelay.demo.content.${selected.id}`, content);
           const updated = { ...selected, title: titleFromMarkdown(content, selected.title), preview: bodyFromMarkdown(content).split("\n").find((line) => line.trim() && !line.startsWith("#"))?.slice(0, 120) ?? "", updatedAt: new Date().toISOString(), wordCount: words, charCount: chars };
@@ -404,7 +404,6 @@ function App() {
   }
 
   const saveLabel = saveState === "saving" ? "正在保存" : saveState === "unsaved" ? "未保存" : saveState === "error" ? "保存失败" : "所有更改已保存";
-  const platformCount = 2;
 
   if (loading) return <div className="app-loading"><span className="loading-mark">cr</span><span>正在整理你的工作区</span></div>;
 
@@ -472,7 +471,7 @@ function App() {
               {selected ? <>
                 <div className="paper-overline"><span className="overline-rule" />ARTICLE DRAFT <span className="overline-dot">/</span> {selected.path.split("/")[1]?.toUpperCase() ?? "LOCAL"}</div>
                 {viewMode === "write" ? <textarea ref={textareaRef} className="markdown-editor" aria-label="Markdown 正文" spellCheck={false} value={content} onChange={(event) => updateContent(event.target.value)} /> : <article className="markdown-preview"><ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown></article>}
-                {viewMode === "write" && <div className="editor-bottom-hint"><Command size={12} /><span>输入 <kbd>/</kbd> 打开命令菜单</span><span className="hint-separator">·</span><span>Markdown 已启用</span></div>}
+                {viewMode === "write" && <div className="editor-bottom-hint"><Command size={12} /><span>Markdown 已启用</span><span className="hint-separator">·</span><span>编辑时自动保存</span></div>}
               </> : <div className="no-document"><FileText size={28} /><strong>选择一篇文章开始写作</strong><span>或者创建一篇新的 Markdown 草稿</span><button className="primary-button" onClick={() => setIsCreating(true)}><Plus size={15} />新建文章</button></div>}
             </div>
             <footer className="editor-footer"><div className="footer-left"><span><AlignLeft size={13} />Markdown</span><span className="footer-dot" /> <span>{words.toLocaleString()} 个词</span><span className="footer-dot" /><span>{chars.toLocaleString()} 字符</span></div><div className="footer-right"><span className="keyboard-hint"><Command size={11} /> S</span><span>保存</span><span className="footer-dot" /><span>UTF-8</span></div></footer>
