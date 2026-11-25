@@ -86,19 +86,6 @@ export function ContentStudioPage() {
   const [deriveOpen, setDeriveOpen] = useState(false);
   const deriveMenuRef = useRef<HTMLDivElement>(null);
 
-  // Auto-collapse global app sidebar on entering Studio so the entire workflow fits in one screen.
-  useEffect(() => {
-    const previousSidebarOpen = useUiStore.getState().sidebarOpen;
-    if (previousSidebarOpen) {
-      useUiStore.getState().setSidebarOpen(false);
-    }
-    return () => {
-      if (previousSidebarOpen) {
-        useUiStore.getState().setSidebarOpen(true);
-      }
-    };
-  }, []);
-
   // Auto-collapse package list on narrow viewports so editor + inspector never feel cramped.
   useEffect(() => {
     function syncResponsivePanels() {

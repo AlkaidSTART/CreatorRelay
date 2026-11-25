@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   ChevronsUpDown,
@@ -91,6 +91,16 @@ export function AppLayout() {
 
   const activeRoute = findRouteByPathname(location.pathname);
   const isStudioRoute = location.pathname.startsWith("/studio");
+  const prevPathnameRef = useRef(location.pathname);
+
+  useEffect(() => {
+    if (prevPathnameRef.current !== location.pathname) {
+      prevPathnameRef.current = location.pathname;
+      if (useUiStore.getState().sidebarOpen) {
+        setSidebarOpen(false);
+      }
+    }
+  }, [location.pathname, setSidebarOpen]);
 
   useEffect(() => {
     applyThemeToDocument(theme);
@@ -291,6 +301,7 @@ export function AppLayout() {
                               key={item.id}
                               to={item.path}
                               end={item.exact}
+                              onClick={() => setSidebarOpen(false)}
                               className={({ isActive }) =>
                                 `group relative flex h-8 items-center gap-2.5 rounded-xl px-2.5 text-[12.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
                                   isActive
