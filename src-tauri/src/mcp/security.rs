@@ -1,21 +1,21 @@
 use super::*;
 
-fn tool_by_name(name: &str) -> Option<McpToolDefinition> {
+pub(super) fn tool_by_name(name: &str) -> Option<McpToolDefinition> {
     tool_catalog().into_iter().find(|tool| tool.name == name)
 }
 
-fn digest(value: &str) -> String {
+pub(super) fn digest(value: &str) -> String {
     format!("{:x}", Sha256::digest(value.as_bytes()))
 }
 
-fn payload_hash(tool: &str, arguments: &Value) -> Result<String, String> {
+pub(super) fn payload_hash(tool: &str, arguments: &Value) -> Result<String, String> {
     Ok(digest(&format!(
         "{tool}:{}",
         serde_json::to_string(arguments).map_err(|error| error.to_string())?
     )))
 }
 
-fn sensitive_key(key: &str) -> bool {
+pub(super) fn sensitive_key(key: &str) -> bool {
     let lower = key.to_ascii_lowercase();
     [
         "apikey",
@@ -32,7 +32,7 @@ fn sensitive_key(key: &str) -> bool {
     .any(|needle| lower.contains(needle))
 }
 
-fn redact_json(value: &Value) -> Value {
+pub(super) fn redact_json(value: &Value) -> Value {
     match value {
         Value::Object(object) => Value::Object(
             object
@@ -138,7 +138,7 @@ pub fn security_evidence() -> McpSecurityEvidence {
 }
 
 
-fn truncate_json(value: Value, max_chars: usize) -> Value {
+pub(super) fn truncate_json(value: Value, max_chars: usize) -> Value {
     let rendered = value.to_string();
     if rendered.chars().count() <= max_chars {
         return value;

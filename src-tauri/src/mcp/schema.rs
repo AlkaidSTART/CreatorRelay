@@ -1,6 +1,6 @@
 use super::*;
 
-fn object_schema(properties: Value, required: Vec<&str>) -> Value {
+pub(super) fn object_schema(properties: Value, required: Vec<&str>) -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,
@@ -9,7 +9,7 @@ fn object_schema(properties: Value, required: Vec<&str>) -> Value {
     })
 }
 
-fn string_array_schema(max_items: usize) -> Value {
+pub(super) fn string_array_schema(max_items: usize) -> Value {
     json!({
         "type": "array",
         "minItems": 1,
@@ -18,7 +18,7 @@ fn string_array_schema(max_items: usize) -> Value {
     })
 }
 
-fn media_ref_schema() -> Value {
+pub(super) fn media_ref_schema() -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,
@@ -32,7 +32,7 @@ fn media_ref_schema() -> Value {
     })
 }
 
-fn cover_ref_schema() -> Value {
+pub(super) fn cover_ref_schema() -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,
@@ -44,7 +44,7 @@ fn cover_ref_schema() -> Value {
     })
 }
 
-fn tool(
+pub(super) fn tool(
     name: &str,
     title: &str,
     description: &str,
@@ -62,7 +62,7 @@ fn tool(
 }
 
 
-fn normalized_timeout(value: Option<u64>) -> u64 {
+pub(super) fn normalized_timeout(value: Option<u64>) -> u64 {
     value
         .unwrap_or(DEFAULT_TIMEOUT_MS)
         .clamp(100, MAX_TIMEOUT_MS)
@@ -205,7 +205,7 @@ fn validate_schema(value: &Value, schema: &Value, path: &str, errors: &mut Vec<M
     }
 }
 
-fn validate_tool_arguments(tool: &McpToolDefinition, arguments: &Value) -> Vec<McpFieldError> {
+pub(super) fn validate_tool_arguments(tool: &McpToolDefinition, arguments: &Value) -> Vec<McpFieldError> {
     let mut errors = Vec::new();
     validate_schema(arguments, &tool.input_schema, "", &mut errors);
     errors

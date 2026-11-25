@@ -1,4 +1,6 @@
 use super::*;
+use super::audit::{summarize_arguments, target_summary_for};
+use super::security::tool_by_name;
 
 fn provider_for_thread(
     conn: &Connection,
@@ -141,7 +143,7 @@ pub fn get_assistant_thread(
     Ok(AssistantThreadDetail { thread, messages })
 }
 
-fn append_assistant_message(
+pub(super) fn append_assistant_message(
     conn: &Connection,
     thread_id: &str,
     role: &str,

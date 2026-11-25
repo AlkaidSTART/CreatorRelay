@@ -1,4 +1,5 @@
 use super::*;
+use super::schema::normalized_timeout;
 
 struct ServerProcess {
     child: Child,
@@ -434,7 +435,7 @@ impl McpHost {
         Ok(tools)
     }
 
-    fn call_server(&self, call: &McpCallRequest) -> Result<Value, String> {
+    pub(super) fn call_server(&self, call: &McpCallRequest) -> Result<Value, String> {
         self.request(
             "tools/call",
             json!({
@@ -458,7 +459,7 @@ impl McpHost {
         Ok(())
     }
 
-    fn register_cancel(&self, call_id: &str) -> Arc<AtomicBool> {
+    pub(super) fn register_cancel(&self, call_id: &str) -> Arc<AtomicBool> {
         let flag = Arc::new(AtomicBool::new(false));
         self.inner
             .cancels
@@ -468,7 +469,7 @@ impl McpHost {
         flag
     }
 
-    fn finish_cancel(&self, call_id: &str) {
+    pub(super) fn finish_cancel(&self, call_id: &str) {
         self.inner
             .cancels
             .lock()

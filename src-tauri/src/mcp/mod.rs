@@ -29,7 +29,6 @@ use std::{
 };
 use uuid::Uuid;
 
-pub use crate::platforms::CredentialVault;
 
 const DEFAULT_TIMEOUT_MS: u64 = 30_000;
 const MAX_TIMEOUT_MS: u64 = 120_000;
@@ -376,6 +375,7 @@ mod catalog;
 mod content_tools;
 mod core;
 mod host;
+mod outcome;
 mod analytics_tools;
 mod publishing_tools;
 mod schema;
@@ -383,9 +383,10 @@ mod security;
 mod server;
 mod settings;
 
-pub mod platforms;
+pub mod platform_mcp;
 
 pub use assistant::*;
+pub use crate::platforms::CredentialVault;
 pub use audit::list_audit;
 pub use catalog::{server_tool_descriptors, tool_catalog};
 pub use core::{call_tool, preview_tool_call};
@@ -393,4 +394,3 @@ pub use host::McpHost;
 pub use security::{redact_text, security_evidence};
 pub use server::test_server_main;
 pub use settings::{McpSettingsInput, get_settings, save_settings};
-pub use crate::platforms::CredentialVault;

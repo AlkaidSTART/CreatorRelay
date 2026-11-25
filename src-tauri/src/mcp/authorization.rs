@@ -1,6 +1,7 @@
 use super::*;
+use super::security::payload_hash;
 
-fn issue_authorization(
+pub(super) fn issue_authorization(
     conn: &Connection,
     call_id: &str,
     tool_name: &str,
@@ -27,7 +28,7 @@ fn issue_authorization(
     Ok((token, expires_at))
 }
 
-fn consume_authorization(
+pub(super) fn consume_authorization(
     conn: &Connection,
     token: &str,
     tool_name: &str,
@@ -118,4 +119,3 @@ fn consume_authorization(
     Ok(())
 }
 
-#[derive(Debug, Clone)]

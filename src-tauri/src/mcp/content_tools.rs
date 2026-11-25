@@ -1,5 +1,7 @@
+use super::outcome::{CoreToolExecution, success_result};
 use super::*;
 
+#[derive(Debug, Clone)]
 struct AssetReference {
     source_content_id: String,
     asset: content::ContentAsset,
@@ -8,7 +10,7 @@ struct AssetReference {
 }
 
 #[derive(Debug, Clone)]
-struct PreparedContent {
+pub(super) struct PreparedContent {
     content_id: Option<String>,
     kind: ContentKind,
     title: String,
@@ -22,7 +24,7 @@ struct PreparedContent {
     existing_cover: Option<content::ContentAsset>,
 }
 
-fn field_error(path: &str, message: impl Into<String>) -> McpFieldError {
+pub(super) fn field_error(path: &str, message: impl Into<String>) -> McpFieldError {
     McpFieldError {
         path: path.to_string(),
         message: message.into(),
@@ -227,7 +229,7 @@ fn validate_content_payload(payload: &PreparedContent) -> Vec<McpFieldError> {
     errors
 }
 
-fn prepare_create_content(
+pub(super) fn prepare_create_content(
     workspace: &Path,
     arguments: &Value,
 ) -> Result<PreparedContent, Vec<McpFieldError>> {
@@ -302,7 +304,7 @@ fn prepare_create_content(
     }
 }
 
-fn prepare_update_content(
+pub(super) fn prepare_update_content(
     workspace: &Path,
     arguments: &Value,
 ) -> Result<PreparedContent, Vec<McpFieldError>> {
@@ -419,7 +421,7 @@ fn prepared_media_summary(payload: &PreparedContent) -> Value {
     Value::Array(media)
 }
 
-fn content_preview_details(payload: &PreparedContent) -> Value {
+pub(super) fn content_preview_details(payload: &PreparedContent) -> Value {
     let cover = payload
         .cover_ref
         .as_ref()
@@ -464,7 +466,7 @@ fn materialize_reference(
     Ok(asset)
 }
 
-fn execute_prepared_content(
+pub(super) fn execute_prepared_content(
     workspace: &Path,
     payload: &PreparedContent,
 ) -> Result<Value, McpCallError> {
@@ -536,3 +538,192 @@ fn execute_prepared_content(
     }
 }
 
+
+
+pub(super) fn execute_content_tool(
+    workspace: &Path,
+    tool_name: &str,
+    arguments: &Value,
+    scope: &ModelContextScope,
+) -> Result<CoreToolExecution, McpCallError> {
+    let result = match tool_name {
+        "content_list" => {
+            let packages =
+                content::list_content_packages(workspace).map_err(|error| McpCallError {
+                    code: "CONTENT_SERVICE_ERROR".to_string(),
+                    message: error,
+                    field_errors: Vec::new(),
+                })?;
+            let query = arguments
+                .get("query")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_lowercase();
+            let kind = arguments.get("contentKind").and_then(Value::as_str);
+            let limit = arguments
+                .get("limit")
+                .and_then(Value::as_u64)
+                .unwrap_or(20)
+                .min(100) as usize;
+            let items = packages
+                .into_iter()
+                .filter(|package| {
+                    kind.is_none_or(|value| package.kind.as_str() == value)
+                        && (query.is_empty()
+                            || format!(
+                                "{} {} {}",
+                                package.title,
+                                package.summary,
+                                package.tags.join(" ")
+                            )
+                            .to_lowercase()
+                            .contains(&query))
+                })
+                .take(limit)
+                .map(|package| {
+                    json!({
+                        "contentId": package.id,
+                        "contentKind": package.kind.as_str(),
+                        "title": package.title,
+                        "summary": package.summary,
+                        "tags": package.tags,
+                        "updatedAt": package.updated_at,
+                        "hasCover": package.has_cover,
+                        "mediaCount": package.media_count,
+                        "contentVersion": package.content_version,
+                    })
+                })
+                .collect::<Vec<_>>();
+            success_result(json!({ "items": items, "count": items.len() }))
+        }
+        "content_get_detail" => {
+            let content_id = arguments
+                .get("contentId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let package =
+                content::read_content_package(workspace, content_id).map_err(|error| {
+                    McpCallError {
+                        code: "CONTENT_NOT_FOUND".to_string(),
+                        message: error,
+                        field_errors: vec![field_error("contentId", "内容无法读取")],
+                    }
+                })?;
+            let mut detail = json!({
+                "contentId": package.manifest.id,
+                "contentKind": package.manifest.kind.as_str(),
+                "title": if scope.include_title { Value::String(package.manifest.title.clone()) } else { Value::Null },
+                "summary": if scope.include_summary { Value::String(package.manifest.summary.clone()) } else { Value::Null },
+                "tags": package.manifest.tags,
+                "updatedAt": package.manifest.updated_at,
+                "contentVersion": package.content_version,
+                "bodyIncluded": scope.include_body && package.manifest.kind.requires_markdown(),
+                "media": if scope.include_media_metadata { package.manifest.media.iter().map(|asset| json!({
+                    "assetId": asset.id,
+                    "kind": match asset.kind {
+                        content::AssetKind::Video => "video",
+                        content::AssetKind::Image => "image",
+                    },
+                    "originalName": asset.original_name,
+                    "mimeType": asset.mime_type,
+                    "byteSize": asset.byte_size,
+                    "order": asset.order,
+                    "caption": asset.caption,
+                })).collect::<Vec<_>>() } else { Vec::new() },
+            });
+            if scope.include_body && package.manifest.kind.requires_markdown() {
+                detail["body"] = Value::String(redact_text(&package.body));
+            }
+            success_result(detail)
+        }
+        "studio_create_content" => {
+            let payload = prepare_create_content(workspace, arguments).map_err(|field_errors| {
+                McpCallError {
+                    code: "CONTENT_VALIDATION_FAILED".to_string(),
+                    message: "内容载荷校验失败，未创建草稿".to_string(),
+                    field_errors,
+                }
+            })?;
+            let result = execute_prepared_content(workspace, &payload)?;
+            success_result(result)
+        }
+        "studio_update_content" => {
+            let payload = prepare_update_content(workspace, arguments).map_err(|field_errors| {
+                McpCallError {
+                    code: "CONTENT_VALIDATION_FAILED".to_string(),
+                    message: "内容载荷校验失败，未写入草稿".to_string(),
+                    field_errors,
+                }
+            })?;
+            let result = execute_prepared_content(workspace, &payload)?;
+            success_result(result)
+        }
+        "content_delete_draft" => {
+            let content_id = arguments
+                .get("contentId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            content::delete_content_package(workspace, content_id).map_err(|error| {
+                McpCallError {
+                    code: "CONTENT_DELETE_FAILED".to_string(),
+                    message: error,
+                    field_errors: vec![field_error("contentId", "内容删除失败")],
+                }
+            })?;
+            success_result(json!({ "contentId": content_id, "deleted": true }))
+        }
+        _ => return Err(McpCallError {
+            code: "TOOL_NOT_FOUND".to_string(),
+            message: format!("未注册内容工具：{tool_name}"),
+            field_errors: Vec::new(),
+        }),
+    };
+    Ok(result)
+}
+
+pub(super) fn preview_content_tool(
+    workspace: &Path,
+    tool_name: &str,
+    arguments: &Value,
+) -> Result<Value, Vec<McpFieldError>> {
+    match tool_name {
+        "studio_create_content" => prepare_create_content(workspace, arguments)
+            .map(|payload| content_preview_details(&payload)),
+        "studio_update_content" => prepare_update_content(workspace, arguments)
+            .map(|payload| content_preview_details(&payload)),
+        "content_delete_draft" => {
+            let content_id = arguments
+                .get("contentId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            content::read_content_package(workspace, content_id)
+                .map(|package| {
+                    json!({
+                        "contentId": package.manifest.id,
+                        "contentKind": package.manifest.kind.as_str(),
+                        "title": package.manifest.title,
+                        "media": package.manifest.media,
+                        "hasCover": package.manifest.cover.is_some(),
+                    })
+                })
+                .map_err(|error| vec![field_error("contentId", error)])
+        }
+        "content_get_detail" => {
+            let content_id = arguments
+                .get("contentId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            content::read_content_package(workspace, content_id)
+                .map(|package| {
+                    json!({
+                        "contentId": package.manifest.id,
+                        "contentKind": package.manifest.kind.as_str(),
+                        "title": package.manifest.title,
+                        "mediaCount": package.manifest.media.len(),
+                    })
+                })
+                .map_err(|error| vec![field_error("contentId", error)])
+        }
+        _ => Ok(arguments.clone()),
+    }
+}

@@ -1,6 +1,7 @@
 use super::*;
+use super::security::{redact_json, sensitive_key};
 
-fn summarize_arguments(arguments: &Value) -> String {
+pub(super) fn summarize_arguments(arguments: &Value) -> String {
     let Some(object) = arguments.as_object() else {
         return "[non-object arguments]".to_string();
     };
@@ -53,7 +54,7 @@ fn summarize_arguments(arguments: &Value) -> String {
     parts.join(" · ")
 }
 
-fn target_summary_for(tool_name: &str, arguments: &Value) -> String {
+pub(super) fn target_summary_for(tool_name: &str, arguments: &Value) -> String {
     match tool_name {
         "account_get_info" => {
             let account = arguments.get("accountId").and_then(Value::as_str);
@@ -122,14 +123,14 @@ fn target_summary_for(tool_name: &str, arguments: &Value) -> String {
     }
 }
 
-fn content_kind_from_arguments(arguments: &Value) -> Option<String> {
+pub(super) fn content_kind_from_arguments(arguments: &Value) -> Option<String> {
     arguments
         .get("contentKind")
         .and_then(Value::as_str)
         .map(str::to_string)
 }
 
-fn insert_audit_start(
+pub(super) fn insert_audit_start(
     conn: &Connection,
     call_id: &str,
     thread_id: Option<&str>,
@@ -159,7 +160,7 @@ fn insert_audit_start(
     Ok(id)
 }
 
-fn finish_audit(
+pub(super) fn finish_audit(
     conn: &Connection,
     audit_id: &str,
     status: &str,

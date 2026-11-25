@@ -1,16 +1,15 @@
 use super::*;
+use super::audit::{
+    content_kind_from_arguments, finish_audit, insert_audit_start, summarize_arguments,
+    target_summary_for,
+};
+use super::authorization::{consume_authorization, issue_authorization};
+use super::content_tools::field_error;
+use super::schema::{normalized_timeout, validate_tool_arguments};
+use super::outcome::CoreToolExecution;
+use super::security::{tool_by_name, truncate_json};
+use super::assistant::append_assistant_message;
 
-struct CoreToolExecution {
-    status: String,
-    result: Value,
-}
-
-fn success_result(result: Value) -> CoreToolExecution {
-    CoreToolExecution {
-        status: "success".to_string(),
-        result,
-    }
-}
 
 
 fn execute_core_tool(
@@ -29,378 +28,35 @@ fn execute_core_tool(
             field_errors: Vec::new(),
         });
     }
-    let result = match tool_name {
-        "account_get_info" => {
-            let accounts = platforms::list_accounts(conn).map_err(|error| McpCallError {
-                code: "ACCOUNT_SERVICE_ERROR".to_string(),
-                message: error,
-                field_errors: Vec::new(),
-            })?;
-            let account_id = arguments.get("accountId").and_then(Value::as_str);
-            let platform_id = arguments.get("platformId").and_then(Value::as_str);
-            let views = accounts
-                .iter()
-                .filter(|account| {
-                    account_id.is_none_or(|value| account.id == value)
-                        && platform_id.is_none_or(|value| account.platform_id == value)
-                })
-                .map(account_view)
-                .collect::<Vec<_>>();
-            success_result(json!({ "accounts": views, "count": views.len() }))
-        }
-        "platform_capabilities_get" => {
-            let platform_id = arguments.get("platformId").and_then(Value::as_str);
-            let account_id = arguments.get("accountId").and_then(Value::as_str);
-            let admissions = ecosystem::platform_admissions()
-                .map_err(|error| McpCallError {
-                    code: "ECOSYSTEM_SERVICE_ERROR".to_string(),
-                    message: error,
-                    field_errors: Vec::new(),
-                })?
-                .into_iter()
-                .filter(|admission| platform_id.is_none_or(|value| admission.platform_id == value))
-                .collect::<Vec<_>>();
-            let accounts = ecosystem::list_account_capability_snapshots(conn)
-                .map_err(|error| McpCallError {
-                    code: "ECOSYSTEM_SERVICE_ERROR".to_string(),
-                    message: error,
-                    field_errors: Vec::new(),
-                })?
-                .into_iter()
-                .filter(|account| {
-                    platform_id.is_none_or(|value| account.platform_id == value)
-                        && account_id.is_none_or(|value| account.account_id == value)
-                })
-                .collect::<Vec<_>>();
-            success_result(json!({
-                "platforms": admissions,
-                "accounts": accounts,
-                "platformCount": admissions.len(),
-                "accountCount": accounts.len(),
-                "autoPublishDefault": "manual_only"
-            }))
-        }
-        "content_list" => {
-            let packages =
-                content::list_content_packages(workspace).map_err(|error| McpCallError {
-                    code: "CONTENT_SERVICE_ERROR".to_string(),
-                    message: error,
-                    field_errors: Vec::new(),
-                })?;
-            let query = arguments
-                .get("query")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_lowercase();
-            let kind = arguments.get("contentKind").and_then(Value::as_str);
-            let limit = arguments
-                .get("limit")
-                .and_then(Value::as_u64)
-                .unwrap_or(20)
-                .min(100) as usize;
-            let items = packages
-                .into_iter()
-                .filter(|package| {
-                    kind.is_none_or(|value| package.kind.as_str() == value)
-                        && (query.is_empty()
-                            || format!(
-                                "{} {} {}",
-                                package.title,
-                                package.summary,
-                                package.tags.join(" ")
-                            )
-                            .to_lowercase()
-                            .contains(&query))
-                })
-                .take(limit)
-                .map(|package| {
-                    json!({
-                        "contentId": package.id,
-                        "contentKind": package.kind.as_str(),
-                        "title": package.title,
-                        "summary": package.summary,
-                        "tags": package.tags,
-                        "updatedAt": package.updated_at,
-                        "hasCover": package.has_cover,
-                        "mediaCount": package.media_count,
-                        "contentVersion": package.content_version,
-                    })
-                })
-                .collect::<Vec<_>>();
-            success_result(json!({ "items": items, "count": items.len() }))
-        }
-        "content_get_detail" => {
-            let content_id = arguments
-                .get("contentId")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            let package =
-                content::read_content_package(workspace, content_id).map_err(|error| {
-                    McpCallError {
-                        code: "CONTENT_NOT_FOUND".to_string(),
-                        message: error,
-                        field_errors: vec![field_error("contentId", "内容无法读取")],
-                    }
-                })?;
-            let mut detail = json!({
-                "contentId": package.manifest.id,
-                "contentKind": package.manifest.kind.as_str(),
-                "title": if scope.include_title { Value::String(package.manifest.title.clone()) } else { Value::Null },
-                "summary": if scope.include_summary { Value::String(package.manifest.summary.clone()) } else { Value::Null },
-                "tags": package.manifest.tags,
-                "updatedAt": package.manifest.updated_at,
-                "contentVersion": package.content_version,
-                "bodyIncluded": scope.include_body && package.manifest.kind.requires_markdown(),
-                "media": if scope.include_media_metadata { package.manifest.media.iter().map(|asset| json!({
-                    "assetId": asset.id,
-                    "kind": match asset.kind {
-                        content::AssetKind::Video => "video",
-                        content::AssetKind::Image => "image",
-                    },
-                    "originalName": asset.original_name,
-                    "mimeType": asset.mime_type,
-                    "byteSize": asset.byte_size,
-                    "order": asset.order,
-                    "caption": asset.caption,
-                })).collect::<Vec<_>>() } else { Vec::new() },
-            });
-            if scope.include_body && package.manifest.kind.requires_markdown() {
-                detail["body"] = Value::String(redact_text(&package.body));
-            }
-            success_result(detail)
-        }
-        "external_content_list" => {
-            let works = operations::list_external_works(
-                conn,
-                &ExternalWorkFilter {
-                    keyword: arguments
-                        .get("keyword")
-                        .and_then(Value::as_str)
-                        .map(str::to_string),
-                    platform_id: arguments
-                        .get("platformId")
-                        .and_then(Value::as_str)
-                        .map(str::to_string),
-                    account_id: arguments
-                        .get("accountId")
-                        .and_then(Value::as_str)
-                        .map(str::to_string),
-                    content_kind: arguments
-                        .get("contentKind")
-                        .and_then(Value::as_str)
-                        .map(str::to_string),
-                    published_from: arguments
-                        .get("publishedFrom")
-                        .and_then(Value::as_str)
-                        .map(str::to_string),
-                    published_to: arguments
-                        .get("publishedTo")
-                        .and_then(Value::as_str)
-                        .map(str::to_string),
-                },
-            )
-            .map_err(|error| McpCallError {
-                code: "CONTENT_SERVICE_ERROR".to_string(),
-                message: error,
-                field_errors: Vec::new(),
-            })?;
-            success_result(json!({ "items": works, "count": works.len() }))
-        }
-        "analytics_get_trend" => {
-            let query = parse_analytics_query(arguments)?;
-            let result =
-                operations::analytics_trend(conn, &query).map_err(|error| McpCallError {
-                    code: "ANALYTICS_SERVICE_ERROR".to_string(),
-                    message: error,
-                    field_errors: Vec::new(),
-                })?;
-            success_result(serde_json::to_value(result).map_err(|error| McpCallError {
-                code: "ANALYTICS_SERIALIZE_ERROR".to_string(),
-                message: error.to_string(),
-                field_errors: Vec::new(),
-            })?)
-        }
-        "studio_create_content" => {
-            let payload = prepare_create_content(workspace, arguments).map_err(|field_errors| {
-                McpCallError {
-                    code: "CONTENT_VALIDATION_FAILED".to_string(),
-                    message: "内容载荷校验失败，未创建草稿".to_string(),
-                    field_errors,
-                }
-            })?;
-            let result = execute_prepared_content(workspace, &payload)?;
-            success_result(result)
-        }
-        "studio_update_content" => {
-            let payload = prepare_update_content(workspace, arguments).map_err(|field_errors| {
-                McpCallError {
-                    code: "CONTENT_VALIDATION_FAILED".to_string(),
-                    message: "内容载荷校验失败，未写入草稿".to_string(),
-                    field_errors,
-                }
-            })?;
-            let result = execute_prepared_content(workspace, &payload)?;
-            success_result(result)
-        }
-        "publishing_create_task" => {
-            let targets = validate_publish_targets(conn, arguments)?;
-            let source_type = match arguments
-                .get("sourceType")
-                .and_then(Value::as_str)
-                .unwrap_or("content")
-            {
-                "content" => PublishSourceType::Content,
-                "platformDraft" => PublishSourceType::PlatformDraft,
-                other => {
-                    return Err(McpCallError {
-                        code: "INVALID_ARGUMENT".to_string(),
-                        message: format!("未知发布来源类型：{other}"),
-                        field_errors: vec![field_error("sourceType", "来源类型无效")],
-                    });
-                }
-            };
-            let result = operations::create_publish_tasks(
-                conn,
-                workspace,
-                &CreatePublishTasksInput {
-                    source_type,
-                    source_id: arguments
-                        .get("sourceId")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default()
-                        .to_string(),
-                    targets,
-                    scheduled_at: arguments
-                        .get("scheduledAt")
-                        .and_then(Value::as_str)
-                        .map(str::to_string),
-                },
-            )
-            .map_err(|error| McpCallError {
-                code: "PUBLISH_TASK_CREATE_FAILED".to_string(),
-                message: error,
-                field_errors: Vec::new(),
-            })?;
-            success_result(json!({
-                "tasks": result.tasks,
-                "deduplicatedCount": result.deduplicated_count,
-            }))
-        }
-        "publishing_publish_task" => {
-            let task_ids = arguments
-                .get("taskIds")
-                .and_then(Value::as_array)
-                .cloned()
-                .unwrap_or_default();
-            let mut targets = Vec::new();
-            let mut success_count = 0;
-            let mut failure_count = 0;
-            for task_id in task_ids.iter().filter_map(Value::as_str) {
-                if cancel.load(Ordering::SeqCst) {
-                    targets.push(json!({
-                        "taskId": task_id,
-                        "status": "cancelled",
-                        "message": "用户取消；未提交该目标"
-                    }));
-                    failure_count += 1;
-                    continue;
-                }
-                let outcome = (|| {
-                    let preview =
-                        operations::prepare_publish_task(conn, runtime, workspace, task_id)
-                            .map_err(|error| error.to_string())?;
-                    if !preview.validation.ok {
-                        return Err(format!(
-                            "发布前校验失败：{}",
-                            preview
-                                .validation
-                                .issues
-                                .first()
-                                .map(|issue| issue.message.clone())
-                                .unwrap_or_else(|| "未知校验错误".to_string())
-                        ));
-                    }
-                    let token = preview
-                        .confirmation_token
-                        .as_deref()
-                        .ok_or_else(|| "缺少发布确认令牌".to_string())?;
-                    let task =
-                        operations::confirm_publish_task(conn, runtime, workspace, task_id, token)?;
-                    let published = matches!(
-                        task.status,
-                        operations::PublishTaskStatus::Success
-                            | operations::PublishTaskStatus::Scheduled
-                    );
-                    Ok::<_, String>(json!({
-                        "taskId": task.id,
-                        "status": format!("{:?}", task.status).to_ascii_uppercase(),
-                        "published": published,
-                        "externalId": task.external_id,
-                        "externalUrl": task.external_url,
-                        "errorCode": task.error_code,
-                        "errorMessage": task.error_message,
-                    }))
-                })();
-                match outcome {
-                    Ok(value) => {
-                        if value.get("published").and_then(Value::as_bool) == Some(true) {
-                            success_count += 1;
-                        } else {
-                            failure_count += 1;
-                        }
-                        targets.push(value);
-                    }
-                    Err(message) => {
-                        failure_count += 1;
-                        targets.push(json!({
-                            "taskId": task_id,
-                            "status": "failed",
-                            "errorCode": "PUBLISH_FAILED",
-                            "errorMessage": redact_text(&message),
-                        }));
-                    }
-                }
-            }
-            let status = if failure_count == 0 {
-                "success"
-            } else if success_count == 0 {
-                "failed"
-            } else {
-                "partial"
-            };
-            CoreToolExecution {
-                status: status.to_string(),
-                result: json!({
-                    "overallStatus": status,
-                    "targets": targets,
-                    "successCount": success_count,
-                    "failureCount": failure_count,
-                }),
-            }
-        }
-        "content_delete_draft" => {
-            let content_id = arguments
-                .get("contentId")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            content::delete_content_package(workspace, content_id).map_err(|error| {
-                McpCallError {
-                    code: "CONTENT_DELETE_FAILED".to_string(),
-                    message: error,
-                    field_errors: vec![field_error("contentId", "内容删除失败")],
-                }
-            })?;
-            success_result(json!({ "contentId": content_id, "deleted": true }))
-        }
-        _ => {
-            return Err(McpCallError {
-                code: "TOOL_NOT_FOUND".to_string(),
-                message: format!("未注册工具：{tool_name}"),
-                field_errors: Vec::new(),
-            });
-        }
-    };
-    Ok(result)
+    if matches!(tool_name, "account_get_info" | "platform_capabilities_get") {
+        return account_tools::execute_account_tool(conn, tool_name, arguments);
+    }
+    if matches!(
+        tool_name,
+        "content_list"
+            | "content_get_detail"
+            | "studio_create_content"
+            | "studio_update_content"
+            | "content_delete_draft"
+    ) {
+        return content_tools::execute_content_tool(workspace, tool_name, arguments, scope);
+    }
+    if matches!(tool_name, "external_content_list" | "analytics_get_trend") {
+        return analytics_tools::execute_analytics_tool(conn, tool_name, arguments);
+    }
+    if matches!(
+        tool_name,
+        "publishing_create_task" | "publishing_publish_task"
+    ) {
+        return publishing_tools::execute_publishing_tool(
+            conn, runtime, workspace, tool_name, arguments, cancel,
+        );
+    }
+    Err(McpCallError {
+        code: "TOOL_NOT_FOUND".to_string(),
+        message: format!("未注册工具：{tool_name}"),
+        field_errors: Vec::new(),
+    })
 }
 
 fn preview_details(
@@ -410,100 +66,14 @@ fn preview_details(
     arguments: &Value,
 ) -> Result<Value, Vec<McpFieldError>> {
     match tool_name {
-        "studio_create_content" => prepare_create_content(workspace, arguments)
-            .map(|payload| content_preview_details(&payload)),
-        "studio_update_content" => prepare_update_content(workspace, arguments)
-            .map(|payload| content_preview_details(&payload)),
-        "publishing_create_task" => {
-            let targets =
-                validate_publish_targets(conn, arguments).map_err(|error| error.field_errors)?;
-            let source_id = arguments
-                .get("sourceId")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            let source_type = arguments
-                .get("sourceType")
-                .and_then(Value::as_str)
-                .unwrap_or("content");
-            let source = if source_type == "platformDraft" {
-                content::read_platform_draft(workspace, source_id)
-                    .map(|draft| {
-                        json!({
-                            "sourceType": "platformDraft",
-                            "sourceId": draft.id,
-                            "contentId": draft.content_id,
-                            "title": draft.title,
-                            "media": draft.media,
-                            "cover": draft.cover,
-                        })
-                    })
-                    .map_err(|error| vec![field_error("sourceId", error)])?
-            } else {
-                content::read_content_package(workspace, source_id)
-                    .map(|package| {
-                        json!({
-                            "sourceType": "content",
-                            "sourceId": package.manifest.id,
-                            "contentId": package.manifest.id,
-                            "contentKind": package.manifest.kind.as_str(),
-                            "title": package.manifest.title,
-                            "body": package.body,
-                            "bodyPreview": package.body.chars().take(600).collect::<String>(),
-                            "media": package.manifest.media,
-                            "cover": package.manifest.cover,
-                        })
-                    })
-                    .map_err(|error| vec![field_error("sourceId", error)])?
-            };
-            let targets = targets
-                .into_iter()
-                .map(|target| {
-                    json!({
-                        "platformId": target.platform_id,
-                        "platformName": target.platform_name,
-                        "accountId": target.account_id,
-                        "accountAlias": target.account_alias,
-                        "adapterId": target.adapter_id,
-                    })
-                })
-                .collect::<Vec<_>>();
-            Ok(json!({ "source": source, "targets": targets }))
+        "studio_create_content"
+        | "studio_update_content"
+        | "content_delete_draft"
+        | "content_get_detail" => {
+            content_tools::preview_content_tool(workspace, tool_name, arguments)
         }
-        "publishing_publish_task" => {
-            publish_preview_details(conn, arguments).map_err(|error| error.field_errors)
-        }
-        "content_delete_draft" => {
-            let content_id = arguments
-                .get("contentId")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            content::read_content_package(workspace, content_id)
-                .map(|package| {
-                    json!({
-                        "contentId": package.manifest.id,
-                        "contentKind": package.manifest.kind.as_str(),
-                        "title": package.manifest.title,
-                        "media": package.manifest.media,
-                        "hasCover": package.manifest.cover.is_some(),
-                    })
-                })
-                .map_err(|error| vec![field_error("contentId", error)])
-        }
-        "content_get_detail" => {
-            let content_id = arguments
-                .get("contentId")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            content::read_content_package(workspace, content_id)
-                .map(|package| {
-                    json!({
-                        "contentId": package.manifest.id,
-                        "contentKind": package.manifest.kind.as_str(),
-                        "title": package.manifest.title,
-                        "mediaCount": package.manifest.media.len(),
-                    })
-                })
-                .map_err(|error| vec![field_error("contentId", error)])
+        "publishing_create_task" | "publishing_publish_task" => {
+            publishing_tools::preview_publishing_tool(conn, workspace, tool_name, arguments)
         }
         "mcp_test_hang" => Ok(json!({
             "simulation": "Hang until timeout or user cancellation",

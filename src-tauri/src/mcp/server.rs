@@ -1,4 +1,5 @@
 use super::*;
+use super::security::tool_by_name;
 
 pub fn test_server_main() -> ! {
     use std::io::{self, BufRead};
