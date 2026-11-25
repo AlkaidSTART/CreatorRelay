@@ -363,3 +363,108 @@ export const plannedPlatforms = [
   { name: "快手", formats: "短视频", note: "按实际授权能力接入" },
   { name: "微博", formats: "社交动态", note: "轻量动态与互动指标" },
 ];
+
+export type TrendRange = "7d" | "30d";
+
+export interface PlatformTrendSeries {
+  platformId: string;
+  platformName: string;
+  accountAlias: string;
+  metricLabel: string;
+  color: string;
+  values: number[];
+}
+
+export interface OverviewTrendDataset {
+  dates: string[];
+  series: PlatformTrendSeries[];
+}
+
+export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
+  "7d": {
+    dates: ["11-19", "11-20", "11-21", "11-22", "11-23", "11-24", "11-25"],
+    series: [
+      {
+        platformId: "juejin",
+        platformName: "掘金",
+        accountAlias: "技术主号",
+        metricLabel: "文章阅读（掘金口径）",
+        color: "#18181b",
+        values: [1120, 1480, 1360, 2240, 2680, 2410, 2950],
+      },
+      {
+        platformId: "bilibili",
+        platformName: "Bilibili",
+        accountAlias: "林工视频号",
+        metricLabel: "视频播放（Bilibili 口径）",
+        color: "#2563eb",
+        values: [2840, 3420, 3190, 3860, 4290, 4610, 5120],
+      },
+      {
+        platformId: "csdn",
+        platformName: "CSDN",
+        accountAlias: "Rust 专栏号",
+        metricLabel: "博客阅读（CSDN 口径）",
+        color: "#d97706",
+        values: [890, 1020, 1180, 1290, 1410, 1340, 1580],
+      },
+      {
+        platformId: "zhihu",
+        platformName: "知乎",
+        accountAlias: "林工笔记",
+        metricLabel: "专栏浏览（知乎口径）",
+        color: "#059669",
+        values: [640, 720, 810, 960, 1120, 1380, 1490],
+      },
+    ],
+  },
+  "30d": {
+    dates: [
+      "10-27",
+      "10-30",
+      "11-02",
+      "11-05",
+      "11-08",
+      "11-11",
+      "11-14",
+      "11-17",
+      "11-20",
+      "11-23",
+      "11-25",
+    ],
+    series: [
+      {
+        platformId: "juejin",
+        platformName: "掘金",
+        accountAlias: "技术主号",
+        metricLabel: "文章阅读（掘金口径）",
+        color: "#18181b",
+        values: [1420, 1680, 1950, 1810, 2190, 2480, 2320, 2610, 2890, 3120, 3450],
+      },
+      {
+        platformId: "bilibili",
+        platformName: "Bilibili",
+        accountAlias: "林工视频号",
+        metricLabel: "视频播放（Bilibili 口径）",
+        color: "#2563eb",
+        values: [2150, 2480, 2760, 3120, 2980, 3540, 3890, 4120, 4380, 4760, 5120],
+      },
+      {
+        platformId: "csdn",
+        platformName: "CSDN",
+        accountAlias: "Rust 专栏号",
+        metricLabel: "博客阅读（CSDN 口径）",
+        color: "#d97706",
+        values: [780, 860, 940, 1080, 1150, 1210, 1190, 1340, 1420, 1490, 1580],
+      },
+      {
+        platformId: "zhihu",
+        platformName: "知乎",
+        accountAlias: "林工笔记",
+        metricLabel: "专栏浏览（知乎口径）",
+        color: "#059669",
+        values: [520, 610, 690, 740, 820, 890, 970, 1050, 1180, 1340, 1490],
+      },
+    ],
+  },
+};

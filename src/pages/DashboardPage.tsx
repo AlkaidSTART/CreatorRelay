@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -9,14 +10,27 @@ import {
   Send,
 } from "lucide-react";
 import { useNavigate, useOutletContext } from "react-router";
+import { OverviewTrendChart } from "../components/OverviewTrendChart";
 import { PageHeader } from "../components/PageHeader";
-import { demoPlatformAccounts, demoPublishedContents, demoPublishTasks } from "../data/demoData";
-import { formatRelativeTime } from "../hooks/useWorkspaceDocuments";
+import {
+  demoOverviewTrends,
+  demoPlatformAccounts,
+  demoPublishedContents,
+  demoPublishTasks,
+  type TrendRange,
+} from "../data/demoData";
 import type { AppOutletContext } from "../layouts/AppLayout";
+import { formatRelativeTime } from "../utils/format";
+
+const trendRangeOptions: { id: TrendRange; label: string }[] = [
+  { id: "7d", label: "近 7 天" },
+  { id: "30d", label: "近 30 天" },
+];
 
 export function DashboardPage() {
   const { documents, setIsCreating } = useOutletContext<AppOutletContext>();
   const navigate = useNavigate();
+  const [trendRange, setTrendRange] = useState<TrendRange>("7d");
 
   const activeAccounts = demoPlatformAccounts.filter((item) => item.status === "ACTIVE").length;
   const issueAccounts = demoPlatformAccounts.filter((item) => item.status !== "ACTIVE");
@@ -94,6 +108,35 @@ export function DashboardPage() {
             数据口径说明：不同平台的阅读量、播放量与粉丝统计口径存在差异，总览仅按平台维度独立呈现，不做未定义口径的直接相加。
           </span>
         </div>
+
+        <article className="surface-card">
+          <div className="card-heading">
+            <div>
+              <span className="context-eyebrow">PLATFORM TRENDS</span>
+              <h2>各平台内容趋势</h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="filter-tabs" role="tablist" aria-label="趋势时间范围">
+                {trendRangeOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={trendRange === option.id}
+                    className={`filter-tab ${trendRange === option.id ? "active" : ""}`}
+                    onClick={() => setTrendRange(option.id)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <button className="text-action" onClick={() => navigate("/analytics")}>
+                详细分析
+              </button>
+            </div>
+          </div>
+          <OverviewTrendChart dataset={demoOverviewTrends[trendRange]} />
+        </article>
 
         <section className="two-col-grid">
           <article className="surface-card">
