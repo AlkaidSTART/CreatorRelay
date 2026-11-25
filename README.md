@@ -2,6 +2,11 @@
 
 This template should help get you started developing with Tauri, React and Typescript in Vite.
 
+## 功能文档
+
+- [平台账号、凭据与会话实现说明](./docs/platform-accounts.md)
+- [M1 桌面基础设施实现说明](./docs/m1-desktop-foundation.md)
+
 ## Recommended IDE Setup
 
 - [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)

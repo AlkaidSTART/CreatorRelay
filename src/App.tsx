@@ -1,11 +1,7 @@
 import { HashRouter, Navigate, Route, Routes } from "react-router";
 import { AppLayout } from "./layouts/AppLayout";
-import { AnalyticsPage } from "./pages/AnalyticsPage";
-import { AssistantPage } from "./pages/AssistantPage";
-import { ContentPage } from "./pages/ContentPage";
-import { DashboardPage } from "./pages/DashboardPage";
+import { ModulePlaceholder } from "./components/ModulePlaceholder";
 import { PlatformsPage } from "./pages/PlatformsPage";
-import { PublishingPage } from "./pages/PublishingPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { StudioPage } from "./pages/StudioPage";
 
@@ -15,12 +11,12 @@ function App() {
       <Routes>
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/dashboard" element={<ModulePlaceholder routeId="dashboard" />} />
           <Route path="/studio" element={<StudioPage />} />
-          <Route path="/publishing" element={<PublishingPage />} />
-          <Route path="/content" element={<ContentPage />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
-          <Route path="/assistant" element={<AssistantPage />} />
+          <Route path="/publishing" element={<ModulePlaceholder routeId="publishing" />} />
+          <Route path="/content" element={<ModulePlaceholder routeId="content" />} />
+          <Route path="/analytics" element={<ModulePlaceholder routeId="analytics" />} />
+          <Route path="/assistant" element={<ModulePlaceholder routeId="assistant" />} />
           <Route path="/platforms" element={<PlatformsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/studio" replace />} />

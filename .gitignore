@@ -22,8 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-/progress/
+/progress/*
 docs/*
+!docs/platform-accounts.md
+!docs/m1-desktop-foundation.md
 !progress/*.md
 !progress/verification/
 !progress/verification/*.md

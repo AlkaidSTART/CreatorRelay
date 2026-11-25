@@ -21,6 +21,7 @@ export type RouteId =
   | "settings";
 
 export type NavGroup = "primary" | "secondary";
+export type RouteAvailability = "available" | "development" | "planned";
 
 export interface RouteMeta {
   id: RouteId;
@@ -32,6 +33,8 @@ export interface RouteMeta {
   priority: "P0" | "P0/P1" | "P1";
   group: NavGroup;
   icon: IconComponent;
+  availability: RouteAvailability;
+  milestone: string;
   badge?: string;
 }
 
@@ -46,6 +49,8 @@ export const PRD_ROUTES: RouteMeta[] = [
     priority: "P0",
     group: "primary",
     icon: LayoutDashboard,
+    availability: "planned",
+    milestone: "M6",
   },
   {
     id: "studio",
@@ -57,6 +62,8 @@ export const PRD_ROUTES: RouteMeta[] = [
     priority: "P0",
     group: "primary",
     icon: BookOpen,
+    availability: "development",
+    milestone: "M2 / M5",
   },
   {
     id: "publishing",
@@ -68,7 +75,8 @@ export const PRD_ROUTES: RouteMeta[] = [
     priority: "P0/P1",
     group: "primary",
     icon: Send,
-    badge: "2",
+    availability: "planned",
+    milestone: "M6",
   },
   {
     id: "content",
@@ -80,6 +88,8 @@ export const PRD_ROUTES: RouteMeta[] = [
     priority: "P0",
     group: "primary",
     icon: Library,
+    availability: "planned",
+    milestone: "M6",
   },
   {
     id: "analytics",
@@ -91,6 +101,8 @@ export const PRD_ROUTES: RouteMeta[] = [
     priority: "P0",
     group: "primary",
     icon: BarChart3,
+    availability: "planned",
+    milestone: "M6",
   },
   {
     id: "assistant",
@@ -102,6 +114,8 @@ export const PRD_ROUTES: RouteMeta[] = [
     priority: "P1",
     group: "secondary",
     icon: Bot,
+    availability: "planned",
+    milestone: "M7",
   },
   {
     id: "platforms",
@@ -113,6 +127,8 @@ export const PRD_ROUTES: RouteMeta[] = [
     priority: "P0",
     group: "secondary",
     icon: Globe2,
+    availability: "development",
+    milestone: "M3 / M4",
   },
   {
     id: "settings",
@@ -124,11 +140,20 @@ export const PRD_ROUTES: RouteMeta[] = [
     priority: "P0",
     group: "secondary",
     icon: Settings2,
+    availability: "available",
+    milestone: "M1",
   },
 ];
 
 export const PRIMARY_ROUTES = PRD_ROUTES.filter((route) => route.group === "primary");
 export const SECONDARY_ROUTES = PRD_ROUTES.filter((route) => route.group === "secondary");
+export const PLANNED_ROUTES = PRD_ROUTES.filter((route) => route.availability === "planned");
+
+export function routeAvailabilityLabel(route: RouteMeta) {
+  if (route.availability === "available") return "可用";
+  if (route.availability === "development") return "开发中";
+  return "规划中";
+}
 
 export function findRouteByPathname(pathname: string): RouteMeta {
   return (

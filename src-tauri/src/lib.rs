@@ -7,18 +7,26 @@ use std::{
     fs,
     path::{Component, Path, PathBuf},
     sync::Mutex,
+    time::Instant,
 };
 use tauri::{AppHandle, Manager, State};
 use tempfile::NamedTempFile;
 use uuid::Uuid;
 use walkdir::WalkDir;
 
+mod database;
+mod diagnostics;
+mod logging;
 mod platforms;
 
 struct AppState {
     db: Mutex<Connection>,
     history_root: PathBuf,
     platform_session_root: PathBuf,
+    data_dir: PathBuf,
+    database_path: PathBuf,
+    log_path: PathBuf,
+    started_at: Instant,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -410,9 +418,33 @@ fn list_document_revisions(repo: &Repository, relative: &str) -> Result<Vec<Revi
 }
 
 fn app_db_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let dir = app_data_dir(app)?;
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.join("creatorrelay.sqlite3"))
+}
+
+fn app_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    #[cfg(debug_assertions)]
+    if let Ok(path) = std::env::var("CREATORRELAY_DATA_DIR")
+        && !path.trim().is_empty()
+    {
+        return Ok(PathBuf::from(path));
+    }
+    app.path().app_data_dir().map_err(|e| e.to_string())
+}
+
+fn log_command_outcome<T>(
+    state: &AppState,
+    stage: &str,
+    context: &str,
+    result: &Result<T, String>,
+) {
+    let message = match result {
+        Ok(_) => format!("成功 context={context}"),
+        Err(error) => format!("失败 context={context} error={error}"),
+    };
+    let level = if result.is_ok() { "info" } else { "error" };
+    let _ = logging::append_log(&state.log_path, level, stage, &message);
 }
 
 fn markdown_url_is_external(url: &str) -> bool {
@@ -632,10 +664,10 @@ fn document_matches_query(document: &Document, path: &Path, query: &str) -> Resu
 }
 
 fn body_for_word_count(content: &str) -> &str {
-    if content.starts_with("---\n") {
-        if let Some(end) = content[4..].find("\n---") {
-            return &content[4 + end + 5..];
-        }
+    if let Some(stripped) = content.strip_prefix("---\n")
+        && let Some(end) = stripped.find("\n---")
+    {
+        return &stripped[end + 5..];
     }
     content
 }
@@ -874,16 +906,17 @@ fn sync_index(
             .unwrap_or_else(|| Uuid::new_v4().to_string());
         let document = document_from_file(id.clone(), path, workspace)?;
         let previous_hash = indexed.as_ref().map(|(_, hash)| hash.as_str());
-        if history_root.is_some() && previous_hash.is_some_and(|hash| hash != document.content_hash)
-        {
-            let history = open_history_repository(history_root.unwrap(), workspace)?;
-            let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-            ensure_document_history(&history, &tx, &id, &relative, &content)?;
-            commit_document_content(&history, &relative, &content, "检测到外部修改", None)?;
-        } else if history_root.is_some() && previous_hash.is_none() {
-            let history = open_history_repository(history_root.unwrap(), workspace)?;
-            let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-            commit_document_content(&history, &relative, &content, "导入工作区文章", None)?;
+        if let Some(history_root) = history_root {
+            if previous_hash.is_some_and(|hash| hash != document.content_hash) {
+                let history = open_history_repository(history_root, workspace)?;
+                let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+                ensure_document_history(&history, &tx, &id, &relative, &content)?;
+                commit_document_content(&history, &relative, &content, "检测到外部修改", None)?;
+            } else if previous_hash.is_none() {
+                let history = open_history_repository(history_root, workspace)?;
+                let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+                commit_document_content(&history, &relative, &content, "导入工作区文章", None)?;
+            }
         }
         tx.execute(
             "INSERT INTO documents(id, path, title, updated_at, content_hash) VALUES(?1, ?2, ?3, ?4, ?5)
@@ -936,24 +969,34 @@ fn get_workspace(state: State<'_, AppState>) -> Result<Option<WorkspaceInfo>, St
 
 #[tauri::command]
 fn set_workspace_path(path: String, state: State<'_, AppState>) -> Result<WorkspaceInfo, String> {
-    let path = PathBuf::from(path)
-        .canonicalize()
-        .map_err(|e| e.to_string())?;
-    if !path.is_dir() {
-        return Err("请选择一个文件夹作为工作区".to_string());
-    }
-    setup_workspace(&path)?;
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    sync_index(&conn, &path, Some(&state.history_root))?;
-    set_workspace(&conn, &path)?;
-    Ok(WorkspaceInfo {
-        name: path
-            .file_name()
-            .and_then(|part| part.to_str())
-            .unwrap_or("CreatorRelay")
-            .to_string(),
-        path: path.to_string_lossy().to_string(),
-    })
+    let requested_path = path.clone();
+    let result = (|| {
+        let path = PathBuf::from(path)
+            .canonicalize()
+            .map_err(|_| "工作区路径不存在或不可访问".to_string())?;
+        if !path.is_dir() {
+            return Err("请选择一个文件夹作为工作区".to_string());
+        }
+        setup_workspace(&path)?;
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        sync_index(&conn, &path, Some(&state.history_root))?;
+        set_workspace(&conn, &path)?;
+        Ok(WorkspaceInfo {
+            name: path
+                .file_name()
+                .and_then(|part| part.to_str())
+                .unwrap_or("CreatorRelay")
+                .to_string(),
+            path: path.to_string_lossy().to_string(),
+        })
+    })();
+    log_command_outcome(
+        &state,
+        "ipc.workspace.set",
+        &format!("requested_path={requested_path}"),
+        &result,
+    );
+    result
 }
 
 #[tauri::command]
@@ -1018,14 +1061,26 @@ fn rebuild_workspace_index(state: State<'_, AppState>) -> Result<usize, String> 
 
 #[tauri::command]
 fn read_document(path: String, state: State<'_, AppState>) -> Result<DocumentContent, String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
-    let path = resolve_document(&workspace, &path)?;
-    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    Ok(DocumentContent {
-        content_hash: digest(&content),
-        content,
-    })
+    let requested_path = path.clone();
+    let result = (|| {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+        let path = resolve_document(&workspace, &path)?;
+        let content = fs::read_to_string(path).map_err(|_| "文档读取失败".to_string())?;
+        Ok(DocumentContent {
+            content_hash: digest(&content),
+            content,
+        })
+    })();
+    if result.is_err() {
+        log_command_outcome(
+            &state,
+            "ipc.document.read",
+            &format!("path={requested_path}"),
+            &result,
+        );
+    }
+    result
 }
 
 #[tauri::command]
@@ -1156,30 +1211,39 @@ fn import_markdown(
 
 #[tauri::command]
 fn create_document(title: String, state: State<'_, AppState>) -> Result<Document, String> {
-    let title = title.trim();
-    if title.is_empty() {
-        return Err("标题不能为空".to_string());
-    }
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
-    let id = Uuid::new_v4().to_string();
-    let relative = format!("articles/{id}/article.md");
-    let path = resolve_document(&workspace, &relative)?;
-    let title_yaml = serde_json::to_string(title).map_err(|e| e.to_string())?;
-    let created_at = Utc::now().to_rfc3339();
-    let content = format!(
-        "---\nid: {id}\ntitle: {title_yaml}\ncreated_at: {created_at}\nupdated_at: {created_at}\ntags: []\nstatus: draft\n---\n\n# {title}\n\n"
+    let requested_title = title.trim().to_string();
+    let result = (|| {
+        if requested_title.is_empty() {
+            return Err("标题不能为空".to_string());
+        }
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+        let id = Uuid::new_v4().to_string();
+        let relative = format!("articles/{id}/article.md");
+        let path = resolve_document(&workspace, &relative)?;
+        let title_yaml = serde_json::to_string(&requested_title).map_err(|e| e.to_string())?;
+        let created_at = Utc::now().to_rfc3339();
+        let content = format!(
+            "---\nid: {id}\ntitle: {title_yaml}\ncreated_at: {created_at}\nupdated_at: {created_at}\ntags: []\nstatus: draft\n---\n\n# {requested_title}\n\n"
+        );
+        atomic_write(&path, &content)?;
+        let history = open_history_repository(&state.history_root, &workspace)?;
+        commit_document_content(&history, &relative, &content, "创建文章", None)?;
+        let database_path = database_document_path(&workspace, &relative)?;
+        conn.execute(
+            "INSERT INTO documents(id, path, title, updated_at, content_hash) VALUES(?1, ?2, ?3, ?4, ?5)",
+            params![id, database_path, requested_title, created_at, digest(&content)],
+        )
+        .map_err(|e| e.to_string())?;
+        document_from_file(id, &path, &workspace)
+    })();
+    log_command_outcome(
+        &state,
+        "ipc.document.create",
+        &format!("title_length={}", requested_title.chars().count()),
+        &result,
     );
-    atomic_write(&path, &content)?;
-    let history = open_history_repository(&state.history_root, &workspace)?;
-    commit_document_content(&history, &relative, &content, "创建文章", None)?;
-    let database_path = database_document_path(&workspace, &relative)?;
-    conn.execute(
-        "INSERT INTO documents(id, path, title, updated_at, content_hash) VALUES(?1, ?2, ?3, ?4, ?5)",
-        params![id, database_path, title, created_at, digest(&content)],
-    )
-    .map_err(|e| e.to_string())?;
-    document_from_file(id, &path, &workspace)
+    result
 }
 
 #[tauri::command]
@@ -1371,35 +1435,45 @@ fn save_document(
     base_hash: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Document, String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
-    let file = resolve_document(&workspace, &path)?;
-    let database_path = database_document_path(&workspace, &path)?;
-    let id: String = conn
-        .query_row(
-            "SELECT id FROM documents WHERE path = ?1",
-            [&database_path],
-            |row| row.get(0),
+    let requested_path = path.clone();
+    let result = (|| {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        let workspace = active_workspace(&conn)?.ok_or("请先选择工作区")?;
+        let file = resolve_document(&workspace, &path)?;
+        let database_path = database_document_path(&workspace, &path)?;
+        let id: String = conn
+            .query_row(
+                "SELECT id FROM documents WHERE path = ?1",
+                [&database_path],
+                |row| row.get(0),
+            )
+            .map_err(|_| "文档索引记录不存在".to_string())?;
+        let existing = fs::read_to_string(&file).map_err(|_| "文档读取失败".to_string())?;
+        ensure_base_hash(&existing, base_hash.as_deref())?;
+        if existing == content {
+            return document_from_file(id, &file, &workspace);
+        }
+        validate_asset_references(&workspace, &path, &content)?;
+        atomic_write(&file, &content)?;
+        conn.execute(
+            "UPDATE documents SET title=?1, updated_at=?2, content_hash=?3 WHERE id=?4",
+            params![
+                title_for(&content, &file),
+                Utc::now().to_rfc3339(),
+                digest(&content),
+                id
+            ],
         )
         .map_err(|e| e.to_string())?;
-    let existing = fs::read_to_string(&file).map_err(|e| e.to_string())?;
-    ensure_base_hash(&existing, base_hash.as_deref())?;
-    if existing == content {
-        return document_from_file(id, &file, &workspace);
-    }
-    validate_asset_references(&workspace, &path, &content)?;
-    atomic_write(&file, &content)?;
-    conn.execute(
-        "UPDATE documents SET title=?1, updated_at=?2, content_hash=?3 WHERE id=?4",
-        params![
-            title_for(&content, &file),
-            Utc::now().to_rfc3339(),
-            digest(&content),
-            id
-        ],
-    )
-    .map_err(|e| e.to_string())?;
-    document_from_file(id, &file, &workspace)
+        document_from_file(id, &file, &workspace)
+    })();
+    log_command_outcome(
+        &state,
+        "ipc.document.save",
+        &format!("path={requested_path}"),
+        &result,
+    );
+    result
 }
 
 #[tauri::command]
@@ -1577,7 +1651,10 @@ fn cancel_platform_authentication(
     account_id: String,
     state: State<'_, AppState>,
 ) -> Result<platforms::PlatformAccount, String> {
-    let mut conn = state.db.lock().map_err(|_| "数据库状态不可用".to_string())?;
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
     platforms::cancel_authentication(&mut conn, &account_id)
 }
 
@@ -1674,6 +1751,38 @@ fn list_platform_audit_logs(
     platforms::list_audit_logs(&conn, limit.unwrap_or(50))
 }
 
+#[tauri::command]
+fn get_runtime_diagnostics(
+    state: State<'_, AppState>,
+) -> Result<diagnostics::RuntimeDiagnostics, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    let workspace = active_workspace(&conn)?;
+    diagnostics::collect(
+        &conn,
+        &state.data_dir,
+        &state.database_path,
+        &state.log_path,
+        workspace,
+        state.started_at.elapsed(),
+    )
+}
+
+#[tauri::command]
+fn run_diagnostic_probe(
+    probe: String,
+    request_context: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "数据库状态不可用".to_string())?;
+    diagnostics::run_probe(&conn, &state.log_path, &probe, request_context.as_deref())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1681,39 +1790,48 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
-            let path = app_db_path(app.handle()).map_err(std::io::Error::other)?;
-            let mut conn = Connection::open(path).map_err(std::io::Error::other)?;
-            conn.execute_batch(
-                "PRAGMA journal_mode=WAL;
-                 PRAGMA foreign_keys=ON;
-                 CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
-                 CREATE TABLE IF NOT EXISTS app_settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-                 CREATE TABLE IF NOT EXISTS documents(
-                    id TEXT PRIMARY KEY, path TEXT NOT NULL UNIQUE, title TEXT NOT NULL,
-                    updated_at TEXT NOT NULL, content_hash TEXT NOT NULL
-                 );",
-            )
-            .map_err(std::io::Error::other)?;
-            conn.execute(
-                "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(1, ?1)",
-                [Utc::now().to_rfc3339()],
-            )
-            .map_err(std::io::Error::other)?;
-            platforms::initialize_schema(&mut conn).map_err(std::io::Error::other)?;
-            let history_root = app
-                .path()
-                .app_data_dir()
-                .map_err(std::io::Error::other)?
-                .join("article-history");
-            let platform_session_root = app
-                .path()
-                .app_data_dir()
-                .map_err(std::io::Error::other)?
-                .join("platform-sessions");
+            let data_dir = app_data_dir(app.handle()).map_err(std::io::Error::other)?;
+            fs::create_dir_all(&data_dir).map_err(std::io::Error::other)?;
+            let database_path = app_db_path(app.handle()).map_err(std::io::Error::other)?;
+            let log_path = logging::initialize(&data_dir).map_err(std::io::Error::other)?;
+            let mut conn = Connection::open(&database_path).map_err(std::io::Error::other)?;
+            let migration = match database::migrate(&mut conn) {
+                Ok(report) => report,
+                Err(error) => {
+                    let _ = logging::append_log(
+                        &log_path,
+                        "error",
+                        "startup.migration",
+                        &format!("数据库迁移失败 error={error}"),
+                    );
+                    eprintln!("CreatorRelay startup migration failed: {error}");
+                    return Err(Box::new(std::io::Error::other(format!(
+                        "数据库迁移失败：{error}"
+                    ))));
+                }
+            };
+            let _ = logging::append_log(
+                &log_path,
+                "info",
+                "startup.ready",
+                &format!(
+                    "应用初始化完成 schema_from={} schema_to={} applied={:?} data_dir={}",
+                    migration.from_version,
+                    migration.to_version,
+                    migration.applied_versions,
+                    data_dir.to_string_lossy()
+                ),
+            );
+            let history_root = data_dir.join("article-history");
+            let platform_session_root = data_dir.join("platform-sessions");
             app.manage(AppState {
                 db: Mutex::new(conn),
                 history_root,
                 platform_session_root,
+                data_dir,
+                database_path,
+                log_path,
+                started_at: Instant::now(),
             });
             Ok(())
         })
@@ -1747,7 +1865,9 @@ pub fn run() {
             ensure_platform_account_active,
             preview_platform_account_deletion,
             delete_platform_account,
-            list_platform_audit_logs
+            list_platform_audit_logs,
+            get_runtime_diagnostics,
+            run_diagnostic_probe
         ])
         .run(tauri::generate_context!())
         .expect("error while running CreatorRelay");
@@ -1758,12 +1878,8 @@ mod tests {
     use super::*;
 
     fn test_db() -> Connection {
-        let connection = Connection::open_in_memory().unwrap();
-        connection.execute_batch(
-            "CREATE TABLE app_settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-             CREATE TABLE documents(id TEXT PRIMARY KEY, path TEXT UNIQUE NOT NULL, title TEXT NOT NULL, updated_at TEXT NOT NULL, content_hash TEXT NOT NULL);
-             CREATE TABLE revisions(id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL, content TEXT NOT NULL, content_hash TEXT NOT NULL, label TEXT NOT NULL, created_at TEXT NOT NULL);",
-        ).unwrap();
+        let mut connection = Connection::open_in_memory().unwrap();
+        database::migrate(&mut connection).unwrap();
         connection
     }
 
@@ -1810,6 +1926,41 @@ mod tests {
             std::os::unix::fs::symlink(outside, workspace.join("articles/link")).unwrap();
             assert!(resolve_document(&workspace, "articles/link/escaped.md").is_err());
         }
+    }
+
+    #[test]
+    fn workspace_and_index_survive_database_reopen() {
+        let temp = tempfile::tempdir().unwrap();
+        let database_path = temp.path().join("creatorrelay.sqlite3");
+        let workspace = temp.path().join("workspace");
+        setup_workspace(&workspace).unwrap();
+        let file = workspace.join("articles/doc/article.md");
+        let content = "---\ntitle: Restart proof\ntags: []\n---\n\n# Persisted\n";
+        atomic_write(&file, content).unwrap();
+
+        {
+            let mut conn = Connection::open(&database_path).unwrap();
+            database::migrate(&mut conn).unwrap();
+            set_workspace(&conn, &workspace).unwrap();
+            sync_index(&conn, &workspace, None).unwrap();
+        }
+
+        let mut reopened = Connection::open(&database_path).unwrap();
+        database::migrate(&mut reopened).unwrap();
+        assert_eq!(active_workspace(&reopened).unwrap().unwrap(), workspace);
+        let count: i64 = reopened
+            .query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+        let title: String = reopened
+            .query_row("SELECT title FROM documents", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(title, "Restart proof");
+        assert_eq!(fs::read_to_string(&file).unwrap(), content);
+        assert_eq!(
+            database::current_version(&reopened).unwrap(),
+            database::CURRENT_SCHEMA_VERSION
+        );
     }
 
     #[test]

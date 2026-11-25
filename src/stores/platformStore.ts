@@ -79,7 +79,7 @@ function demoChallenge(account: PlatformAccountItem): AuthChallenge {
   }
   return {
     accountId: account.id,
-    challengeId: `preview-${Date.now()}`,
+    challengeId: `preview-${crypto.randomUUID()}`,
     method: "browser",
     loginUrl: method.loginUrl ?? "",
     manualSteps: method.manualSteps,
@@ -157,7 +157,7 @@ const createPlatformStoreState: StateCreator<PlatformStore> = (set, get) => ({
       const platform = get().catalog.find((item) => item.id === platformId);
       if (!platform) throw new Error("不支持该平台");
       const created: PlatformAccountItem = {
-        id: `preview-${Date.now()}`,
+        id: `preview-${crypto.randomUUID()}`,
         platformId,
         platformName: platform.name,
         category: platform.category,

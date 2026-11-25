@@ -5,7 +5,6 @@ use std::{fs, path::Path, time::Duration};
 use uuid::Uuid;
 
 const KEYRING_SERVICE: &str = "com.creatorrelay.platform-accounts";
-const SCHEMA_VERSION: i64 = 2;
 const MAX_CREDENTIAL_LENGTH: usize = 32 * 1024;
 const BILIBILI_VERIFY_URL: &str = "https://api.bilibili.com/x/web-interface/nav";
 
@@ -171,6 +170,7 @@ struct PlatformDefinition {
     content_read: &'static str,
     content_publish: &'static str,
     analytics: &'static str,
+    login_url: &'static str,
     auth_kind: AuthKind,
 }
 
@@ -192,6 +192,7 @@ fn platform_definition(platform_id: &str) -> Option<PlatformDefinition> {
             content_read: "restricted",
             content_publish: "restricted",
             analytics: "experimental",
+            login_url: "https://juejin.cn/",
             auth_kind: AuthKind::ManualOnly,
         },
         PlatformDefinition {
@@ -203,6 +204,7 @@ fn platform_definition(platform_id: &str) -> Option<PlatformDefinition> {
             content_read: "restricted",
             content_publish: "restricted",
             analytics: "experimental",
+            login_url: "https://www.csdn.net/",
             auth_kind: AuthKind::ManualOnly,
         },
         PlatformDefinition {
@@ -214,6 +216,7 @@ fn platform_definition(platform_id: &str) -> Option<PlatformDefinition> {
             content_read: "restricted",
             content_publish: "restricted",
             analytics: "experimental",
+            login_url: "https://www.zhihu.com/",
             auth_kind: AuthKind::ManualOnly,
         },
         PlatformDefinition {
@@ -225,6 +228,7 @@ fn platform_definition(platform_id: &str) -> Option<PlatformDefinition> {
             content_read: "restricted",
             content_publish: "unsupported",
             analytics: "restricted",
+            login_url: "https://mp.weixin.qq.com/",
             auth_kind: AuthKind::ManualOnly,
         },
         PlatformDefinition {
@@ -236,6 +240,7 @@ fn platform_definition(platform_id: &str) -> Option<PlatformDefinition> {
             content_read: "supported",
             content_publish: "restricted",
             analytics: "supported",
+            login_url: "https://www.bilibili.com/",
             auth_kind: AuthKind::BrowserCookie,
         },
         PlatformDefinition {
@@ -247,6 +252,7 @@ fn platform_definition(platform_id: &str) -> Option<PlatformDefinition> {
             content_read: "experimental",
             content_publish: "experimental",
             analytics: "experimental",
+            login_url: "https://studio.youtube.com/",
             auth_kind: AuthKind::OAuthUnavailable,
         },
         PlatformDefinition {
@@ -258,6 +264,7 @@ fn platform_definition(platform_id: &str) -> Option<PlatformDefinition> {
             content_read: "restricted",
             content_publish: "restricted",
             analytics: "experimental",
+            login_url: "https://creator.douyin.com/",
             auth_kind: AuthKind::ManualOnly,
         },
         PlatformDefinition {
@@ -269,6 +276,7 @@ fn platform_definition(platform_id: &str) -> Option<PlatformDefinition> {
             content_read: "restricted",
             content_publish: "restricted",
             analytics: "experimental",
+            login_url: "https://cp.kuaishou.com/",
             auth_kind: AuthKind::ManualOnly,
         },
         PlatformDefinition {
@@ -280,6 +288,7 @@ fn platform_definition(platform_id: &str) -> Option<PlatformDefinition> {
             content_read: "restricted",
             content_publish: "restricted",
             analytics: "experimental",
+            login_url: "https://creator.xiaohongshu.com/",
             auth_kind: AuthKind::ManualOnly,
         },
         PlatformDefinition {
@@ -291,6 +300,7 @@ fn platform_definition(platform_id: &str) -> Option<PlatformDefinition> {
             content_read: "restricted",
             content_publish: "restricted",
             analytics: "experimental",
+            login_url: "https://weibo.com/",
             auth_kind: AuthKind::ManualOnly,
         },
     ];
@@ -322,7 +332,7 @@ fn auth_methods(definition: &PlatformDefinition) -> Vec<PlatformAuthMethod> {
                 method: "browser".to_string(),
                 available: true,
                 label: "系统浏览器 + 会话校验".to_string(),
-                login_url: Some("https://www.bilibili.com/".to_string()),
+                login_url: Some(definition.login_url.to_string()),
                 manual_steps: browser_steps(),
                 reason: None,
             },
@@ -339,7 +349,7 @@ fn auth_methods(definition: &PlatformDefinition) -> Vec<PlatformAuthMethod> {
             method: "manual".to_string(),
             available: true,
             label: "系统浏览器人工流程".to_string(),
-            login_url: Some(format!("https://www.baidu.com/s?wd={}", definition.name)),
+            login_url: Some(definition.login_url.to_string()),
             manual_steps: manual_steps(definition.name),
             reason: Some("该平台尚未完成官方身份接口验证，不会伪造 ACTIVE 会话。".to_string()),
         }],
@@ -356,7 +366,7 @@ fn auth_methods(definition: &PlatformDefinition) -> Vec<PlatformAuthMethod> {
                 method: "manual".to_string(),
                 available: true,
                 label: "系统浏览器人工流程".to_string(),
-                login_url: Some(format!("https://www.baidu.com/s?wd={}", definition.name)),
+                login_url: Some(definition.login_url.to_string()),
                 manual_steps: manual_steps(definition.name),
                 reason: None,
             },
@@ -401,80 +411,6 @@ pub fn platform_catalog() -> Vec<PlatformCatalogEntry> {
     .filter_map(platform_definition)
     .map(|definition| catalog_entry(&definition))
     .collect()
-}
-
-pub fn initialize_schema(conn: &mut Connection) -> Result<(), String> {
-    conn.execute_batch("PRAGMA foreign_keys=ON;")
-        .map_err(|_| "无法启用数据库外键约束".to_string())?;
-    let version: i64 = conn
-        .query_row(
-            "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
-            [],
-            |row| row.get(0),
-        )
-        .map_err(|_| "无法读取数据库 schema 版本".to_string())?;
-    if version >= SCHEMA_VERSION {
-        return Ok(());
-    }
-
-    let tx = conn
-        .transaction()
-        .map_err(|_| "无法开始账号 schema 迁移事务".to_string())?;
-    tx.execute_batch(
-        "CREATE TABLE IF NOT EXISTS platform_accounts(
-            id TEXT PRIMARY KEY,
-            platform_id TEXT NOT NULL,
-            alias TEXT NOT NULL,
-            nickname TEXT NOT NULL DEFAULT '',
-            uid TEXT NOT NULL DEFAULT '',
-            status TEXT NOT NULL,
-            enabled INTEGER NOT NULL DEFAULT 1,
-            is_default INTEGER NOT NULL DEFAULT 0,
-            profile_id TEXT NOT NULL UNIQUE,
-            credential_ref TEXT NOT NULL UNIQUE,
-            last_checked_at TEXT,
-            last_error TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        );
-        CREATE UNIQUE INDEX IF NOT EXISTS platform_accounts_one_default
-            ON platform_accounts(platform_id) WHERE is_default = 1;
-        CREATE TABLE IF NOT EXISTS platform_sessions(
-            id TEXT PRIMARY KEY,
-            account_id TEXT NOT NULL UNIQUE REFERENCES platform_accounts(id) ON DELETE CASCADE,
-            profile_id TEXT NOT NULL UNIQUE,
-            auth_mode TEXT NOT NULL,
-            state TEXT NOT NULL,
-            credential_ref TEXT NOT NULL,
-            challenge_id TEXT,
-            expires_at TEXT,
-            last_verified_at TEXT,
-            last_error TEXT,
-            updated_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS platform_works(
-            id TEXT PRIMARY KEY,
-            account_id TEXT REFERENCES platform_accounts(id) ON DELETE SET NULL,
-            title TEXT NOT NULL,
-            external_id TEXT,
-            created_at TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS platform_works_account_id ON platform_works(account_id);
-        CREATE TABLE IF NOT EXISTS account_audit_logs(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            account_id TEXT REFERENCES platform_accounts(id) ON DELETE SET NULL,
-            platform_id TEXT NOT NULL,
-            account_alias TEXT NOT NULL,
-            action TEXT NOT NULL,
-            detail TEXT NOT NULL,
-            created_at TEXT NOT NULL
-        );
-        INSERT OR IGNORE INTO schema_migrations(version, applied_at)
-            VALUES(2, datetime('now'));",
-    )
-    .map_err(|_| "账号 schema 迁移失败".to_string())?;
-    tx.commit()
-        .map_err(|_| "账号 schema 迁移提交失败".to_string())
 }
 
 pub trait CredentialVault {
@@ -1030,7 +966,10 @@ pub fn begin_authentication(
     })
 }
 
-pub fn cancel_authentication(conn: &mut Connection, account_id: &str) -> Result<PlatformAccount, String> {
+pub fn cancel_authentication(
+    conn: &mut Connection,
+    account_id: &str,
+) -> Result<PlatformAccount, String> {
     let account = account_record(conn, account_id)?;
     if account.status != AccountStatus::Authenticating {
         return account_from_record(account);
@@ -1064,7 +1003,8 @@ pub fn cancel_authentication(conn: &mut Connection, account_id: &str) -> Result<
         "AUTH_CANCELLED",
         "用户取消身份校验",
     )?;
-    tx.commit().map_err(|_| "取消身份校验提交失败".to_string())?;
+    tx.commit()
+        .map_err(|_| "取消身份校验提交失败".to_string())?;
     account_from_record(account_record(conn, account_id)?)
 }
 
@@ -1469,13 +1409,7 @@ mod tests {
 
     fn test_conn() -> Connection {
         let mut conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch(
-            "PRAGMA foreign_keys=ON;
-             CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
-             INSERT INTO schema_migrations(version, applied_at) VALUES(1, datetime('now'));",
-        )
-        .unwrap();
-        initialize_schema(&mut conn).unwrap();
+        crate::database::migrate(&mut conn).unwrap();
         conn
     }
 
@@ -1525,6 +1459,33 @@ mod tests {
         assert_eq!(untouched.alias, "副号");
         assert_eq!(untouched.status, AccountStatus::Unauthorized);
         assert_eq!(list_accounts(&conn).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn schema_v2_migration_is_versioned_and_idempotent() {
+        let mut conn = test_conn();
+        crate::database::migrate(&mut conn).unwrap();
+        let version: i64 = conn
+            .query_row("SELECT MAX(version) FROM schema_migrations", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(version, crate::database::CURRENT_SCHEMA_VERSION);
+        for table in [
+            "platform_accounts",
+            "platform_sessions",
+            "platform_works",
+            "account_audit_logs",
+        ] {
+            let count: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+                    params![table],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(count, 1, "missing table {table}");
+        }
     }
 
     #[test]
@@ -1592,13 +1553,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let db_path = temp.path().join("accounts.sqlite3");
         let mut conn = Connection::open(&db_path).unwrap();
-        conn.execute_batch(
-            "PRAGMA foreign_keys=ON;
-             CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
-             INSERT INTO schema_migrations(version, applied_at) VALUES(1, datetime('now'));",
-        )
-        .unwrap();
-        initialize_schema(&mut conn).unwrap();
+        crate::database::migrate(&mut conn).unwrap();
         let vault = MemoryVault::default();
         let secret = "SESSDATA=super-secret-cookie-value-8fd91";
         let account = create_account(&mut conn, temp.path(), "bilibili", "凭据测试").unwrap();
@@ -1692,6 +1647,13 @@ mod tests {
         let preview = deletion_preview(&conn, root.path(), &first.id).unwrap();
         assert_eq!(preview.retained_history_count, 1);
         assert!(preview.will_delete_credentials);
+        let rejected = DeletionConfirmation {
+            credentials: true,
+            sessions: false,
+            history_retained_understood: true,
+        };
+        assert!(delete_account(&mut conn, &vault, root.path(), &first.id, &rejected).is_err());
+        assert!(account_record(&conn, &first.id).is_ok());
         let confirmation = DeletionConfirmation {
             credentials: true,
             sessions: true,

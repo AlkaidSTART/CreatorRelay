@@ -9,8 +9,13 @@ import {
   X,
 } from "../components/Icons";
 import { NavLink, useLocation, useNavigate, useOutlet } from "react-router";
-import { findRouteByPathname, PRIMARY_ROUTES, SECONDARY_ROUTES } from "../routes/navigation";
-import { useContentStore, usePlatformStore, useUiStore, useWorkspaceStore } from "../stores";
+import {
+  findRouteByPathname,
+  PRIMARY_ROUTES,
+  routeAvailabilityLabel,
+  SECONDARY_ROUTES,
+} from "../routes/navigation";
+import { usePlatformStore, useUiStore, useWorkspaceStore } from "../stores";
 import { applyThemeToDocument } from "../utils/themes";
 
 const ROUTE_ENTER_EASE = [0.22, 1, 0.36, 1] as const;
@@ -82,13 +87,7 @@ export function AppLayout() {
   const clearError = useUiStore((state) => state.clearError);
   const notice = useUiStore((state) => state.notice);
 
-  const pendingTaskCount = useContentStore(
-    (state) =>
-      state.publishTasks.filter(
-        (task) => task.status === "NEEDS_MANUAL_ACTION" || task.status === "SCHEDULED",
-      ).length,
-  );
-
+  const activeRoute = findRouteByPathname(location.pathname);
   const isStudioRoute = location.pathname.startsWith("/studio");
 
   useEffect(() => {
@@ -101,9 +100,8 @@ export function AppLayout() {
   }, [initialize, initializePlatforms]);
 
   useEffect(() => {
-    const activeRoute = findRouteByPathname(location.pathname);
     document.title = `CreatorRelay — ${activeRoute.label}`;
-  }, [location.pathname]);
+  }, [activeRoute.label]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -278,10 +276,6 @@ export function AppLayout() {
                 <nav className="flex flex-col gap-0.5" aria-label="主导航">
                   {PRIMARY_ROUTES.map((item) => {
                     const Icon = item.icon;
-                    const badge =
-                      item.id === "publishing" && pendingTaskCount > 0
-                        ? String(pendingTaskCount)
-                        : undefined;
                     return (
                       <NavLink
                         key={item.id}
@@ -314,9 +308,15 @@ export function AppLayout() {
                               }`}
                             />
                             <span className="relative z-10 truncate">{item.label}</span>
-                            {badge && (
-                              <span className="relative z-10 ml-auto rounded-full bg-rose-bg px-1.5 py-0.5 text-[10px] font-semibold text-rose-text">
-                                {badge}
+                            {item.availability !== "available" && (
+                              <span
+                                className={`relative z-10 ml-auto rounded-md px-1.5 py-0.5 text-[9.5px] font-medium ${
+                                  item.availability === "development"
+                                    ? "bg-lemon-bg text-lemon-text"
+                                    : "bg-sidebar text-ink-muted"
+                                }`}
+                              >
+                                {routeAvailabilityLabel(item)}
                               </span>
                             )}
                           </>
@@ -364,8 +364,16 @@ export function AppLayout() {
                               }`}
                             />
                             <span className="relative z-10 truncate">{item.label}</span>
-                            {item.id === "assistant" && (
-                              <span className="relative z-10 ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-mint-text" />
+                            {item.availability !== "available" && (
+                              <span
+                                className={`relative z-10 ml-auto rounded-md px-1.5 py-0.5 text-[9.5px] font-medium ${
+                                  item.availability === "development"
+                                    ? "bg-lemon-bg text-lemon-text"
+                                    : "bg-sidebar text-ink-muted"
+                                }`}
+                              >
+                                {routeAvailabilityLabel(item)}
+                              </span>
                             )}
                           </>
                         )}
@@ -435,6 +443,14 @@ export function AppLayout() {
 
       {/* Main Content Stage */}
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-canvas">
+        {activeRoute.availability === "development" && (
+          <div className="flex items-center justify-between border-b border-lemon-border bg-lemon-bg px-5 py-1.5 text-[11px] text-lemon-text">
+            <span>
+              <strong className="mr-1.5 font-medium">开发中 · {activeRoute.milestone}</strong>
+              该模块尚未完成阶段验收；桌面端仅展示本地真实记录，浏览器预览中的示例数据不代表已交付能力。
+            </span>
+          </div>
+        )}
         {showDemoBanner && (
           <div className="flex items-center justify-between border-b border-line bg-subtle px-5 py-1.5 text-[11px] text-ink-secondary">
             <span>

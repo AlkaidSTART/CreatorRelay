@@ -25,4 +25,15 @@ describe("PRD route navigation definitions", () => {
     expect(findRouteByPathname("/publishing/task-1").id).toBe("publishing");
     expect(findRouteByPathname("/unknown").id).toBe("studio");
   });
+
+  it("marks M1-open and later-stage modules instead of presenting all as complete", () => {
+    const settings = findRouteByPathname("/settings");
+    const studio = findRouteByPathname("/studio");
+    const analytics = findRouteByPathname("/analytics");
+
+    expect(settings.availability).toBe("available");
+    expect(studio.availability).toBe("development");
+    expect(analytics.availability).toBe("planned");
+    expect(analytics.milestone).toBe("M6");
+  });
 });
