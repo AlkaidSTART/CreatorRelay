@@ -1,7 +1,12 @@
+import { demoOverviewTrends, demoPlatformAccounts, demoPublishedContents } from "../data/demoData";
 import type { OverviewTrendDataset } from "../data/demoData";
 import type { ContentKind } from "../types/content";
 import type {
+  AnalyticsGranularity,
+  AnalyticsPoint,
+  AnalyticsQuery,
   AnalyticsResult,
+  AnalyticsSeries,
   DashboardFilter,
   ExternalWork,
   OperationsDashboard,

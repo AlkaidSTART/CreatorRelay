@@ -55,7 +55,7 @@ export const PRD_ROUTES: RouteMeta[] = [
   {
     id: "studio",
     path: "/studio",
-    label: "写作空间",
+    label: "内容工作室",
     enLabel: "Studio",
     eyebrow: "STUDIO",
     description: "视频、图文、图文文章与纯文章创作，AI 辅助和多平台适配稿",

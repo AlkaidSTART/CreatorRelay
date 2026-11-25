@@ -78,6 +78,7 @@ export function buildOverviewTrendOption(dataset: OverviewTrendDataset): Overvie
       containLabel: true,
     },
     legend: {
+      type: "scroll",
       top: 0,
       left: 0,
       icon: "circle",
@@ -173,9 +174,10 @@ export function buildOverviewTrendOption(dataset: OverviewTrendDataset): Overvie
       name: item.platformName,
       type: "line",
       smooth: 0.3,
-      showSymbol: false,
+      connectNulls: false,
+      showSymbol: true,
       symbol: "circle",
-      symbolSize: 6,
+      symbolSize: 5,
       data: item.values,
       lineStyle: {
         width: 2,
@@ -200,9 +202,14 @@ export function buildOverviewTrendOption(dataset: OverviewTrendDataset): Overvie
 interface OverviewTrendChartProps {
   dataset: OverviewTrendDataset;
   height?: number;
+  ariaLabel?: string;
 }
 
-export function OverviewTrendChart({ dataset, height = 280 }: OverviewTrendChartProps) {
+export function OverviewTrendChart({
+  dataset,
+  height = 280,
+  ariaLabel = "各平台流量趋势折线图",
+}: OverviewTrendChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
   const theme = useUiStore((state) => state.theme);
@@ -248,7 +255,7 @@ export function OverviewTrendChart({ dataset, height = 280 }: OverviewTrendChart
       className="w-full"
       style={{ height }}
       role="img"
-      aria-label="各平台作品趋势折线图"
+      aria-label={ariaLabel}
     />
   );
 }

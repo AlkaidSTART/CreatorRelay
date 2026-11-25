@@ -67,7 +67,7 @@ export function ModulePlaceholder({ routeId }: { routeId: string }) {
               onClick={() => navigate("/studio")}
               className="inline-flex h-8.5 cursor-pointer items-center rounded-xl border border-line-strong bg-surface px-3.5 text-xs font-medium text-ink-secondary hover:bg-subtle"
             >
-              返回开发中的写作空间
+              返回内容工作室
             </button>
           </div>
         </section>

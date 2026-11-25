@@ -52,7 +52,7 @@ export function MediaThumb({
   const { url, error } = useAssetObjectUrl(source, asset);
   if (!asset) {
     return (
-      <div className={`grid place-items-center rounded-lg bg-sidebar text-ink-faint ${className}`}>
+      <div className={`grid place-items-center rounded-xl bg-subtle text-ink-faint ${className}`}>
         <ImageIcon size={18} />
       </div>
     );
@@ -60,7 +60,7 @@ export function MediaThumb({
   if (error) {
     return (
       <div
-        className={`grid place-items-center rounded-lg border border-coral-border bg-coral-bg p-2 text-center text-[10px] text-coral-text ${className}`}
+        className={`grid place-items-center rounded-xl border border-coral-border bg-coral-bg p-2 text-center text-[10px] text-coral-text ${className}`}
       >
         素材读取失败
       </div>
@@ -68,7 +68,7 @@ export function MediaThumb({
   }
   if (!url) {
     return (
-      <div className={`grid place-items-center rounded-lg bg-sidebar text-ink-faint ${className}`}>
+      <div className={`grid place-items-center rounded-xl bg-subtle text-ink-faint ${className}`}>
         {asset.kind === "video" ? <Video size={18} /> : <ImageIcon size={18} />}
       </div>
     );
@@ -78,7 +78,7 @@ export function MediaThumb({
       <video
         src={url}
         controls={controls}
-        className={`rounded-lg bg-black object-cover ${className}`}
+        className={`rounded-xl bg-black object-cover ${className}`}
       />
     );
   }
@@ -86,7 +86,7 @@ export function MediaThumb({
     <img
       src={url}
       alt={asset.caption || asset.originalName}
-      className={`rounded-lg object-cover ${className}`}
+      className={`rounded-xl object-cover ${className}`}
     />
   );
 }
