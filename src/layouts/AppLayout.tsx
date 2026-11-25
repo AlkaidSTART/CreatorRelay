@@ -9,8 +9,14 @@ import {
   X,
 } from "../components/Icons";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
-import { PRIMARY_ROUTES, SECONDARY_ROUTES } from "../routes/navigation";
+import { findRouteByPathname, PRIMARY_ROUTES, SECONDARY_ROUTES } from "../routes/navigation";
 import { useContentStore, useUiStore, useWorkspaceStore } from "../stores";
+
+const QUICK_STARTER_TITLES = [
+  "一次生产环境的性能调优复盘",
+  "本地优先工具链的 3 个设计取舍",
+  "从零搭建个人多平台内容工作流",
+];
 
 export function AppLayout() {
   const navigate = useNavigate();
@@ -50,6 +56,11 @@ export function AppLayout() {
   }, [initialize]);
 
   useEffect(() => {
+    const activeRoute = findRouteByPathname(location.pathname);
+    document.title = `CreatorRelay — ${activeRoute.label}`;
+  }, [location.pathname]);
+
+  useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (!(event.metaKey || event.ctrlKey)) return;
       if (event.key.toLowerCase() === "n") {
@@ -73,117 +84,129 @@ export function AppLayout() {
 
   if (loading) {
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-white text-zinc-500">
+      <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-white text-[#6E6E73]">
         <img className="h-9 w-9 animate-pulse object-contain" src="/icon.svg" alt="" />
-        <span className="text-xs text-zinc-400">正在整理你的工作区...</span>
+        <span className="text-xs text-[#8E8E93]">正在整理工作区...</span>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-white text-zinc-900">
+    <div className="flex h-full w-full overflow-hidden bg-white text-[#1D1D1F]">
       <motion.aside
-        className="relative z-10 flex h-full shrink-0 flex-col overflow-hidden border-r border-zinc-200/80 bg-zinc-50/90 py-4"
+        className="relative z-10 flex h-full shrink-0 flex-col overflow-hidden border-r border-black/[0.07] bg-[#F5F5F7] py-4"
         initial={false}
-        animate={{ width: sidebarOpen ? 240 : 72 }}
+        animate={{ width: sidebarOpen ? 236 : 70 }}
         transition={
           reducedMotion
             ? { duration: 0 }
-            : { type: "spring", stiffness: 340, damping: 34, mass: 0.8 }
+            : { type: "spring", stiffness: 360, damping: 36, mass: 0.8 }
         }
         aria-label="应用侧边栏"
       >
+        {/* Brand Header */}
         <div
-          className={`flex h-8 shrink-0 items-center justify-between gap-2 ${sidebarOpen ? "mx-3" : "mx-auto w-10"}`}
+          className={`flex h-9 shrink-0 items-center justify-between gap-2 ${sidebarOpen ? "mx-3.5" : "mx-auto w-10"}`}
         >
-          <div className="flex min-w-0 items-center gap-2.5">
-            <img className="h-7 w-7 shrink-0 object-contain" src="/icon.svg" alt="" />
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard")}
+            className="flex min-w-0 cursor-pointer items-center gap-2.5 text-left"
+          >
+            <img className="h-7 w-7 shrink-0 object-contain" src="/icon.svg" alt="CreatorRelay" />
             <AnimatePresence initial={false}>
               {sidebarOpen && (
-                <motion.span
+                <motion.div
                   key="brand-label"
-                  initial={reducedMotion ? false : { opacity: 0, x: -7 }}
+                  initial={reducedMotion ? false : { opacity: 0, x: -6 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={reducedMotion ? undefined : { opacity: 0, x: -5 }}
+                  exit={reducedMotion ? undefined : { opacity: 0, x: -4 }}
                   transition={{
-                    duration: reducedMotion ? 0 : 0.16,
-                    delay: sidebarOpen && !reducedMotion ? 0.06 : 0,
+                    duration: reducedMotion ? 0 : 0.15,
+                    delay: sidebarOpen && !reducedMotion ? 0.04 : 0,
                   }}
-                  className="whitespace-nowrap text-[14px] font-semibold tracking-tight text-zinc-900"
+                  className="flex min-w-0 flex-col"
                 >
-                  CreatorRelay
-                </motion.span>
+                  <span className="whitespace-nowrap text-[14px] font-semibold tracking-tight text-[#1D1D1F]">
+                    CreatorRelay
+                  </span>
+                  <span className="whitespace-nowrap text-[10px] text-[#8E8E93]">
+                    一稿多发工作台
+                  </span>
+                </motion.div>
               )}
             </AnimatePresence>
-          </div>
+          </button>
           <motion.button
             type="button"
-            whileHover={reducedMotion ? undefined : { scale: 1.06, backgroundColor: "#e4e4e7" }}
+            whileHover={reducedMotion ? undefined : { backgroundColor: "rgba(0,0,0,0.06)" }}
             whileTap={reducedMotion ? undefined : { scale: 0.94 }}
-            transition={{ duration: reducedMotion ? 0 : 0.14 }}
-            className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-md text-zinc-500 outline-none hover:text-zinc-900 focus-visible:ring-2 focus-visible:ring-zinc-400"
+            transition={{ duration: reducedMotion ? 0 : 0.12 }}
+            className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-md text-[#8E8E93] outline-none hover:text-[#1D1D1F] focus-visible:ring-2 focus-visible:ring-[#2563EB]/40"
             aria-label={sidebarOpen ? "收起侧边栏" : "展开侧边栏"}
             aria-expanded={sidebarOpen}
             title={sidebarOpen ? "收起侧边栏" : "展开侧边栏"}
             onClick={() => setSidebarOpen(!sidebarOpen)}
           >
-            {sidebarOpen ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
+            {sidebarOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
           </motion.button>
         </div>
 
+        {/* Workspace Switcher */}
         <button
-          className={`mx-auto mt-4 flex h-10 shrink-0 cursor-pointer items-center overflow-hidden rounded-lg border border-zinc-200/80 bg-white text-left transition-colors hover:border-zinc-300 hover:bg-zinc-50 ${sidebarOpen ? "w-full gap-2.5 px-2" : "w-10 justify-center self-center p-0"}`}
+          className={`mx-auto mt-3.5 flex h-9.5 shrink-0 cursor-pointer items-center overflow-hidden rounded-lg border border-black/[0.07] bg-white text-left transition-colors hover:border-black/[0.14] ${sidebarOpen ? "w-[calc(100%-24px)] gap-2.5 px-2.5" : "w-10 justify-center self-center p-0"}`}
           onClick={() => void chooseWorkspace()}
           title={workspace?.name ?? "选择工作区"}
           aria-label={sidebarOpen ? undefined : `工作区：${workspace?.name ?? "选择工作区"}`}
         >
-          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-zinc-100 text-xs font-semibold text-zinc-700">
+          <span className="grid h-5.5 w-5.5 shrink-0 place-items-center rounded-md bg-[#F2F2F5] text-[11px] font-semibold text-[#1D1D1F]">
             {workspace?.name.slice(0, 1).toUpperCase() ?? "C"}
           </span>
           <AnimatePresence initial={false}>
             {sidebarOpen && (
               <motion.span
                 key="workspace-label"
-                initial={reducedMotion ? false : { opacity: 0, x: -6 }}
+                initial={reducedMotion ? false : { opacity: 0, x: -5 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={reducedMotion ? undefined : { opacity: 0, x: -4 }}
-                transition={{ duration: reducedMotion ? 0 : 0.15 }}
-                className="flex min-w-0 flex-1 items-center gap-2.5"
+                transition={{ duration: reducedMotion ? 0 : 0.14 }}
+                className="flex min-w-0 flex-1 items-center gap-2"
               >
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <strong className="truncate text-xs font-medium text-zinc-800">
+                  <strong className="truncate text-xs font-medium text-[#1D1D1F]">
                     {workspace?.name ?? "选择工作区"}
                   </strong>
-                  <small className="text-[10px] text-zinc-400">本地空间</small>
+                  <small className="text-[10px] text-[#8E8E93]">本地空间</small>
                 </span>
-                <ChevronsUpDown size={13} className="shrink-0 text-zinc-400" />
+                <ChevronsUpDown size={12} className="shrink-0 text-[#AEAEB2]" />
               </motion.span>
             )}
           </AnimatePresence>
         </button>
 
+        {/* Primary CTA — Crisp Royal Blue */}
         <motion.button
-          whileHover={reducedMotion ? undefined : { y: -1, backgroundColor: "#27272a" }}
-          whileTap={reducedMotion ? undefined : { scale: 0.97 }}
-          transition={{ duration: reducedMotion ? 0 : 0.14 }}
-          className={`mx-auto mt-3 flex h-9 shrink-0 cursor-pointer items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-lg bg-zinc-900 text-xs font-medium text-white ${sidebarOpen ? "w-[calc(100%-24px)] px-3" : "w-10 p-0"}`}
+          whileHover={reducedMotion ? undefined : { backgroundColor: "#1D4ED8" }}
+          whileTap={reducedMotion ? undefined : { scale: 0.98 }}
+          transition={{ duration: reducedMotion ? 0 : 0.12 }}
+          className={`mx-auto mt-2.5 flex h-8.5 shrink-0 cursor-pointer items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-lg bg-[#2563EB] text-xs font-medium text-white shadow-[0_1px_2px_rgba(37,99,235,0.28)] ${sidebarOpen ? "w-[calc(100%-24px)] px-3" : "w-10 p-0"}`}
           onClick={() => setIsCreating(true)}
           title="新建文章 (⌘N)"
           aria-label={sidebarOpen ? undefined : "新建文章"}
         >
-          <Plus size={14} />
+          <Plus size={13} />
           <AnimatePresence initial={false}>
             {sidebarOpen && (
               <motion.span
                 key="create-label"
-                initial={reducedMotion ? false : { opacity: 0, x: -6 }}
+                initial={reducedMotion ? false : { opacity: 0, x: -5 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={reducedMotion ? undefined : { opacity: 0, x: -4 }}
-                transition={{ duration: reducedMotion ? 0 : 0.15 }}
+                transition={{ duration: reducedMotion ? 0 : 0.14 }}
                 className="flex min-w-0 flex-1 items-center whitespace-nowrap"
               >
                 <span>新建文章</span>
-                <kbd className="ml-auto rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-normal text-zinc-300">
+                <kbd className="ml-auto rounded bg-white/18 px-1.5 py-0.5 text-[10px] font-normal text-white/90">
                   ⌘N
                 </kbd>
               </motion.span>
@@ -191,20 +214,21 @@ export function AppLayout() {
           </AnimatePresence>
         </motion.button>
 
+        {/* Navigation */}
         <div
-          className={`mt-6 min-h-0 flex-1 overflow-hidden ${sidebarOpen ? "px-3" : "flex flex-col items-center"}`}
+          className={`mt-5 min-h-0 flex-1 overflow-hidden ${sidebarOpen ? "px-3" : "flex flex-col items-center"}`}
         >
           <AnimatePresence mode="wait" initial={false}>
             {sidebarOpen ? (
               <motion.div
                 key="expanded-navigation"
-                initial={reducedMotion ? false : { opacity: 0, x: -5 }}
+                initial={reducedMotion ? false : { opacity: 0, x: -4 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={reducedMotion ? undefined : { opacity: 0, x: -4 }}
-                transition={{ duration: reducedMotion ? 0 : 0.15 }}
+                transition={{ duration: reducedMotion ? 0 : 0.14 }}
                 className="flex h-full min-h-0 flex-col"
               >
-                <div className="mb-1.5 px-2 text-[10px] font-medium tracking-wider text-zinc-400 uppercase">
+                <div className="mb-1.5 px-2.5 text-[10px] font-medium tracking-wider text-[#8E8E93] uppercase">
                   工作区
                 </div>
                 <nav className="flex flex-col gap-0.5" aria-label="主导航">
@@ -215,75 +239,83 @@ export function AppLayout() {
                         ? String(pendingTaskCount)
                         : undefined;
                     return (
-                      <motion.div
+                      <NavLink
                         key={item.id}
-                        whileHover={reducedMotion ? undefined : { x: 2 }}
-                        whileTap={reducedMotion ? undefined : { scale: 0.98 }}
-                        transition={{ duration: reducedMotion ? 0 : 0.13 }}
+                        to={item.path}
+                        className={({ isActive }) =>
+                          `group flex h-8.5 items-center gap-2.5 rounded-lg px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]/40 ${
+                            isActive
+                              ? "bg-white font-medium text-[#1D1D1F] shadow-[0_1px_2px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05]"
+                              : "text-[#58585D] hover:bg-black/[0.045] hover:text-[#1D1D1F]"
+                          }`
+                        }
                       >
-                        <NavLink
-                          to={item.path}
-                          className={({ isActive }) =>
-                            `group flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 ${isActive ? "bg-zinc-200/80 font-medium text-zinc-950" : "text-zinc-600 hover:bg-zinc-200/60 hover:text-zinc-950"}`
-                          }
-                        >
-                          <Icon
-                            size={16}
-                            className="shrink-0 transition-transform duration-150 group-hover:scale-105"
-                          />
-                          <span className="truncate">{item.label}</span>
-                          {badge && (
-                            <span className="ml-auto rounded-md bg-zinc-300/70 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700">
-                              {badge}
-                            </span>
-                          )}
-                        </NavLink>
-                      </motion.div>
+                        {({ isActive }) => (
+                          <>
+                            <Icon
+                              size={14}
+                              className={`shrink-0 transition-colors ${
+                                isActive ? "text-[#2563EB]" : "text-[#8E8E93] group-hover:text-[#58585D]"
+                              }`}
+                            />
+                            <span className="truncate">{item.label}</span>
+                            {badge && (
+                              <span className="ml-auto rounded-full bg-[#EFF6FF] px-1.5 py-0.5 text-[10px] font-semibold text-[#2563EB]">
+                                {badge}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </NavLink>
                     );
                   })}
                 </nav>
 
-                <div className="mt-auto flex flex-col gap-0.5 border-t border-zinc-200/80 pt-3">
-                  <div className="mb-1.5 px-2 text-[10px] font-medium tracking-wider text-zinc-400 uppercase">
-                    工具与系统
+                <div className="mt-auto flex flex-col gap-0.5 border-t border-black/[0.06] pt-3">
+                  <div className="mb-1.5 px-2.5 text-[10px] font-medium tracking-wider text-[#8E8E93] uppercase">
+                    工具与连接
                   </div>
                   {SECONDARY_ROUTES.map((item) => {
                     const Icon = item.icon;
                     return (
-                      <motion.div
+                      <NavLink
                         key={item.id}
-                        whileHover={reducedMotion ? undefined : { x: 2 }}
-                        whileTap={reducedMotion ? undefined : { scale: 0.98 }}
-                        transition={{ duration: reducedMotion ? 0 : 0.13 }}
+                        to={item.path}
+                        className={({ isActive }) =>
+                          `group flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-[12.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]/40 ${
+                            isActive
+                              ? "bg-white font-medium text-[#1D1D1F] shadow-[0_1px_2px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05]"
+                              : "text-[#6E6E73] hover:bg-black/[0.045] hover:text-[#1D1D1F]"
+                          }`
+                        }
                       >
-                        <NavLink
-                          to={item.path}
-                          className={({ isActive }) =>
-                            `group flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-[12.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 ${isActive ? "bg-zinc-200/80 font-medium text-zinc-950" : "text-zinc-500 hover:bg-zinc-200/60 hover:text-zinc-950"}`
-                          }
-                        >
-                          <Icon
-                            size={15}
-                            className="shrink-0 transition-transform duration-150 group-hover:scale-105"
-                          />
-                          <span className="truncate">{item.label}</span>
-                          {item.id === "assistant" && (
-                            <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                          )}
-                        </NavLink>
-                      </motion.div>
+                        {({ isActive }) => (
+                          <>
+                            <Icon
+                              size={14}
+                              className={`shrink-0 transition-colors ${
+                                isActive ? "text-[#2563EB]" : "text-[#8E8E93] group-hover:text-[#58585D]"
+                              }`}
+                            />
+                            <span className="truncate">{item.label}</span>
+                            {item.id === "assistant" && (
+                              <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                            )}
+                          </>
+                        )}
+                      </NavLink>
                     );
                   })}
                   <button
                     onClick={() => navigate("/settings")}
-                    className="mt-2 flex cursor-pointer items-center gap-2.5 border-t border-zinc-200/80 px-1.5 pt-3 text-left transition-opacity hover:opacity-80"
+                    className="mt-2 flex cursor-pointer items-center gap-2.5 border-t border-black/[0.06] px-1.5 pt-3 text-left transition-opacity hover:opacity-80"
                   >
-                    <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-zinc-200 bg-white text-xs font-medium text-zinc-700">
+                    <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-black/[0.08] bg-white text-xs font-medium text-[#1D1D1F]">
                       林
                     </div>
                     <div className="flex min-w-0 flex-1 flex-col">
-                      <strong className="truncate text-xs font-medium text-zinc-800">创作者</strong>
-                      <small className="truncate text-[10px] text-zinc-400">本地优先模式</small>
+                      <strong className="truncate text-xs font-medium text-[#1D1D1F]">创作者</strong>
+                      <small className="truncate text-[10px] text-[#8E8E93]">本地优先模式</small>
                     </div>
                   </button>
                 </div>
@@ -294,30 +326,28 @@ export function AppLayout() {
                 initial={reducedMotion ? false : { opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={reducedMotion ? undefined : { opacity: 0, y: -4 }}
-                transition={{ duration: reducedMotion ? 0 : 0.13 }}
+                transition={{ duration: reducedMotion ? 0 : 0.12 }}
                 className="mx-auto flex h-full min-h-0 w-10 flex-col items-center gap-1 overflow-y-auto"
                 aria-label="快捷导航"
               >
                 {[...PRIMARY_ROUTES, ...SECONDARY_ROUTES].map((item) => {
                   const Icon = item.icon;
                   return (
-                    <motion.div
+                    <NavLink
                       key={item.id}
-                      whileHover={reducedMotion ? undefined : { scale: 1.07, y: -1 }}
-                      whileTap={reducedMotion ? undefined : { scale: 0.94 }}
-                      transition={{ duration: reducedMotion ? 0 : 0.12 }}
+                      to={item.path}
+                      title={`${item.label} (${item.enLabel})`}
+                      aria-label={item.label}
+                      className={({ isActive }) =>
+                        `grid h-9 w-10 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]/40 ${
+                          isActive
+                            ? "bg-white text-[#2563EB] shadow-[0_1px_2px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05]"
+                            : "text-[#6E6E73] hover:bg-black/[0.045] hover:text-[#1D1D1F]"
+                        }`
+                      }
                     >
-                      <NavLink
-                        to={item.path}
-                        title={`${item.label} (${item.enLabel})`}
-                        aria-label={item.label}
-                        className={({ isActive }) =>
-                          `grid h-9 w-10 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 ${isActive ? "bg-zinc-200/80 text-zinc-950" : "text-zinc-500 hover:bg-zinc-200/60 hover:text-zinc-950"}`
-                        }
-                      >
-                        <Icon size={16} />
-                      </NavLink>
-                    </motion.div>
+                      <Icon size={15} />
+                    </NavLink>
                   );
                 })}
               </motion.nav>
@@ -327,19 +357,19 @@ export function AppLayout() {
       </motion.aside>
 
       {/* Main Content Stage */}
-      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-white">
+      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#FAFAFB]">
         {showDemoBanner && (
-          <div className="flex items-center justify-between border-b border-zinc-200/80 bg-zinc-50 px-5 py-1.5 text-[11px] text-zinc-500">
+          <div className="flex items-center justify-between border-b border-black/[0.06] bg-[#F5F5F7] px-5 py-1.5 text-[11px] text-[#6E6E73]">
             <span>
-              <strong className="mr-2 font-medium text-zinc-800">预览模式</strong>
-              当前为本地演示内容，桌面版将直接读写你的 SQLite 工作区。
+              <strong className="mr-1.5 font-medium text-[#1D1D1F]">演示环境</strong>
+              所有写作、分发与状态切换均可直接交互体验；桌面端直接读写本地文件夹。
             </span>
             <button
               onClick={() => setShowDemoBanner(false)}
               aria-label="关闭提示"
-              className="grid h-5 w-5 cursor-pointer place-items-center rounded text-zinc-400 hover:bg-zinc-200/60 hover:text-zinc-700"
+              className="grid h-5 w-5 cursor-pointer place-items-center rounded text-[#8E8E93] hover:bg-black/[0.05] hover:text-[#1D1D1F]"
             >
-              <X size={13} />
+              <X size={12} />
             </button>
           </div>
         )}
@@ -357,14 +387,21 @@ export function AppLayout() {
           </div>
         )}
 
-        {notice && (
-          <div
-            role="status"
-            className="pointer-events-none fixed top-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-zinc-900 px-3.5 py-2 text-xs font-medium text-white shadow-lg"
-          >
-            {notice}
-          </div>
-        )}
+        <AnimatePresence>
+          {notice && (
+            <motion.div
+              key="toast"
+              role="status"
+              initial={reducedMotion ? false : { opacity: 0, y: -8, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={reducedMotion ? undefined : { opacity: 0, y: -6, scale: 0.97 }}
+              transition={{ duration: 0.16 }}
+              className="pointer-events-none fixed top-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-[#1D1D1F] px-3.5 py-2 text-xs font-medium text-white shadow-lg"
+            >
+              {notice}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
           <Outlet />
@@ -374,13 +411,13 @@ export function AppLayout() {
       {/* Create Document Modal */}
       {isCreating && (
         <div
-          className="fixed inset-0 z-40 grid place-items-center bg-zinc-950/25 backdrop-blur-[2px]"
+          className="fixed inset-0 z-40 grid place-items-center bg-black/25 backdrop-blur-[2px]"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setIsCreating(false);
           }}
         >
           <form
-            className="relative w-[min(420px,calc(100vw-32px))] rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl"
+            className="relative w-[min(440px,calc(100vw-32px))] rounded-2xl border border-black/[0.08] bg-white p-6 shadow-2xl"
             onSubmit={(event) => {
               event.preventDefault();
               void handleCreateSubmit();
@@ -388,25 +425,25 @@ export function AppLayout() {
           >
             <button
               type="button"
-              className="absolute top-4 right-4 grid h-7 w-7 cursor-pointer place-items-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+              className="absolute top-4 right-4 grid h-7 w-7 cursor-pointer place-items-center rounded-md text-[#8E8E93] transition-colors hover:bg-[#F5F5F7] hover:text-[#1D1D1F]"
               onClick={() => setIsCreating(false)}
               aria-label="关闭"
             >
-              <X size={16} />
+              <X size={15} />
             </button>
 
-            <div className="mb-4 grid h-9 w-9 place-items-center rounded-xl bg-zinc-100 text-zinc-800">
-              <FilePlus2 size={18} />
+            <div className="mb-4 grid h-9 w-9 place-items-center rounded-xl bg-[#EFF6FF] text-[#2563EB]">
+              <FilePlus2 size={17} />
             </div>
 
-            <h2 className="text-lg font-semibold tracking-tight text-zinc-900">开始一篇新文章</h2>
-            <p className="mt-1 text-xs leading-relaxed text-zinc-500">
-              创建一个独立的 Markdown 主稿，内容将保存在当前工作区目录中。
+            <h2 className="text-lg font-semibold tracking-tight text-[#1D1D1F]">新建本地主稿</h2>
+            <p className="mt-1 text-xs leading-relaxed text-[#6E6E73]">
+              保存为本地 Markdown 文件，写作完成后可一键生成掘金、CSDN、知乎等多平台适配稿。
             </p>
 
             <label
               htmlFor="document-title"
-              className="mt-5 mb-1.5 block text-xs font-medium text-zinc-700"
+              className="mt-5 mb-1.5 block text-xs font-medium text-[#1D1D1F]"
             >
               文章标题
             </label>
@@ -415,14 +452,30 @@ export function AppLayout() {
               autoFocus
               value={newTitle}
               onChange={(event) => setNewTitle(event.target.value)}
-              placeholder="例如：一次关于边缘计算的实践"
-              className="h-9 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none"
+              placeholder="例如：一次关于边缘计算的轻量化实践"
+              className="h-9.5 w-full rounded-lg border border-black/[0.12] bg-white px-3 text-sm text-[#1D1D1F] placeholder:text-[#AEAEB2] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/15"
             />
+
+            <div className="mt-3">
+              <span className="text-[11px] text-[#8E8E93]">快速填入示例标题：</span>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {QUICK_STARTER_TITLES.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => setNewTitle(suggestion)}
+                    className="cursor-pointer rounded-md border border-black/[0.08] bg-[#FAFAFB] px-2.5 py-1 text-[11px] text-[#58585D] transition-colors hover:border-[#2563EB]/40 hover:bg-[#EFF6FF] hover:text-[#2563EB]"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <div className="mt-6 flex justify-end gap-2">
               <button
                 type="button"
-                className="h-8 cursor-pointer rounded-lg border border-zinc-200 bg-white px-3.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-50"
+                className="h-8.5 cursor-pointer rounded-lg border border-black/[0.1] bg-white px-3.5 text-xs font-medium text-[#58585D] transition-colors hover:bg-[#F5F5F7]"
                 onClick={() => setIsCreating(false)}
               >
                 取消
@@ -430,10 +483,10 @@ export function AppLayout() {
               <button
                 type="submit"
                 disabled={!newTitle.trim()}
-                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-zinc-900 px-3.5 text-xs font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
+                className="inline-flex h-8.5 cursor-pointer items-center gap-1.5 rounded-lg bg-[#2563EB] px-3.5 text-xs font-medium text-white transition-colors hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:bg-[#C7C7CC]"
               >
-                <Plus size={14} />
-                创建文章
+                <Plus size={13} />
+                创建并开始写作
               </button>
             </div>
           </form>

@@ -37,7 +37,7 @@ let instance = linker.instantiate(&mut store, &module)?;
 
 ## 设计时的几个取舍
 
-我们先先把输入输出定义成稳定的 JSON Schema，再把运行时当成一个可替换的执行器。这样可以让本地调试、单元测试和边缘部署保持一致。
+我们先将输入输出定义成稳定的 JSON Schema，再把运行时当成一个可替换的执行器。这样可以让本地调试、单元测试和边缘部署保持一致。
 
 > 沙箱边界应该由宿主明确定义，而不是依赖插件作者自觉。
 
@@ -389,7 +389,7 @@ export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
         platformName: "掘金",
         accountAlias: "技术主号",
         metricLabel: "文章阅读（掘金口径）",
-        color: "#18181b",
+        color: "#1E80FF",
         values: [1120, 1480, 1360, 2240, 2680, 2410, 2950],
       },
       {
@@ -397,7 +397,7 @@ export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
         platformName: "Bilibili",
         accountAlias: "林工视频号",
         metricLabel: "视频播放（Bilibili 口径）",
-        color: "#2563eb",
+        color: "#FB7299",
         values: [2840, 3420, 3190, 3860, 4290, 4610, 5120],
       },
       {
@@ -405,7 +405,7 @@ export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
         platformName: "CSDN",
         accountAlias: "Rust 专栏号",
         metricLabel: "博客阅读（CSDN 口径）",
-        color: "#d97706",
+        color: "#E05A2B",
         values: [890, 1020, 1180, 1290, 1410, 1340, 1580],
       },
       {
@@ -413,7 +413,7 @@ export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
         platformName: "知乎",
         accountAlias: "林工笔记",
         metricLabel: "专栏浏览（知乎口径）",
-        color: "#059669",
+        color: "#2F7D5B",
         values: [640, 720, 810, 960, 1120, 1380, 1490],
       },
     ],
@@ -438,7 +438,7 @@ export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
         platformName: "掘金",
         accountAlias: "技术主号",
         metricLabel: "文章阅读（掘金口径）",
-        color: "#18181b",
+        color: "#1E80FF",
         values: [1420, 1680, 1950, 1810, 2190, 2480, 2320, 2610, 2890, 3120, 3450],
       },
       {
@@ -446,7 +446,7 @@ export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
         platformName: "Bilibili",
         accountAlias: "林工视频号",
         metricLabel: "视频播放（Bilibili 口径）",
-        color: "#2563eb",
+        color: "#FB7299",
         values: [2150, 2480, 2760, 3120, 2980, 3540, 3890, 4120, 4380, 4760, 5120],
       },
       {
@@ -454,7 +454,7 @@ export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
         platformName: "CSDN",
         accountAlias: "Rust 专栏号",
         metricLabel: "博客阅读（CSDN 口径）",
-        color: "#d97706",
+        color: "#E05A2B",
         values: [780, 860, 940, 1080, 1150, 1210, 1190, 1340, 1420, 1490, 1580],
       },
       {
@@ -462,7 +462,7 @@ export const demoOverviewTrends: Record<TrendRange, OverviewTrendDataset> = {
         platformName: "知乎",
         accountAlias: "林工笔记",
         metricLabel: "专栏浏览（知乎口径）",
-        color: "#059669",
+        color: "#2F7D5B",
         values: [520, 610, 690, 740, 820, 890, 970, 1050, 1180, 1340, 1490],
       },
     ],

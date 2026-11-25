@@ -14,7 +14,7 @@ function App() {
     <HashRouter>
       <Routes>
         <Route element={<AppLayout />}>
-          <Route index element={<Navigate to="/studio" replace />} />
+          <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/studio" element={<StudioPage />} />
           <Route path="/publishing" element={<PublishingPage />} />

@@ -49,6 +49,15 @@ export interface ContentStore {
   setAnalyticsRange: (range: AnalyticsRange) => void;
   sendAssistantPrompt: (text: string) => void;
   checkPlatformAccountStatus: (accountId: string) => void;
+  reauthPlatformAccount: (accountId: string) => void;
+  createPublishTaskFromDraft: (payload: {
+    articleTitle: string;
+    platform: string;
+    platformMark: string;
+    accountAlias: string;
+  }) => void;
+  completePublishTask: (taskId: string) => void;
+  retryPublishTask: (taskId: string) => void;
 }
 
 const createContentStoreState: StateCreator<ContentStore> = (set, get) => ({
@@ -106,6 +115,88 @@ const createContentStoreState: StateCreator<ContentStore> = (set, get) => ({
     useUiStore
       .getState()
       .showToast(`已检测 ${target.platformName} (${target.alias}) 会话状态`);
+  },
+
+  reauthPlatformAccount: (accountId) => {
+    const target = get().platformAccounts.find((item) => item.id === accountId);
+    if (!target) return;
+    set((state) => ({
+      platformAccounts: state.platformAccounts.map((item) =>
+        item.id === accountId ? { ...item, status: "ACTIVE", lastSyncedAt: "刚刚" } : item,
+      ),
+    }));
+    useUiStore
+      .getState()
+      .showToast(`${target.platformName} (${target.alias}) 已重新连接，会话恢复正常`);
+  },
+
+  createPublishTaskFromDraft: ({ articleTitle, platform, platformMark, accountAlias }) => {
+    const existing = get().publishTasks.find(
+      (task) => task.articleTitle === articleTitle && task.platform === platform,
+    );
+    if (existing) {
+      useUiStore
+        .getState()
+        .showToast(`《${articleTitle}》已在 ${platform} 接力队列中`);
+      return;
+    }
+    const newTask: PublishTaskItem = {
+      id: `task-${Date.now()}`,
+      articleTitle,
+      draftType: "Platform Draft",
+      platform,
+      platformMark,
+      accountAlias,
+      status: "NEEDS_MANUAL_ACTION",
+      updatedAt: "刚刚",
+      note: `已从主稿自动生成 ${platform} 适配稿，确认封面与标签后即可一键发布`,
+    };
+    set((state) => ({
+      publishTasks: [newTask, ...state.publishTasks],
+    }));
+    useUiStore
+      .getState()
+      .showToast(`已为 ${platform} 生成适配稿并加入发布接力队列`);
+  },
+
+  completePublishTask: (taskId) => {
+    const target = get().publishTasks.find((task) => task.id === taskId);
+    if (!target) return;
+    set((state) => ({
+      publishTasks: state.publishTasks.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              status: "SUCCESS",
+              updatedAt: "刚刚",
+              note: `已完成 ${task.platform} 发布确认，外部作品链接已自动归档`,
+            }
+          : task,
+      ),
+    }));
+    useUiStore
+      .getState()
+      .showToast(`《${target.articleTitle}》已成功接力发布至 ${target.platform}`);
+  },
+
+  retryPublishTask: (taskId) => {
+    const target = get().publishTasks.find((task) => task.id === taskId);
+    if (!target) return;
+    set((state) => ({
+      publishTasks: state.publishTasks.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              status: "NEEDS_MANUAL_ACTION",
+              updatedAt: "刚刚",
+              note: "已重新核对平台会话状态，确认封面与标签后即可继续发布",
+            }
+          : task,
+      ),
+    }));
+    useUiStore
+      .getState()
+      .showToast(`已重新检查 ${target.platform} 发布任务，可立即确认发布`);
   },
 });
 
