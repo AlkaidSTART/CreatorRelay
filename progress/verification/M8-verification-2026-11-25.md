@@ -205,3 +205,19 @@ PY
 
 - **人工/平台检查：** 未登录各平台账号，未读取真实作品/分析数据，未进行实际发布，也未在桌面 Tauri 窗口执行 UI 手工回归。
 - **总体状态：** 创作者中心链接 UI、SQLite 和 MCP 链接目录实现检查通过；真实平台 MCP 数据读取与发布仍 `not verified`。该功能增量为 `partial`；M8 保持 `blocked / not accepted`，不创建 acceptance report。
+
+## 当前工作树复核补充（2026-11-25）
+
+验证过程中仓库 HEAD 从起始 `8fef196` 前进到 `e9d0e7f`，期间出现额外的 Rust 源码拆分改动；当前工作树还包含 `src-tauri/src/content/*` 与 `src-tauri/src/lib_tests.rs`、`src-tauri/src/workspace_support.rs` 等非本需求文件变化。为避免覆盖并行工作，本需求没有回滚或修理这些文件。
+
+先前 `cargo test --manifest-path src-tauri/Cargo.toml --lib` 的 76 项通过结果是在 HEAD 前进前取得。针对当前工作树再次执行：
+
+```text
+cargo test --manifest-path src-tauri/Cargo.toml --lib
+# fail：src-tauri/src/lib.rs:2477 的 #[cfg(test)] 后没有 item
+
+cargo test --manifest-path src-tauri/Cargo.toml --all-targets
+# fail：额外出现 src-tauri/src/content/* 拆分模块中的未解析函数/私有可见性错误
+```
+
+因此当前最终工作树的 Rust 回归为 `blocked`；不能把之前的 76 项通过当作当前 HEAD 的结果。创作者中心代码的 TypeScript 测试、类型检查、lint、前端构建仍通过，但当前 Tauri/Rust 检查未通过。修复上述并行源码拆分后，必须重跑 Rust 全目标测试，再做桌面 UI 手工检查；在此之前 M8 继续 `not accepted / blocked`。

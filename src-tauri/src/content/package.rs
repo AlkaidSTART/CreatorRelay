@@ -1,8 +1,14 @@
-use super::*;
 use super::paths::{
     atomic_write, content_root, digest, normalized_tags, normalized_title, package_directory,
     validate_component,
 };
+use super::*;
+use chrono::Utc;
+use std::{
+    fs,
+    path::{Component, Path, PathBuf},
+};
+use uuid::Uuid;
 
 pub(super) fn validate_asset_path(package_dir: &Path, file: &str) -> Result<PathBuf, String> {
     let path = Path::new(file);
@@ -128,7 +134,10 @@ pub(super) fn read_body(package_dir: &Path, kind: ContentKind) -> Result<String,
     }
 }
 
-pub(super) fn package_from_directory(workspace: &Path, package_dir: &Path) -> Result<ContentPackage, String> {
+pub(super) fn package_from_directory(
+    workspace: &Path,
+    package_dir: &Path,
+) -> Result<ContentPackage, String> {
     let (mut manifest, manifest_raw) = read_manifest(package_dir)?;
     validate_media_order(&mut manifest.media)?;
     validate_assets(package_dir, manifest.cover.as_ref(), &manifest.media)?;
@@ -471,4 +480,3 @@ pub fn derive_content_package(
     atomic_write(&package_dir.join(MANIFEST_NAME), &raw)?;
     package_from_directory(workspace, &package_dir)
 }
-

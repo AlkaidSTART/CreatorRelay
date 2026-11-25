@@ -1,13 +1,4 @@
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use std::{
-    fs,
-    io::Write,
-    path::{Component, Path, PathBuf},
-};
-use tempfile::NamedTempFile;
-use uuid::Uuid;
 
 pub const CONTENT_SCHEMA_VERSION: u32 = 1;
 const MANIFEST_NAME: &str = "content.json";
@@ -199,7 +190,6 @@ pub struct DraftSaveInput {
     pub base_hash: String,
 }
 
-
 mod drafts;
 mod package;
 mod paths;
@@ -208,4 +198,3 @@ mod tests;
 
 pub use drafts::*;
 pub use package::*;
-pub(crate) use paths::*;

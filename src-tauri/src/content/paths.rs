@@ -106,4 +106,3 @@ pub(super) fn normalized_tags(tags: Vec<String>) -> Result<Vec<String>, String> 
     }
     Ok(output)
 }
-
