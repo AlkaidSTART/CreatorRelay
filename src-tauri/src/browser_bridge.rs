@@ -106,7 +106,12 @@ impl BrowserBridge {
             state.last_error = Some(format!("Chrome 进程已退出：{status}"));
         }
         Ok(BrowserBridgeStatus {
-            state: if state.child.is_some() { "running" } else { "stopped" }.to_string(),
+            state: if state.child.is_some() {
+                "running"
+            } else {
+                "stopped"
+            }
+            .to_string(),
             endpoint: format!("http://127.0.0.1:{DEFAULT_PORT}"),
             profile_directory: state.profile_directory.to_string_lossy().into_owned(),
             browser_version: state.browser_version.clone(),
@@ -119,7 +124,10 @@ impl BrowserBridge {
     pub fn start(&self) -> Result<BrowserBridgeStatus, String> {
         let mut state = self.state.lock().map_err(|error| error.to_string())?;
         if let Some(child) = state.child.as_mut()
-            && child.try_wait().map_err(|error| error.to_string())?.is_none()
+            && child
+                .try_wait()
+                .map_err(|error| error.to_string())?
+                .is_none()
         {
             return Ok(status_view(&state));
         }
@@ -143,15 +151,22 @@ impl BrowserBridge {
         drop(state);
         let version = wait_for_devtools(Instant::now() + Duration::from_secs(12))?;
         let mut state = self.state.lock().map_err(|error| error.to_string())?;
-        state.browser_version = version.get("Browser").and_then(Value::as_str).map(str::to_owned);
+        state.browser_version = version
+            .get("Browser")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
         Ok(status_view(&state))
     }
 
     pub fn stop(&self) -> Result<BrowserBridgeStatus, String> {
         let mut state = self.state.lock().map_err(|error| error.to_string())?;
         if let Some(mut child) = state.child.take() {
-            child.kill().map_err(|error| format!("关闭 MCP Chrome 失败：{error}"))?;
-            child.wait().map_err(|error| format!("回收 MCP Chrome 失败：{error}"))?;
+            child
+                .kill()
+                .map_err(|error| format!("关闭 MCP Chrome 失败：{error}"))?;
+            child
+                .wait()
+                .map_err(|error| format!("回收 MCP Chrome 失败：{error}"))?;
         }
         state.current_platform_id = None;
         state.current_url = None;
@@ -226,7 +241,12 @@ impl BrowserBridge {
 
 fn status_view(state: &BrowserState) -> BrowserBridgeStatus {
     BrowserBridgeStatus {
-        state: if state.child.is_some() { "running" } else { "stopped" }.to_string(),
+        state: if state.child.is_some() {
+            "running"
+        } else {
+            "stopped"
+        }
+        .to_string(),
         endpoint: format!("http://127.0.0.1:{DEFAULT_PORT}"),
         profile_directory: state.profile_directory.to_string_lossy().into_owned(),
         browser_version: state.browser_version.clone(),
@@ -239,25 +259,54 @@ fn status_view(state: &BrowserState) -> BrowserBridgeStatus {
 fn chrome_executable() -> Result<PathBuf, String> {
     if let Some(path) = std::env::var_os("CREATORRELAY_CHROME_PATH") {
         let path = PathBuf::from(path);
-        return if path.is_file() { Ok(path) } else { Err("CREATORRELAY_CHROME_PATH 不是有效文件".to_string()) };
+        return if path.is_file() {
+            Ok(path)
+        } else {
+            Err("CREATORRELAY_CHROME_PATH 不是有效文件".to_string())
+        };
     }
     #[cfg(target_os = "macos")]
     {
         let candidates = [
             PathBuf::from("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
-            PathBuf::from(format!("{}/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", std::env::var("HOME").unwrap_or_default())),
+            PathBuf::from(format!(
+                "{}/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                std::env::var("HOME").unwrap_or_default()
+            )),
         ];
-        candidates.into_iter().find(|path| path.is_file()).ok_or_else(|| "找不到 Google Chrome；请安装 Chrome 或设置 CREATORRELAY_CHROME_PATH".to_string())
+        candidates
+            .into_iter()
+            .find(|path| path.is_file())
+            .ok_or_else(|| {
+                "找不到 Google Chrome；请安装 Chrome 或设置 CREATORRELAY_CHROME_PATH".to_string()
+            })
     }
     #[cfg(target_os = "windows")]
     {
-        let roots = [std::env::var_os("PROGRAMFILES"), std::env::var_os("PROGRAMFILES(X86)"), std::env::var_os("LOCALAPPDATA")];
-        roots.into_iter().flatten().map(PathBuf::from).map(|root| root.join("Google/Chrome/Application/chrome.exe")).find(|path| path.is_file()).ok_or_else(|| "找不到 Google Chrome；请设置 CREATORRELAY_CHROME_PATH".to_string())
+        let roots = [
+            std::env::var_os("PROGRAMFILES"),
+            std::env::var_os("PROGRAMFILES(X86)"),
+            std::env::var_os("LOCALAPPDATA"),
+        ];
+        roots
+            .into_iter()
+            .flatten()
+            .map(PathBuf::from)
+            .map(|root| root.join("Google/Chrome/Application/chrome.exe"))
+            .find(|path| path.is_file())
+            .ok_or_else(|| "找不到 Google Chrome；请设置 CREATORRELAY_CHROME_PATH".to_string())
     }
     #[cfg(target_os = "linux")]
     {
-        for name in ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"] {
-            if let Ok(path) = which(name) { return Ok(path); }
+        for name in [
+            "google-chrome",
+            "google-chrome-stable",
+            "chromium",
+            "chromium-browser",
+        ] {
+            if let Ok(path) = which(name) {
+                return Ok(path);
+            }
         }
         Err("找不到 Chrome/Chromium；请设置 CREATORRELAY_CHROME_PATH".to_string())
     }
@@ -266,7 +315,10 @@ fn chrome_executable() -> Result<PathBuf, String> {
 #[cfg(target_os = "linux")]
 fn which(name: &str) -> Result<PathBuf, String> {
     let path = std::env::var_os("PATH").unwrap_or_default();
-    std::env::split_paths(&path).map(|dir| dir.join(name)).find(|candidate| candidate.is_file()).ok_or_else(|| format!("未找到 {name}"))
+    std::env::split_paths(&path)
+        .map(|dir| dir.join(name))
+        .find(|candidate| candidate.is_file())
+        .ok_or_else(|| format!("未找到 {name}"))
 }
 
 fn wait_for_devtools(deadline: Instant) -> Result<Value, String> {
@@ -293,13 +345,13 @@ fn get_json(url: &str) -> Result<Value, String> {
         .take(MAX_DEBUGGER_JSON as u64)
         .read_to_end(&mut bytes)
         .map_err(|error| format!("读取 Chrome DevTools 响应失败：{error}"))?;
-    serde_json::from_slice(&bytes).map_err(|error| format!("Chrome DevTools 返回无效 JSON：{error}"))
+    serde_json::from_slice(&bytes)
+        .map_err(|error| format!("Chrome DevTools 返回无效 JSON：{error}"))
 }
 
 fn url_matches_platform(configured: &Url, candidate: &str) -> bool {
-    Url::parse(candidate).is_ok_and(|url| {
-        url.scheme() == "https" && url.host_str() == configured.host_str()
-    })
+    Url::parse(candidate)
+        .is_ok_and(|url| url.scheme() == "https" && url.host_str() == configured.host_str())
 }
 
 fn open_or_reuse_tab(configured: &Url, destination: &str) -> Result<CdpTarget, String> {
@@ -309,42 +361,86 @@ fn open_or_reuse_tab(configured: &Url, destination: &str) -> Result<CdpTarget, S
         .into_iter()
         .flatten()
         .filter_map(|value| serde_json::from_value::<CdpTarget>(value.clone()).ok())
-        .find(|target| target.target_type == "page" && (target.url.starts_with("about:") || url_matches_platform(configured, &target.url)));
+        .find(|target| {
+            target.target_type == "page"
+                && (target.url.starts_with("about:")
+                    || url_matches_platform(configured, &target.url))
+        });
     if let Some(target) = reusable {
-        cdp_command(&target.websocket_url, "Page.navigate", serde_json::json!({"url":destination}))?;
-        return Ok(CdpTarget { url: destination.to_string(), ..target });
+        cdp_command(
+            &target.websocket_url,
+            "Page.navigate",
+            serde_json::json!({"url":destination}),
+        )?;
+        return Ok(CdpTarget {
+            url: destination.to_string(),
+            ..target
+        });
     }
-    let url = format!("http://127.0.0.1:{DEFAULT_PORT}/json/new?{}", percent_encode(destination));
-    let response = ureq::put(&url).call().or_else(|_| ureq::get(&url).call())
-        .map_err(|error|format!("无法创建平台标签页：{error}"))?;
-    let mut bytes=Vec::new();
-    response.into_body().into_reader().take(MAX_DEBUGGER_JSON as u64).read_to_end(&mut bytes).map_err(|error|error.to_string())?;
-    serde_json::from_slice(&bytes).map_err(|error|format!("无法解析新标签页信息：{error}"))
+    let url = format!(
+        "http://127.0.0.1:{DEFAULT_PORT}/json/new?{}",
+        percent_encode(destination)
+    );
+    let response = ureq::put(&url)
+        .call()
+        .or_else(|_| ureq::get(&url).call())
+        .map_err(|error| format!("无法创建平台标签页：{error}"))?;
+    let mut bytes = Vec::new();
+    response
+        .into_body()
+        .into_reader()
+        .take(MAX_DEBUGGER_JSON as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|error| error.to_string())?;
+    serde_json::from_slice(&bytes).map_err(|error| format!("无法解析新标签页信息：{error}"))
 }
 
-fn wait_for_page_text(target: &CdpTarget, platform_id: &str, platform_name: &str) -> Result<BrowserPageSnapshot, String> {
+fn wait_for_page_text(
+    target: &CdpTarget,
+    platform_id: &str,
+    platform_name: &str,
+) -> Result<BrowserPageSnapshot, String> {
     let platform = Url::parse(&target.url).map_err(|error| error.to_string())?;
-    let result = cdp_command(&target.websocket_url, "Runtime.evaluate", serde_json::json!({
-        "expression": "JSON.stringify({title:document.title,url:location.href,text:(document.body?.innerText||'').slice(0,60000)})",
-        "returnByValue": true,
-        "awaitPromise": true,
-        "userGesture": false
-    }))?;
+    let result = cdp_command(
+        &target.websocket_url,
+        "Runtime.evaluate",
+        serde_json::json!({
+            "expression": "JSON.stringify({title:document.title,url:location.href,text:(document.body?.innerText||'').slice(0,60000)})",
+            "returnByValue": true,
+            "awaitPromise": true,
+            "userGesture": false
+        }),
+    )?;
     let value = result
         .pointer("/result/result/value")
         .and_then(Value::as_str)
         .ok_or_else(|| "页面未返回可见文本".to_string())?;
-    let value: Value = serde_json::from_str(value).map_err(|error| format!("页面快照解析失败：{error}"))?;
-    let url = value.get("url").and_then(Value::as_str).unwrap_or(&target.url).to_string();
+    let value: Value =
+        serde_json::from_str(value).map_err(|error| format!("页面快照解析失败：{error}"))?;
+    let url = value
+        .get("url")
+        .and_then(Value::as_str)
+        .unwrap_or(&target.url)
+        .to_string();
     if !url_matches_platform(&platform, &url) {
         return Err("页面重定向到未获准的平台域名".to_string());
     }
-    let text = value.get("text").and_then(Value::as_str).unwrap_or_default().chars().take(MAX_PAGE_TEXT).collect::<String>();
+    let text = value
+        .get("text")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .chars()
+        .take(MAX_PAGE_TEXT)
+        .collect::<String>();
     Ok(BrowserPageSnapshot {
         platform_id: platform_id.to_string(),
         platform_name: platform_name.to_string(),
         url,
-        title: value.get("title").and_then(Value::as_str).unwrap_or(&target.title).to_string(),
+        title: value
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or(&target.title)
+            .to_string(),
         text,
         captured_at: chrono::Utc::now().to_rfc3339(),
         note: "读取当前页面可见文本；未执行平台操作、未读取隐藏应用状态或接口响应。".to_string(),
@@ -353,53 +449,148 @@ fn wait_for_page_text(target: &CdpTarget, platform_id: &str, platform_name: &str
 
 fn cdp_command(websocket_url: &str, method: &str, params: Value) -> Result<Value, String> {
     let url = Url::parse(websocket_url).map_err(|error| error.to_string())?;
-    let host = url.host_str().ok_or_else(|| "WebSocket 地址无主机".to_string())?;
-    if host != "127.0.0.1" && host != "localhost" { return Err("仅允许本机 Chrome DevTools WebSocket".to_string()); }
-    let port = url.port().ok_or_else(|| "WebSocket 地址缺少端口".to_string())?;
-    let path = format!("{}{}", url.path(), url.query().map(|query| format!("?{query}")).unwrap_or_default());
-    let mut stream = TcpStream::connect((host, port)).map_err(|error| format!("连接 Chrome DevTools 失败：{error}"))?;
-    stream.set_read_timeout(Some(Duration::from_secs(6))).map_err(|error| error.to_string())?;
-    stream.set_write_timeout(Some(Duration::from_secs(6))).map_err(|error| error.to_string())?;
+    let host = url
+        .host_str()
+        .ok_or_else(|| "WebSocket 地址无主机".to_string())?;
+    if host != "127.0.0.1" && host != "localhost" {
+        return Err("仅允许本机 Chrome DevTools WebSocket".to_string());
+    }
+    let port = url
+        .port()
+        .ok_or_else(|| "WebSocket 地址缺少端口".to_string())?;
+    let path = format!(
+        "{}{}",
+        url.path(),
+        url.query()
+            .map(|query| format!("?{query}"))
+            .unwrap_or_default()
+    );
+    let mut stream = TcpStream::connect((host, port))
+        .map_err(|error| format!("连接 Chrome DevTools 失败：{error}"))?;
+    stream
+        .set_read_timeout(Some(Duration::from_secs(6)))
+        .map_err(|error| error.to_string())?;
+    stream
+        .set_write_timeout(Some(Duration::from_secs(6)))
+        .map_err(|error| error.to_string())?;
     let key = base64::engine::general_purpose::STANDARD.encode(Uuid::new_v4().as_bytes());
     write!(stream, "GET {path} HTTP/1.1\r\nHost: {host}:{port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n").map_err(|error| error.to_string())?;
     stream.flush().map_err(|error| error.to_string())?;
     let mut reader = BufReader::new(stream);
     let mut response = String::new();
-    loop { response.clear(); reader.read_line(&mut response).map_err(|error| error.to_string())?; if response == "\r\n" || response.is_empty() { break; } if response.starts_with("HTTP/") && !response.contains("101") { return Err(format!("Chrome DevTools WebSocket 握手失败：{}", response.trim())); } }
+    loop {
+        response.clear();
+        reader
+            .read_line(&mut response)
+            .map_err(|error| error.to_string())?;
+        if response == "\r\n" || response.is_empty() {
+            break;
+        }
+        if response.starts_with("HTTP/") && !response.contains("101") {
+            return Err(format!(
+                "Chrome DevTools WebSocket 握手失败：{}",
+                response.trim()
+            ));
+        }
+    }
     let mut id = 1;
     let request = serde_json::json!({"id":id,"method":method,"params":params}).to_string();
     send_ws_text(reader.get_mut(), request.as_bytes())?;
     loop {
-        let Some((opcode, payload)) = read_ws_frame(reader.get_mut())? else { continue; };
-        if opcode == 8 { return Err("Chrome DevTools WebSocket 已关闭".to_string()); }
-        if opcode != 1 { continue; }
+        let Some((opcode, payload)) = read_ws_frame(reader.get_mut())? else {
+            continue;
+        };
+        if opcode == 8 {
+            return Err("Chrome DevTools WebSocket 已关闭".to_string());
+        }
+        if opcode != 1 {
+            continue;
+        }
         let value: Value = serde_json::from_slice(&payload).map_err(|error| error.to_string())?;
-        if value.get("id").and_then(Value::as_u64) == Some(id) { let _ = reader.get_mut().shutdown(Shutdown::Both); return Ok(value); }
+        if value.get("id").and_then(Value::as_u64) == Some(id) {
+            let _ = reader.get_mut().shutdown(Shutdown::Both);
+            return Ok(value);
+        }
     }
 }
 
 fn send_ws_text(stream: &mut TcpStream, payload: &[u8]) -> Result<(), String> {
     let mut frame = vec![0x81];
-    if payload.len() < 126 { frame.push(0x80 | payload.len() as u8); } else if payload.len() <= u16::MAX as usize { frame.push(0x80 | 126); frame.extend_from_slice(&(payload.len() as u16).to_be_bytes()); } else { return Err("CDP 请求超过 WebSocket 帧限制".to_string()); }
-    let mask = Uuid::new_v4().as_bytes()[..4].to_vec(); frame.extend_from_slice(&mask);
-    frame.extend(payload.iter().enumerate().map(|(index, byte)| byte ^ mask[index % 4]));
-    stream.write_all(&frame).map_err(|error| error.to_string())?; stream.flush().map_err(|error| error.to_string())
+    if payload.len() < 126 {
+        frame.push(0x80 | payload.len() as u8);
+    } else if payload.len() <= u16::MAX as usize {
+        frame.push(0x80 | 126);
+        frame.extend_from_slice(&(payload.len() as u16).to_be_bytes());
+    } else {
+        return Err("CDP 请求超过 WebSocket 帧限制".to_string());
+    }
+    let mask = Uuid::new_v4().as_bytes()[..4].to_vec();
+    frame.extend_from_slice(&mask);
+    frame.extend(
+        payload
+            .iter()
+            .enumerate()
+            .map(|(index, byte)| byte ^ mask[index % 4]),
+    );
+    stream
+        .write_all(&frame)
+        .map_err(|error| error.to_string())?;
+    stream.flush().map_err(|error| error.to_string())
 }
 
 fn read_ws_frame(stream: &mut TcpStream) -> Result<Option<(u8, Vec<u8>)>, String> {
-    let mut header=[0u8;2]; if stream.read_exact(&mut header).is_err(){return Ok(None)}
-    let opcode=header[0]&0x0f; let masked=header[1]&0x80!=0; let mut length=(header[1]&0x7f) as u64;
-    if length==126 { let mut bytes=[0u8;2]; stream.read_exact(&mut bytes).map_err(|error|error.to_string())?; length=u16::from_be_bytes(bytes) as u64; }
-    else if length==127 { let mut bytes=[0u8;8]; stream.read_exact(&mut bytes).map_err(|error|error.to_string())?; length=u64::from_be_bytes(bytes); }
-    if length > MAX_DEBUGGER_JSON as u64 { return Err("CDP WebSocket 帧超过大小限制".to_string()); }
-    let mut mask=[0u8;4]; if masked { stream.read_exact(&mut mask).map_err(|error|error.to_string())?; }
-    let mut payload=vec![0u8;length as usize]; stream.read_exact(&mut payload).map_err(|error|error.to_string())?;
-    if masked { for (index,byte) in payload.iter_mut().enumerate(){*byte ^= mask[index%4];} }
-    Ok(Some((opcode,payload)))
+    let mut header = [0u8; 2];
+    if stream.read_exact(&mut header).is_err() {
+        return Ok(None);
+    }
+    let opcode = header[0] & 0x0f;
+    let masked = header[1] & 0x80 != 0;
+    let mut length = (header[1] & 0x7f) as u64;
+    if length == 126 {
+        let mut bytes = [0u8; 2];
+        stream
+            .read_exact(&mut bytes)
+            .map_err(|error| error.to_string())?;
+        length = u16::from_be_bytes(bytes) as u64;
+    } else if length == 127 {
+        let mut bytes = [0u8; 8];
+        stream
+            .read_exact(&mut bytes)
+            .map_err(|error| error.to_string())?;
+        length = u64::from_be_bytes(bytes);
+    }
+    if length > MAX_DEBUGGER_JSON as u64 {
+        return Err("CDP WebSocket 帧超过大小限制".to_string());
+    }
+    let mut mask = [0u8; 4];
+    if masked {
+        stream
+            .read_exact(&mut mask)
+            .map_err(|error| error.to_string())?;
+    }
+    let mut payload = vec![0u8; length as usize];
+    stream
+        .read_exact(&mut payload)
+        .map_err(|error| error.to_string())?;
+    if masked {
+        for (index, byte) in payload.iter_mut().enumerate() {
+            *byte ^= mask[index % 4];
+        }
+    }
+    Ok(Some((opcode, payload)))
 }
 
 fn percent_encode(value: &str) -> String {
-    value.bytes().map(|byte| if byte.is_ascii_alphanumeric() || b"-_.~".contains(&byte) { (byte as char).to_string() } else { format!("%{byte:02X}") }).collect()
+    value
+        .bytes()
+        .map(|byte| {
+            if byte.is_ascii_alphanumeric() || b"-_.~".contains(&byte) {
+                (byte as char).to_string()
+            } else {
+                format!("%{byte:02X}")
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -407,11 +598,19 @@ mod tests {
     use super::*;
     #[test]
     fn url_scope_accepts_subpaths_but_not_other_hosts_or_http() {
-        let configured=Url::parse("https://creator.douyin.com/creator/home").unwrap();
-        assert!(url_matches_platform(&configured,"https://creator.douyin.com/creator-micro/home"));
-        assert!(!url_matches_platform(&configured,"https://evil.example/"));
-        assert!(!url_matches_platform(&configured,"http://creator.douyin.com/"));
+        let configured = Url::parse("https://creator.douyin.com/creator/home").unwrap();
+        assert!(url_matches_platform(
+            &configured,
+            "https://creator.douyin.com/creator-micro/home"
+        ));
+        assert!(!url_matches_platform(&configured, "https://evil.example/"));
+        assert!(!url_matches_platform(
+            &configured,
+            "http://creator.douyin.com/"
+        ));
     }
     #[test]
-    fn page_snapshot_text_is_bounded_and_does_not_use_cdp_source() { assert!(MAX_PAGE_TEXT >= 10_000); }
+    fn page_snapshot_text_is_bounded_and_does_not_use_cdp_source() {
+        assert!(MAX_PAGE_TEXT >= 10_000);
+    }
 }

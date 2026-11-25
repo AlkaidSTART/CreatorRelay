@@ -15,6 +15,7 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 
 pub mod ai;
+pub(crate) mod browser_bridge;
 pub mod content;
 pub mod creator_centers;
 pub mod database;

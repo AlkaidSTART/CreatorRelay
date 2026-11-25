@@ -18,6 +18,7 @@ fn execute_core_tool(
     arguments: &Value,
     scope: &ModelContextScope,
     cancel: &AtomicBool,
+    browser_bridge: Option<&crate::browser_bridge::BrowserBridge>,
 ) -> Result<CoreToolExecution, McpCallError> {
     if cancel.load(Ordering::SeqCst) {
         return Err(McpCallError {
@@ -25,6 +26,65 @@ fn execute_core_tool(
             message: "工具调用已取消，未执行剩余副作用".to_string(),
             field_errors: Vec::new(),
         });
+    }
+    if tool_name == "creator_browser_status" {
+        let bridge = browser_bridge.ok_or_else(|| McpCallError {
+            code: "BROWSER_BRIDGE_UNAVAILABLE".to_string(),
+            message: "浏览器桥接仅能从桌面应用内使用".to_string(),
+            field_errors: Vec::new(),
+        })?;
+        let status = bridge.status().map_err(|error| McpCallError {
+            code: "BROWSER_BRIDGE_ERROR".to_string(),
+            message: error,
+            field_errors: Vec::new(),
+        })?;
+        return Ok(crate::mcp::outcome::success_result(
+            serde_json::to_value(status).unwrap_or(Value::Null),
+        ));
+    }
+    if tool_name == "creator_browser_open" {
+        let bridge = browser_bridge.ok_or_else(|| McpCallError {
+            code: "BROWSER_BRIDGE_UNAVAILABLE".to_string(),
+            message: "浏览器桥接仅能从桌面应用内使用".to_string(),
+            field_errors: Vec::new(),
+        })?;
+        let platform_id = arguments
+            .get("platformId")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let mut page = bridge
+            .open_creator_center(conn, platform_id)
+            .map_err(|error| McpCallError {
+                code: "BROWSER_OPEN_FAILED".to_string(),
+                message: error,
+                field_errors: Vec::new(),
+            })?;
+        page.note
+            .push_str(" 用户需在此专用浏览器窗口自行登录；没有访问或复用日常浏览器的会话数据。 ");
+        return Ok(crate::mcp::outcome::success_result(
+            serde_json::to_value(page).unwrap_or(Value::Null),
+        ));
+    }
+    if tool_name == "creator_browser_read_page" {
+        let bridge = browser_bridge.ok_or_else(|| McpCallError {
+            code: "BROWSER_BRIDGE_UNAVAILABLE".to_string(),
+            message: "浏览器桥接仅能从桌面应用内使用".to_string(),
+            field_errors: Vec::new(),
+        })?;
+        let platform_id = arguments
+            .get("platformId")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let page = bridge
+            .read_current_page(platform_id)
+            .map_err(|error| McpCallError {
+                code: "BROWSER_READ_FAILED".to_string(),
+                message: error,
+                field_errors: Vec::new(),
+            })?;
+        return Ok(crate::mcp::outcome::success_result(
+            serde_json::to_value(page).unwrap_or(Value::Null),
+        ));
     }
     if matches!(
         tool_name,
@@ -440,6 +500,7 @@ pub fn call_tool(
             &request.arguments,
             &scope,
             &cancel,
+            request.browser_bridge.as_ref(),
         )?;
         Ok((execution.status, execution.result))
     })();

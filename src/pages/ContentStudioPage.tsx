@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import {
   AlertTriangle,
+  ArrowRight,
   BookOpen,
   Check,
   ChevronRight,
@@ -10,6 +11,7 @@ import {
   History,
   Image,
   Info,
+  PanelLeftClose,
   PanelLeftOpen,
   Plus,
   RefreshCw,
@@ -57,6 +59,7 @@ export function ContentStudioPage() {
   const workspace = useWorkspaceStore((state) => state.workspace);
   const chooseWorkspace = useWorkspaceStore((state) => state.chooseWorkspace);
   const packages = useStudioStore((state) => state.packages);
+  const drafts = useStudioStore((state) => state.drafts);
   const filter = useStudioStore((state) => state.filter);
   const setFilter = useStudioStore((state) => state.setFilter);
   const query = useStudioStore((state) => state.query);
@@ -76,9 +79,37 @@ export function ContentStudioPage() {
   const showToast = useUiStore((state) => state.showToast);
   const viewMode = useUiStore((state) => state.viewMode);
   const setViewMode = useUiStore((state) => state.setViewMode);
+  const docListOpen = useUiStore((state) => state.docListOpen);
+  const setDocListOpen = useUiStore((state) => state.setDocListOpen);
+
   const [rightTab, setRightTab] = useState<RightTab>("drafts");
   const [deriveOpen, setDeriveOpen] = useState(false);
   const deriveMenuRef = useRef<HTMLDivElement>(null);
+
+  // Auto-collapse global app sidebar on entering Studio so the entire workflow fits in one screen.
+  useEffect(() => {
+    const previousSidebarOpen = useUiStore.getState().sidebarOpen;
+    if (previousSidebarOpen) {
+      useUiStore.getState().setSidebarOpen(false);
+    }
+    return () => {
+      if (previousSidebarOpen) {
+        useUiStore.getState().setSidebarOpen(true);
+      }
+    };
+  }, []);
+
+  // Auto-collapse package list on narrow viewports so editor + inspector never feel cramped.
+  useEffect(() => {
+    function syncResponsivePanels() {
+      if (window.innerWidth < 1180) {
+        useUiStore.getState().setDocListOpen(false);
+      }
+    }
+    syncResponsivePanels();
+    window.addEventListener("resize", syncResponsivePanels);
+    return () => window.removeEventListener("resize", syncResponsivePanels);
+  }, []);
 
   useEffect(() => {
     if (!workspace) return;
@@ -93,7 +124,12 @@ export function ContentStudioPage() {
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        document.querySelector<HTMLInputElement>("[data-studio-search]")?.focus();
+        if (!useUiStore.getState().docListOpen) {
+          useUiStore.getState().setDocListOpen(true);
+        }
+        window.setTimeout(() => {
+          document.querySelector<HTMLInputElement>("[data-studio-search]")?.focus();
+        }, 0);
       }
     }
     window.addEventListener("keydown", handleKeyDown);
@@ -169,212 +205,282 @@ export function ContentStudioPage() {
         </div>
       )}
 
-      {/* Left Column: Content Package List */}
-      <aside className="flex w-[264px] shrink-0 flex-col border-r border-line bg-sidebar/85">
-        <div className="border-b border-line px-4 pt-4 pb-3.5">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="text-[15px] font-semibold tracking-tight text-ink">内容工作室</h1>
+      {/* Left Column: Collapsible Content Package List */}
+      {docListOpen && (
+        <aside className="flex w-[224px] shrink-0 flex-col border-r border-line bg-sidebar/85">
+          <div className="border-b border-line px-3 pt-3 pb-2.5">
+            <div className="flex items-center justify-between gap-1.5">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <h1 className="truncate text-[13.5px] font-semibold tracking-tight text-ink">
+                  主稿列表
+                </h1>
                 {packages.length > 0 && (
-                  <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-medium text-ink-muted ring-1 ring-line">
+                  <span className="rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-medium text-ink-muted ring-1 ring-line">
                     {packages.length}
                   </span>
                 )}
               </div>
-              <p className="mt-0.5 text-[11px] text-ink-muted">四形态主稿与平台适配</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsCreating(true)}
-              className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-xl bg-accent text-accent-on shadow-[0_2px_8px_rgba(123,104,168,0.26)] transition-all hover:bg-accent-hover active:scale-95"
-              aria-label="新建内容"
-              title="新建内容主稿 (⌘N)"
-            >
-              <Plus size={13} />
-            </button>
-          </div>
-
-          <div className="mt-3 flex h-8.5 items-center gap-2 rounded-xl border border-line bg-surface px-2.5 shadow-[0_1px_2px_rgba(51,43,41,0.03)] transition-all focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15">
-            <Search size={12} className="shrink-0 text-ink-muted" />
-            <input
-              data-studio-search
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜索主稿、摘要、标签"
-              className="min-w-0 flex-1 bg-transparent text-xs text-ink placeholder:text-ink-muted focus:outline-none"
-            />
-            {query ? (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                aria-label="清空搜索"
-                className="grid h-4.5 w-4.5 cursor-pointer place-items-center rounded text-ink-muted hover:bg-hover hover:text-ink"
-              >
-                <X size={10} />
-              </button>
-            ) : (
-              <kbd className="shrink-0 rounded bg-subtle px-1.5 py-0.5 text-[9.5px] font-medium text-ink-muted">
-                ⌘K
-              </kbd>
-            )}
-          </div>
-        </div>
-
-        {/* Single-row horizontal filter pills */}
-        <div className="border-b border-line px-3 py-2">
-          <div className="no-scrollbar flex items-center gap-1 overflow-x-auto">
-            {[
-              { id: "ALL" as const, label: "全部" },
-              ...CONTENT_KIND_META.map((item) => ({ id: item.kind, label: item.label })),
-            ].map((item) => {
-              const active = filter === item.id;
-              return (
+              <div className="flex items-center gap-1">
                 <button
-                  key={item.id}
                   type="button"
-                  onClick={() => setFilter(item.id)}
-                  className={`shrink-0 cursor-pointer whitespace-nowrap rounded-lg px-2.5 py-1 text-[11px] font-medium transition-all ${
-                    active
-                      ? "bg-surface text-ink shadow-[0_1px_3px_rgba(51,43,41,0.08)] ring-1 ring-line"
-                      : "text-ink-muted hover:bg-hover/70 hover:text-ink"
-                  }`}
+                  onClick={() => setIsCreating(true)}
+                  className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-lg bg-accent text-accent-on shadow-xs transition-all hover:bg-accent-hover active:scale-95"
+                  aria-label="新建内容"
+                  title="新建内容主稿 (⌘N)"
                 >
-                  {item.label}
+                  <Plus size={12} />
                 </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Package List */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-10 text-ink-muted">
-              <RefreshCw size={14} className="animate-spin opacity-60" />
-              <p className="text-xs">正在载入内容包...</p>
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-line-strong bg-surface/65 p-4 text-center">
-              <p className="text-xs font-medium text-ink-secondary">
-                {packages.length === 0 ? "还没有内容主稿" : "没有匹配的主稿"}
-              </p>
-              <p className="mt-1 text-[11px] text-ink-muted">
-                {packages.length === 0 ? "选择一种形态开始创作" : "试试更换关键词或筛选条件"}
-              </p>
-              <div className="mt-3.5 grid grid-cols-2 gap-1.5">
-                {CONTENT_KIND_META.map((item) => {
-                  const Icon = KIND_ICONS[item.kind];
-                  return (
-                    <button
-                      key={item.kind}
-                      type="button"
-                      onClick={() => openCreation(item.kind)}
-                      className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-2 py-2 text-[11px] font-medium text-ink-secondary shadow-[0_1px_2px_rgba(51,43,41,0.02)] transition-all hover:border-accent hover:bg-accent-soft/30 hover:text-accent-deep"
-                    >
-                      <Icon size={11} />
-                      {item.label}
-                    </button>
-                  );
-                })}
+                <button
+                  type="button"
+                  onClick={() => setDocListOpen(false)}
+                  className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-lg text-ink-muted transition-colors hover:bg-hover hover:text-ink"
+                  aria-label="收起主稿列表"
+                  title="收起主稿列表"
+                >
+                  <PanelLeftClose size={12} />
+                </button>
               </div>
             </div>
-          ) : (
-            <div className="space-y-1.5">
-              {filtered.map((item) => {
-                const Icon = KIND_ICONS[item.kind];
-                const isSelected = selectedId === item.id;
+
+            <div className="mt-2.5 flex h-7.5 items-center gap-1.5 rounded-lg border border-line bg-surface px-2 transition-all focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15">
+              <Search size={11} className="shrink-0 text-ink-muted" />
+              <input
+                data-studio-search
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="搜索主稿、标签"
+                className="min-w-0 flex-1 bg-transparent text-[11.5px] text-ink placeholder:text-ink-muted focus:outline-none"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="清空搜索"
+                  className="grid h-4 w-4 cursor-pointer place-items-center rounded text-ink-muted hover:bg-hover hover:text-ink"
+                >
+                  <X size={9} />
+                </button>
+              ) : (
+                <kbd className="shrink-0 rounded bg-subtle px-1 py-0.5 text-[9px] font-medium text-ink-muted">
+                  ⌘K
+                </kbd>
+              )}
+            </div>
+          </div>
+
+          {/* Single-row horizontal filter pills */}
+          <div className="border-b border-line px-2.5 py-1.5">
+            <div className="no-scrollbar flex items-center gap-1 overflow-x-auto">
+              {[
+                { id: "ALL" as const, label: "全部" },
+                ...CONTENT_KIND_META.map((item) => ({ id: item.kind, label: item.label })),
+              ].map((item) => {
+                const active = filter === item.id;
                 return (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => void selectPackage(item.id)}
-                    className={`group relative flex w-full cursor-pointer flex-col gap-1.5 rounded-xl border px-3.5 py-2.5 text-left transition-all ${
-                      isSelected
-                        ? "border-line-strong/80 bg-surface shadow-[0_2px_10px_rgba(51,43,41,0.06)]"
-                        : "border-transparent bg-transparent hover:border-line/70 hover:bg-surface/65"
+                    onClick={() => setFilter(item.id)}
+                    className={`shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2 py-0.5 text-[10.5px] font-medium transition-all ${
+                      active
+                        ? "bg-surface text-ink shadow-[0_1px_2px_rgba(51,43,41,0.08)] ring-1 ring-line"
+                        : "text-ink-muted hover:bg-hover/70 hover:text-ink"
                     }`}
                   >
-                    {isSelected && (
-                      <span className="pointer-events-none absolute top-2.5 bottom-2.5 left-0 w-[3px] rounded-r-full bg-accent" />
-                    )}
-                    <div className="flex items-baseline justify-between gap-2">
-                      <strong className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">
-                        {item.title || "未命名主稿"}
-                      </strong>
-                      <span className="shrink-0 text-[10px] text-ink-muted">
-                        {formatRelativeTime(item.updatedAt)}
-                      </span>
-                    </div>
-                    {item.summary && (
-                      <p className="truncate text-[11px] text-ink-secondary/90">{item.summary}</p>
-                    )}
-                    <div className="flex items-center gap-1.5 text-[10.5px] text-ink-muted">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${kindBadgeClass(item.kind)}`}
-                      >
-                        <Icon size={9} />
-                        {contentKindLabel(item.kind)}
-                      </span>
-                      <span>{item.mediaCount} 素材</span>
-                      {item.tags.length > 0 && (
-                        <>
-                          <span className="text-ink-faint">·</span>
-                          <span>{item.tags.length} 标签</span>
-                        </>
-                      )}
-                    </div>
+                    {item.label}
                   </button>
                 );
               })}
             </div>
-          )}
-        </div>
+          </div>
 
-        <div className="border-t border-line px-3 py-2.5">
-          <button
-            type="button"
-            onClick={() => navigate("/studio/classic")}
-            className="flex w-full cursor-pointer items-center justify-between rounded-xl px-2.5 py-2 text-[11px] font-medium text-ink-muted transition-colors hover:bg-hover/80 hover:text-ink"
-          >
-            <span className="inline-flex items-center gap-2">
-              <History size={11} />
-              经典 Markdown 工作区
-            </span>
-            <ChevronRight size={10} />
-          </button>
-        </div>
-      </aside>
+          {/* Package List */}
+          <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-10 text-ink-muted">
+                <RefreshCw size={14} className="animate-spin opacity-60" />
+                <p className="text-xs">正在载入内容包...</p>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-line-strong bg-surface/65 p-3 text-center">
+                <p className="text-xs font-medium text-ink-secondary">
+                  {packages.length === 0 ? "还没有内容主稿" : "没有匹配的主稿"}
+                </p>
+                <div className="mt-2.5 grid grid-cols-2 gap-1">
+                  {CONTENT_KIND_META.map((item) => {
+                    const Icon = KIND_ICONS[item.kind];
+                    return (
+                      <button
+                        key={item.kind}
+                        type="button"
+                        onClick={() => openCreation(item.kind)}
+                        className="inline-flex cursor-pointer items-center justify-center gap-1 rounded-lg border border-line bg-surface px-1.5 py-1.5 text-[10.5px] font-medium text-ink-secondary transition-all hover:border-accent hover:text-accent-deep"
+                      >
+                        <Icon size={10} />
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {filtered.map((item) => {
+                  const Icon = KIND_ICONS[item.kind];
+                  const isSelected = selectedId === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => void selectPackage(item.id)}
+                      className={`group relative flex w-full cursor-pointer flex-col gap-1 rounded-xl border px-2.5 py-2 text-left transition-all ${
+                        isSelected
+                          ? "border-line-strong/80 bg-surface shadow-[0_2px_8px_rgba(51,43,41,0.06)]"
+                          : "border-transparent bg-transparent hover:border-line/70 hover:bg-surface/65"
+                      }`}
+                    >
+                      {isSelected && (
+                        <span className="pointer-events-none absolute top-2 bottom-2 left-0 w-[3px] rounded-r-full bg-accent" />
+                      )}
+                      <div className="flex items-baseline justify-between gap-1.5">
+                        <strong className="min-w-0 flex-1 truncate text-[12px] font-medium text-ink">
+                          {item.title || "未命名主稿"}
+                        </strong>
+                        <span className="shrink-0 text-[9.5px] text-ink-muted">
+                          {formatRelativeTime(item.updatedAt)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-ink-muted">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-medium ${kindBadgeClass(item.kind)}`}
+                        >
+                          <Icon size={8} />
+                          {contentKindLabel(item.kind)}
+                        </span>
+                        <span>{item.mediaCount} 素材</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
-      {/* Center Column: Main Editor Workspace */}
-      <main className="flex min-w-0 flex-1 flex-col bg-canvas">
-        <header className="flex h-13 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface/85 px-6 backdrop-blur-sm">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-medium text-ink-secondary shadow-[0_1px_2px_rgba(51,43,41,0.03)]">
+          <div className="border-t border-line px-2.5 py-2">
+            <button
+              type="button"
+              onClick={() => navigate("/studio/classic")}
+              className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 text-[10.5px] font-medium text-ink-muted transition-colors hover:bg-hover/80 hover:text-ink"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <History size={10} />
+                经典 Markdown 工作区
+              </span>
+              <ChevronRight size={9} />
+            </button>
+          </div>
+        </aside>
+      )}
+
+      {/* Center Column: Single-Screen Main Editor Workspace */}
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-canvas">
+        <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-line bg-surface/90 px-4 backdrop-blur-sm">
+          {/* Left: List Toggle + Status + Kind */}
+          <div className="flex min-w-0 items-center gap-2">
+            {!docListOpen && (
+              <button
+                type="button"
+                onClick={() => setDocListOpen(true)}
+                className="inline-flex h-7.5 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-2 text-[11px] font-medium text-ink-secondary transition-colors hover:border-line-strong hover:text-ink"
+                title="展开主稿列表 (⌘K)"
+              >
+                <PanelLeftOpen size={12} />
+                <span className="hidden sm:inline">主稿 ({packages.length})</span>
+              </button>
+            )}
+            <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-2 py-0.5 text-[10.5px] font-medium text-ink-secondary">
               <span className={`h-1.5 w-1.5 rounded-full ${saveMeta.dot}`} />
               {saveMeta.label}
             </span>
             {editor && (
-              <>
-                <span
-                  className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-[10.5px] font-medium ${kindBadgeClass(editor.kind)}`}
-                >
-                  {contentKindLabel(editor.kind)}
-                </span>
-                <span className="hidden truncate font-mono text-[10.5px] text-ink-muted 2xl:inline">
-                  {editor.path}
-                </span>
-              </>
+              <span
+                className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-[10.5px] font-medium ${kindBadgeClass(editor.kind)}`}
+              >
+                {contentKindLabel(editor.kind)}
+              </span>
             )}
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+          {/* Center: Single-Screen Workflow Stepper */}
+          {editor && (
+            <nav
+              aria-label="创作工作流"
+              className="hidden items-center gap-1 rounded-xl bg-subtle/90 p-0.5 ring-1 ring-line/70 lg:flex"
+            >
+              <span className="inline-flex items-center gap-1 rounded-lg bg-surface px-2.5 py-1 text-[11px] font-medium text-ink shadow-[0_1px_2px_rgba(51,43,41,0.06)]">
+                <span className="grid h-4 w-4 place-items-center rounded-full bg-accent-soft text-[9.5px] font-semibold text-accent-deep">
+                  1
+                </span>
+                主稿创作
+              </span>
+              <ChevronRight size={9} className="text-ink-faint" />
+              <button
+                type="button"
+                onClick={() => setRightTab("drafts")}
+                className={`inline-flex cursor-pointer items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                  rightTab === "drafts"
+                    ? "bg-surface text-accent-deep shadow-[0_1px_2px_rgba(51,43,41,0.06)]"
+                    : "text-ink-secondary hover:text-ink"
+                }`}
+              >
+                <span className="grid h-4 w-4 place-items-center rounded-full bg-sidebar text-[9.5px] font-semibold text-ink-muted">
+                  2
+                </span>
+                平台适配
+                {drafts.length > 0 && (
+                  <span className="rounded bg-accent-soft px-1 text-[9.5px] text-accent-deep">
+                    {drafts.length}
+                  </span>
+                )}
+              </button>
+              <ChevronRight size={9} className="text-ink-faint" />
+              <button
+                type="button"
+                onClick={() => setRightTab("checks")}
+                className={`inline-flex cursor-pointer items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                  rightTab === "checks"
+                    ? "bg-surface text-accent-deep shadow-[0_1px_2px_rgba(51,43,41,0.06)]"
+                    : "text-ink-secondary hover:text-ink"
+                }`}
+              >
+                <span className="grid h-4 w-4 place-items-center rounded-full bg-sidebar text-[9.5px] font-semibold text-ink-muted">
+                  3
+                </span>
+                内容检查
+              </button>
+              <ChevronRight size={9} className="text-ink-faint" />
+              <button
+                type="button"
+                onClick={() => navigate("/publishing")}
+                className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium text-ink-secondary transition-colors hover:bg-surface hover:text-accent-deep"
+              >
+                <span className="grid h-4 w-4 place-items-center rounded-full bg-sidebar text-[9.5px] font-semibold text-ink-muted">
+                  4
+                </span>
+                发布中心
+                <ArrowRight size={9} />
+              </button>
+            </nav>
+          )}
+
+          {/* Right: Actions */}
+          <div className="flex shrink-0 items-center gap-1.5">
             {(editor?.kind === "article" || editor?.kind === "imageArticle") && (
               <div className="flex items-center rounded-lg bg-subtle p-0.5 ring-1 ring-line/70">
                 <button
                   type="button"
                   onClick={() => setViewMode("write")}
-                  className={`cursor-pointer rounded-md px-2.5 py-1 text-[11px] font-medium transition-all ${
+                  className={`cursor-pointer rounded-md px-2 py-0.5 text-[11px] font-medium transition-all ${
                     viewMode === "write"
                       ? "bg-surface text-ink shadow-[0_1px_2px_rgba(51,43,41,0.06)]"
                       : "text-ink-muted hover:text-ink"
@@ -385,7 +491,7 @@ export function ContentStudioPage() {
                 <button
                   type="button"
                   onClick={() => setViewMode("preview")}
-                  className={`cursor-pointer rounded-md px-2.5 py-1 text-[11px] font-medium transition-all ${
+                  className={`cursor-pointer rounded-md px-2 py-0.5 text-[11px] font-medium transition-all ${
                     viewMode === "preview"
                       ? "bg-surface text-ink shadow-[0_1px_2px_rgba(51,43,41,0.06)]"
                       : "text-ink-muted hover:text-ink"
@@ -401,7 +507,7 @@ export function ContentStudioPage() {
                 <button
                   type="button"
                   onClick={() => setDeriveOpen((open) => !open)}
-                  className="inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg border border-line bg-surface px-3 text-xs font-medium text-ink-secondary shadow-[0_1px_2px_rgba(51,43,41,0.03)] transition-colors hover:border-line-strong hover:text-ink"
+                  className="inline-flex h-7.5 cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border border-line bg-surface px-2.5 text-[11.5px] font-medium text-ink-secondary transition-colors hover:border-line-strong hover:text-ink"
                 >
                   派生形态
                 </button>
@@ -436,7 +542,7 @@ export function ContentStudioPage() {
               type="button"
               onClick={() => void save()}
               disabled={saveState === "saving" || saveState === "saved"}
-              className="inline-flex h-8 cursor-pointer items-center whitespace-nowrap rounded-lg bg-accent px-3.5 text-xs font-medium text-accent-on shadow-[0_1px_4px_rgba(123,104,168,0.22)] transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex h-7.5 cursor-pointer items-center whitespace-nowrap rounded-lg bg-accent px-3 text-[11.5px] font-medium text-accent-on shadow-xs transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
             >
               保存
             </button>
@@ -445,35 +551,35 @@ export function ContentStudioPage() {
               <button
                 type="button"
                 onClick={() => setRightTab("drafts")}
-                className="inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg border border-line bg-surface px-2.5 text-xs font-medium text-ink-secondary transition-colors hover:border-accent-border hover:bg-accent-soft/40 hover:text-accent-deep"
+                className="inline-flex h-7.5 cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border border-line bg-surface px-2 text-[11.5px] font-medium text-ink-secondary transition-colors hover:border-accent-border hover:bg-accent-soft/40 hover:text-accent-deep"
                 title="展开右侧工作栏"
               >
-                <PanelLeftOpen size={12} />
+                <PanelLeftOpen size={11} />
                 工作栏
               </button>
             )}
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* Single-screen non-scrolling editor stage */}
+        <div className="min-h-0 flex-1 overflow-hidden">
           {editor ? (
-            <div className="px-7 py-7 lg:px-10 lg:py-8">
+            <div className="h-full w-full p-4">
               <ContentEditor preview={viewMode === "preview"} />
             </div>
           ) : (
-            <div className="grid h-full place-items-center p-8">
-              <div className="max-w-[540px] rounded-2xl border border-line bg-surface p-8 text-center shadow-[0_4px_24px_rgba(51,43,41,0.04)]">
-                <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-accent-border bg-accent-soft text-accent-deep">
+            <div className="grid h-full place-items-center p-6">
+              <div className="max-w-[520px] rounded-2xl border border-line bg-surface p-7 text-center shadow-[0_4px_24px_rgba(51,43,41,0.04)]">
+                <div className="mx-auto grid h-11 w-11 place-items-center rounded-2xl border border-accent-border bg-accent-soft text-accent-deep">
                   <Plus size={18} />
                 </div>
-                <h2 className="mt-4 text-base font-semibold tracking-tight text-ink">
+                <h2 className="mt-3.5 text-base font-semibold tracking-tight text-ink">
                   创建第一份内容主稿
                 </h2>
                 <p className="mt-1.5 text-xs leading-relaxed text-ink-muted">
-                  支持视频、图文、图文文章和纯文章。创建后可自动保存、生成多平台适配稿、检查规则并调用
-                  BYOK 模型。
+                  支持视频、图文、图文文章和纯文章。创建后可在单屏内完成主稿编辑、平台适配、检查与发布。
                 </p>
-                <div className="mt-6 grid grid-cols-2 gap-2.5">
+                <div className="mt-5 grid grid-cols-2 gap-2.5">
                   {CONTENT_KIND_META.map((item) => {
                     const Icon = KIND_ICONS[item.kind];
                     return (
@@ -481,7 +587,7 @@ export function ContentStudioPage() {
                         key={item.kind}
                         type="button"
                         onClick={() => openCreation(item.kind)}
-                        className="group flex cursor-pointer items-start gap-2.5 rounded-xl border border-line bg-canvas/70 p-3.5 text-left transition-all hover:border-accent hover:bg-surface hover:shadow-sm"
+                        className="group flex cursor-pointer items-start gap-2.5 rounded-xl border border-line bg-canvas/70 p-3 text-left transition-all hover:border-accent hover:bg-surface hover:shadow-sm"
                       >
                         <span
                           className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg ${kindBadgeClass(item.kind)}`}
@@ -505,10 +611,10 @@ export function ContentStudioPage() {
           )}
         </div>
 
-        <footer className="flex h-9 shrink-0 items-center justify-between border-t border-line bg-surface/75 px-6 text-[11px] text-ink-muted">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-              <Clock3 size={11} />
+        <footer className="flex h-8 shrink-0 items-center justify-between border-t border-line bg-surface/75 px-4 text-[10.5px] text-ink-muted">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+              <Clock3 size={10} />
               {editor ? `版本 ${editor.contentVersion.slice(0, 8)}` : "无内容版本"}
             </span>
             {editor && (
@@ -520,11 +626,11 @@ export function ContentStudioPage() {
               </>
             )}
           </div>
-          <div className="flex items-center gap-3.5">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => void handleSimulateFailure()}
-              className="cursor-pointer whitespace-nowrap text-[10.5px] text-ink-faint transition-colors hover:text-ink-muted"
+              className="cursor-pointer whitespace-nowrap text-[10px] text-ink-faint transition-colors hover:text-ink-muted"
               title="M5 验收用：下一次保存将显示失败状态且保留编辑内容"
             >
               故障演练
@@ -545,16 +651,16 @@ export function ContentStudioPage() {
         </footer>
       </main>
 
-      {/* Right Column: Inspector Panel */}
+      {/* Right Column: Compact Workflow Inspector */}
       {rightTab && (
-        <aside className="flex w-[340px] shrink-0 flex-col border-l border-line bg-surface-soft xl:w-[368px]">
-          <div className="flex h-13 shrink-0 items-center justify-between gap-2 border-b border-line bg-surface/85 px-3 backdrop-blur-sm">
-            <div className="flex items-center gap-0.5 rounded-xl bg-subtle p-1 ring-1 ring-line/60">
+        <aside className="flex w-[316px] shrink-0 flex-col border-l border-line bg-surface-soft xl:w-[344px]">
+          <div className="flex h-12 shrink-0 items-center justify-between gap-1.5 border-b border-line bg-surface/90 px-2.5 backdrop-blur-sm">
+            <div className="flex items-center gap-0.5 rounded-xl bg-subtle p-0.5 ring-1 ring-line/60">
               {(
                 [
                   ["drafts", "平台稿", Send],
                   ["ai", "AI 辅助", Sparkles],
-                  ["checks", "内容检查", Check],
+                  ["checks", "检查", Check],
                 ] as const
               ).map(([id, label, Icon]) => {
                 const active = rightTab === id;
@@ -563,9 +669,9 @@ export function ContentStudioPage() {
                     key={id}
                     type="button"
                     onClick={() => setRightTab(id)}
-                    className={`inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-[11px] font-medium transition-all ${
+                    className={`inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-medium transition-all ${
                       active
-                        ? "bg-surface text-ink shadow-[0_1px_3px_rgba(51,43,41,0.08)]"
+                        ? "bg-surface text-ink shadow-[0_1px_2px_rgba(51,43,41,0.08)]"
                         : "text-ink-muted hover:text-ink"
                     }`}
                   >
@@ -579,24 +685,24 @@ export function ContentStudioPage() {
               <button
                 type="button"
                 onClick={() => showToast("右侧工作栏可随时收起；主稿内容会继续自动保存")}
-                className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-ink-faint transition-colors hover:bg-hover hover:text-ink-muted"
+                className="grid h-6.5 w-6.5 cursor-pointer place-items-center rounded-lg text-ink-faint transition-colors hover:bg-hover hover:text-ink-muted"
                 aria-label="面板帮助"
                 title="工作栏说明"
               >
-                <Info size={12} />
+                <Info size={11} />
               </button>
               <button
                 type="button"
                 onClick={() => setRightTab(null)}
-                className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-ink-muted transition-colors hover:bg-hover hover:text-ink"
+                className="grid h-6.5 w-6.5 cursor-pointer place-items-center rounded-lg text-ink-muted transition-colors hover:bg-hover hover:text-ink"
                 aria-label="关闭右侧面板"
                 title="收起工作栏"
               >
-                <X size={12} />
+                <X size={11} />
               </button>
             </div>
           </div>
-          <div className="min-h-0 flex-1">
+          <div className="min-h-0 flex-1 overflow-hidden">
             {rightTab === "drafts" && (
               <PlatformDraftPanel onShowChecks={() => setRightTab("checks")} />
             )}
