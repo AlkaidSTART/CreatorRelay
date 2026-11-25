@@ -1,4 +1,12 @@
-use creatorrelay_lib::{database, ecosystem, plugins};
+use creatorrelay_lib::{
+    content::{self, ContentKind, ContentSaveInput},
+    database, ecosystem, mcp,
+    operations::{
+        self, CreatePublishTasksInput, ExternalWorkFilter, PublishExecutionMode, PublishSourceType,
+        PublishTargetInput, SyncPlatformWorksInput,
+    },
+    plugins,
+};
 use rusqlite::Connection;
 use serde_json::Value;
 use std::path::PathBuf;
@@ -7,6 +15,7 @@ struct Fixture {
     _temp: tempfile::TempDir,
     conn: Connection,
     runtime: plugins::PluginRuntime,
+    workspace: PathBuf,
 }
 
 fn fixture() -> Fixture {
@@ -32,6 +41,7 @@ fn fixture() -> Fixture {
         _temp: temp,
         conn,
         runtime,
+        workspace,
     }
 }
 
@@ -55,6 +65,90 @@ fn grant_all(fixture: &mut Fixture, plugin_id: &str, overrides: &[(&str, bool)])
         .collect::<Vec<_>>();
     plugins::set_plugin_permissions(&mut fixture.conn, &fixture.runtime, plugin_id, &decisions)
         .unwrap();
+}
+
+fn insert_active_account(fixture: &Fixture, id: &str, platform_id: &str) {
+    let now = "2026-11-25T10:00:00Z";
+    fixture
+        .conn
+        .execute(
+            "INSERT INTO platform_accounts(
+                id, platform_id, alias, nickname, uid, status, enabled, is_default,
+                profile_id, credential_ref, last_checked_at, last_error, created_at, updated_at
+             ) VALUES(?1, ?2, ?2, ?2, 'fixture-uid', 'ACTIVE', 1, 0, ?3, ?4, ?5, NULL, ?5, ?5)",
+            rusqlite::params![
+                id,
+                platform_id,
+                format!("profile-{id}"),
+                format!("credential-{id}"),
+                now
+            ],
+        )
+        .unwrap();
+}
+
+#[test]
+fn m8_platform_sync_preserves_raw_fields_content_mapping_and_metric_provenance() {
+    let mut fixture = fixture();
+    insert_active_account(&fixture, "account-sync-m8", "juejin");
+    let plugin_id = "creatorrelay.official.sync-adapter";
+    plugins::install_official_plugin(&mut fixture.conn, &fixture.runtime, plugin_id).unwrap();
+    grant_all(&mut fixture, plugin_id, &[]);
+    plugins::enable_plugin(&mut fixture.conn, &fixture.runtime, plugin_id).unwrap();
+
+    let result = operations::sync_platform_works(
+        &mut fixture.conn,
+        &fixture.runtime,
+        &SyncPlatformWorksInput {
+            account_id: "account-sync-m8".to_string(),
+            platform_id: "juejin".to_string(),
+            platform_name: "掘金".to_string(),
+            account_alias: "M8 同步账号".to_string(),
+            adapter_id: plugin_id.to_string(),
+            as_of: Some("2026-11-25T09:30:00Z".to_string()),
+        },
+    )
+    .unwrap();
+    assert_eq!(result.status, "SUCCESS");
+    assert_eq!(result.imported_count, 4);
+
+    let works =
+        operations::list_external_works(&fixture.conn, &ExternalWorkFilter::default()).unwrap();
+    assert_eq!(works.len(), 4);
+    let video = works
+        .iter()
+        .find(|work| work.content_kind == "video")
+        .unwrap();
+    assert_eq!(video.original_content_type, "video");
+    assert_eq!(video.raw_fields["bvid"], "BV1M8Fixture");
+    assert_eq!(
+        video.raw_fields["coverUrl"],
+        "https://example.invalid/cover/fixture-video.jpg"
+    );
+    assert!(video.metrics.iter().any(|metric| {
+        metric.metric_name == "视频播放量"
+            && metric.metric_definition == "平台后台视频播放次数"
+            && metric.unit == "次"
+            && metric.source == "adapter:creatorrelay.official.sync-adapter"
+    }));
+    let image_text = works
+        .iter()
+        .find(|work| work.content_kind == "imageText")
+        .unwrap();
+    assert_eq!(image_text.original_content_type, "笔记");
+    assert_eq!(image_text.raw_fields["imageCount"], 3);
+    let image_article = works
+        .iter()
+        .find(|work| work.content_kind == "imageArticle")
+        .unwrap();
+    assert_eq!(image_article.original_content_type, "图文文章");
+    assert_eq!(image_article.raw_fields["column"], "技术");
+    let article = works
+        .iter()
+        .find(|work| work.content_kind == "article")
+        .unwrap();
+    assert_eq!(article.original_content_type, "文章");
+    assert_eq!(article.raw_fields["draftId"], "fixture-draft-id");
 }
 
 #[test]
@@ -86,6 +180,51 @@ fn m8_marketplace_and_admission_registry_are_closed_and_traceable() {
 }
 
 #[test]
+fn m8_mcp_returns_platform_and_account_capability_matrix() {
+    let mut fixture = fixture();
+    insert_active_account(&fixture, "account-mcp-m8", "bilibili");
+    let host = mcp::McpHost::new(PathBuf::from(env!("CARGO_BIN_EXE_creatorrelay")));
+    host.start(None).unwrap();
+    let result = mcp::call_tool(
+        &mut fixture.conn,
+        &fixture.runtime,
+        &fixture.workspace,
+        &host,
+        mcp::McpCallRequest {
+            call_id: None,
+            tool_name: "platform_capabilities_get".to_string(),
+            arguments: serde_json::json!({
+                "platformId": "bilibili",
+                "accountId": "account-mcp-m8"
+            }),
+            thread_id: None,
+            authorization_token: None,
+            timeout_ms: None,
+            context_scope: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(result.status, "success");
+    let value = result.result.unwrap();
+    assert_eq!(value["platformCount"], 1);
+    assert_eq!(value["accountCount"], 1);
+    assert_eq!(value["autoPublishDefault"], "manual_only");
+    let platform = &value["platforms"][0];
+    assert_eq!(platform["platformId"], "bilibili");
+    assert_eq!(platform["autoPublishAllowed"], false);
+    let account = &value["accounts"][0];
+    assert_eq!(account["accountStatus"], "ACTIVE");
+    assert!(
+        account["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|capability| capability["autoPublishAllowed"] == false)
+    );
+    host.stop().unwrap();
+}
+
+#[test]
 fn m8_embedded_adapter_contract_and_payload_regression_passes_together() {
     let report = ecosystem::compatibility_report();
     assert!(report.passed, "{:?}", report.checks);
@@ -98,6 +237,106 @@ fn m8_embedded_adapter_contract_and_payload_regression_passes_together() {
             .checks
             .iter()
             .any(|check| check.id == "shared_payload_contract" && check.passed)
+    );
+}
+
+#[test]
+fn m8_unverified_platform_forces_manual_publish_even_when_adapter_claims_support() {
+    let mut fixture = fixture();
+    let workspace = fixture
+        .conn
+        .query_row(
+            "SELECT value FROM app_settings WHERE key='workspace_path'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .unwrap();
+    let package = content::create_content_package(
+        std::path::Path::new(&workspace),
+        ContentKind::Video,
+        "M8 发布安全",
+    )
+    .unwrap();
+    let video = content::import_content_asset(
+        std::path::Path::new(&workspace),
+        &package.manifest.id,
+        "media",
+        "video.mp4",
+        "video/mp4",
+        b"fixture-video-bytes",
+    )
+    .unwrap();
+    let cover = content::import_content_asset(
+        std::path::Path::new(&workspace),
+        &package.manifest.id,
+        "cover",
+        "cover.png",
+        "image/png",
+        b"fixture-cover-bytes",
+    )
+    .unwrap();
+    content::save_content_package(
+        std::path::Path::new(&workspace),
+        &package.manifest.id,
+        ContentSaveInput {
+            title: "M8 发布安全".to_string(),
+            summary: "准入未验证时只能人工发布".to_string(),
+            tags: vec!["M8".to_string()],
+            cover: Some(cover),
+            media: vec![video],
+            body: String::new(),
+            base_hash: Some(package.content_hash),
+        },
+    )
+    .unwrap();
+
+    let account_id = uuid::Uuid::new_v4().to_string();
+    insert_active_account(&fixture, &account_id, "bilibili");
+    let plugin_id = "creatorrelay.official.video-adapter";
+    plugins::install_official_plugin(&mut fixture.conn, &fixture.runtime, plugin_id).unwrap();
+    grant_all(&mut fixture, plugin_id, &[]);
+    plugins::enable_plugin(&mut fixture.conn, &fixture.runtime, plugin_id).unwrap();
+
+    let created = operations::create_publish_tasks(
+        &mut fixture.conn,
+        std::path::Path::new(&workspace),
+        &CreatePublishTasksInput {
+            source_type: PublishSourceType::Content,
+            source_id: package.manifest.id.clone(),
+            targets: vec![PublishTargetInput {
+                platform_id: "bilibili".to_string(),
+                platform_name: "Bilibili".to_string(),
+                account_id: account_id.clone(),
+                account_alias: "M8 测试账号".to_string(),
+                adapter_id: Some(plugin_id.to_string()),
+            }],
+            scheduled_at: None,
+        },
+    )
+    .unwrap();
+    let preview = operations::prepare_publish_task(
+        &mut fixture.conn,
+        &fixture.runtime,
+        std::path::Path::new(&workspace),
+        &created.tasks[0].id,
+    )
+    .unwrap();
+    assert_eq!(preview.execution_mode, PublishExecutionMode::Manual);
+    assert_ne!(preview.capability, plugins::CapabilityLevel::Supported);
+    assert!(
+        !preview
+            .actions
+            .iter()
+            .find(|action| action.id == "auto_publish")
+            .unwrap()
+            .available
+    );
+    assert!(
+        preview
+            .capability_reason
+            .as_deref()
+            .unwrap()
+            .contains("人工发布")
     );
 }
 

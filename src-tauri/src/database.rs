@@ -29,7 +29,7 @@ fn migrate_to_version(
     conn: &mut Connection,
     target_version: i64,
 ) -> Result<MigrationReport, String> {
-    if target_version > CURRENT_SCHEMA_VERSION || target_version < 0 {
+    if !(0..=CURRENT_SCHEMA_VERSION).contains(&target_version) {
         return Err(format!("不支持迁移到 schema v{target_version}"));
     }
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
@@ -503,6 +503,137 @@ mod tests {
             )
             .unwrap();
         assert_eq!(plugin_tables, 1);
+    }
+
+    #[test]
+    fn m8_upgrade_from_v6_preserves_content_accounts_tasks_and_metrics() {
+        use crate::content::{self, ContentKind, ContentSaveInput};
+
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = temp.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let mut conn = Connection::open(temp.path().join("m8-upgrade.sqlite3")).unwrap();
+        migrate_to_version(&mut conn, 6).unwrap();
+        conn.execute(
+            "INSERT INTO app_settings(key, value) VALUES('workspace_path', ?1)",
+            [workspace.to_string_lossy().to_string()],
+        )
+        .unwrap();
+
+        let mut content_ids = Vec::new();
+        for (kind, title, body) in [
+            (ContentKind::Video, "升级视频", ""),
+            (ContentKind::ImageText, "升级图文", ""),
+            (
+                ContentKind::ImageArticle,
+                "升级图文文章",
+                "# 图文文章\n\n正文",
+            ),
+            (ContentKind::Article, "升级纯文章", "# 纯文章\n\n正文"),
+        ] {
+            let package = content::create_content_package(&workspace, kind, title).unwrap();
+            let saved = content::save_content_package(
+                &workspace,
+                &package.manifest.id,
+                ContentSaveInput {
+                    title: title.to_string(),
+                    summary: "M8 v6 升级夹具".to_string(),
+                    tags: vec!["M8".to_string()],
+                    cover: None,
+                    media: vec![],
+                    body: body.to_string(),
+                    base_hash: Some(package.content_hash),
+                },
+            )
+            .unwrap();
+            content_ids.push(saved.manifest.id);
+        }
+
+        let now = "2026-11-25T10:00:00Z";
+        conn.execute(
+            "INSERT INTO platform_accounts(
+                id, platform_id, alias, nickname, uid, status, enabled, is_default,
+                profile_id, credential_ref, last_checked_at, last_error, created_at, updated_at
+             ) VALUES('account-m8', 'bilibili', '升级账号', '升级账号', 'uid-m8', 'ACTIVE', 1, 0,
+                      'profile-m8', 'credential-m8', ?1, NULL, ?1, ?1)",
+            [now],
+        )
+        .unwrap();
+        conn.execute(
+            r#"INSERT INTO publish_tasks(
+                id, source_type, source_id, content_id, content_version, content_kind,
+                platform_id, platform_name, account_id, account_alias, adapter_id,
+                title, body, tags_json, media_json, execution_mode, status,
+                idempotency_key, created_at, updated_at
+             ) VALUES('task-m8', 'content', ?1, ?1, 'v6', 'article', 'bilibili',
+                      'Bilibili', 'account-m8', '升级账号', NULL, '升级纯文章', '# 正文',
+                      '["M8"]', '[]', 'manual', 'CREATED', 'idem-m8', ?2, ?2)"#,
+            rusqlite::params![content_ids[3], now],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO external_works(
+                id, source_key, account_id, platform_id, platform_name, account_alias,
+                external_id, title, content_kind, original_content_type, url, published_at,
+                source, synced_at, created_at, updated_at
+             ) VALUES('work-m8', 'sync:m8', 'account-m8', 'bilibili', 'Bilibili', '升级账号',
+                      'external-m8', '历史作品', 'article', '文章', NULL, ?1, 'sync', ?1, ?1, ?1)",
+            [now],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO metric_snapshots(
+                id, work_id, metric_name, metric_definition, unit, value, captured_at,
+                snapshot_day, source, canonical_key, comparable
+             ) VALUES('metric-m8', 'work-m8', '阅读量', '平台后台阅读次数', '次', 42, ?1,
+                      '2026-11-25', 'sync', 'views', 1)",
+            [now],
+        )
+        .unwrap();
+
+        let report = migrate_to_version(&mut conn, CURRENT_SCHEMA_VERSION).unwrap();
+        assert_eq!(report.from_version, 6);
+        assert_eq!(report.applied_versions, vec![7]);
+        let packages = content::list_content_packages(&workspace).unwrap();
+        assert_eq!(packages.len(), 4);
+        assert_eq!(
+            content::read_content_package(&workspace, &content_ids[3])
+                .unwrap()
+                .body,
+            "# 纯文章\n\n正文"
+        );
+        let account: String = conn
+            .query_row(
+                "SELECT alias FROM platform_accounts WHERE id='account-m8'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(account, "升级账号");
+        let task: String = conn
+            .query_row(
+                "SELECT title FROM publish_tasks WHERE id='task-m8'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(task, "升级纯文章");
+        let metric: f64 = conn
+            .query_row(
+                "SELECT value FROM metric_snapshots WHERE id='metric-m8'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(metric, 42.0);
+        let raw_fields: String = conn
+            .query_row(
+                "SELECT raw_fields_json FROM external_works WHERE id='work-m8'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(raw_fields, "{}");
     }
 
     #[test]

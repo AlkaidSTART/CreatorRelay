@@ -30,3 +30,9 @@ docs/*
 !progress/*.md
 !progress/verification/
 !progress/verification/*.md
+!docs/ecosystem-expansion.md
+!docs/adr/
+!docs/schemas/
+!docs/adr/ADR-003-plugin-marketplace.md
+!docs/schemas/platform-admissions.schema.json
+!docs/schemas/marketplace-policy.schema.json

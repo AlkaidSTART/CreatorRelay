@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://creatorrelay.local/schemas/adapter-manifest.schema.json",
+  "title": "CreatorRelay Adapter Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "version",
+    "pluginType",
+    "adapterContractVersion",
+    "runtime",
+    "entry",
+    "permissions",
+    "capabilities"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$",
+      "maxLength": 128
+    },
+    "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "description": { "type": "string", "maxLength": 500 },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$"
+    },
+    "pluginType": { "const": "adapter" },
+    "adapterContractVersion": { "const": 1 },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["coreTestRunner", "executable"] },
+        "profile": { "type": "string", "minLength": 1 },
+        "timeoutMs": { "type": "integer", "minimum": 100, "maximum": 120000 }
+      }
+    },
+    "entry": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "required", "reason"],
+        "properties": {
+          "id": {
+            "enum": [
+              "network",
+              "account.credentials",
+              "workspace.read",
+              "workspace.write",
+              "platform.publish"
+            ]
+          },
+          "required": { "type": "boolean" },
+          "reason": { "type": "string", "minLength": 1, "maxLength": 200 }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "read", "publish"],
+        "properties": {
+          "kind": { "enum": ["video", "imageText", "imageArticle", "article"] },
+          "read": { "enum": ["supported", "unsupported", "restricted", "experimental"] },
+          "publish": { "enum": ["supported", "unsupported", "restricted", "experimental"] },
+          "note": { "type": "string", "maxLength": 300 }
+        }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transport"],
+      "properties": {
+        "transport": { "enum": ["stdio", "http"] },
+        "command": { "type": "string" },
+        "args": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

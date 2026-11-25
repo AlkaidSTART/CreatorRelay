@@ -1,6 +1,7 @@
 use crate::{
     ai::{self, AiGenerateRequest, AiMediaMetadata, AiProviderSummary},
     content::{self, ContentKind, ContentSaveInput},
+    ecosystem,
     operations::{
         self, AnalyticsGranularity, AnalyticsQuery, CreatePublishTasksInput, ExternalWorkFilter,
         PublishSourceType, PublishTargetInput,
@@ -920,6 +921,19 @@ pub fn tool_catalog() -> Vec<McpToolDefinition> {
             ),
         ),
         tool(
+            "platform_capabilities_get",
+            "读取平台与账号能力",
+            "返回平台准入、官方来源、逐形态读取/发布状态和账号级降级原因；未验证能力不会显示为 supported。",
+            ToolPermission::Read,
+            object_schema(
+                json!({
+                    "platformId": { "type": "string", "minLength": 1, "maxLength": 64 },
+                    "accountId": { "type": "string", "minLength": 1, "maxLength": 128 }
+                }),
+                vec![],
+            ),
+        ),
+        tool(
             "content_list",
             "查询本地内容",
             "按关键词、形态和平台查询本地内容包，不返回素材原始路径或凭据。",
@@ -1498,6 +1512,16 @@ fn target_summary_for(tool_name: &str, arguments: &Value) -> String {
                 (Some(platform), None) => format!("平台 {platform} 的全部账号"),
                 (None, Some(account)) => format!("账号 {account}"),
                 (None, None) => "全部脱敏账号状态".to_string(),
+            }
+        }
+        "platform_capabilities_get" => {
+            let platform = arguments.get("platformId").and_then(Value::as_str);
+            let account = arguments.get("accountId").and_then(Value::as_str);
+            match (platform, account) {
+                (Some(platform), Some(account)) => format!("平台 {platform} / 账号 {account}"),
+                (Some(platform), None) => format!("平台 {platform} 的能力矩阵"),
+                (None, Some(account)) => format!("账号 {account} 的能力矩阵"),
+                (None, None) => "全部平台与账号能力矩阵".to_string(),
             }
         }
         "content_get_detail" | "studio_update_content" | "content_delete_draft" => arguments
@@ -2580,6 +2604,38 @@ fn execute_core_tool(
                 .collect::<Vec<_>>();
             success_result(json!({ "accounts": views, "count": views.len() }))
         }
+        "platform_capabilities_get" => {
+            let platform_id = arguments.get("platformId").and_then(Value::as_str);
+            let account_id = arguments.get("accountId").and_then(Value::as_str);
+            let admissions = ecosystem::platform_admissions()
+                .map_err(|error| McpCallError {
+                    code: "ECOSYSTEM_SERVICE_ERROR".to_string(),
+                    message: error,
+                    field_errors: Vec::new(),
+                })?
+                .into_iter()
+                .filter(|admission| platform_id.is_none_or(|value| admission.platform_id == value))
+                .collect::<Vec<_>>();
+            let accounts = ecosystem::list_account_capability_snapshots(conn)
+                .map_err(|error| McpCallError {
+                    code: "ECOSYSTEM_SERVICE_ERROR".to_string(),
+                    message: error,
+                    field_errors: Vec::new(),
+                })?
+                .into_iter()
+                .filter(|account| {
+                    platform_id.is_none_or(|value| account.platform_id == value)
+                        && account_id.is_none_or(|value| account.account_id == value)
+                })
+                .collect::<Vec<_>>();
+            success_result(json!({
+                "platforms": admissions,
+                "accounts": accounts,
+                "platformCount": admissions.len(),
+                "accountCount": accounts.len(),
+                "autoPublishDefault": "manual_only"
+            }))
+        }
         "content_list" => {
             let packages =
                 content::list_content_packages(workspace).map_err(|error| McpCallError {
@@ -3079,6 +3135,7 @@ pub fn preview_tool_call(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn tool_call_error(
     call_id: String,
     audit_id: String,
@@ -3193,27 +3250,27 @@ pub fn call_tool(
         )?;
         return Ok(result);
     }
-    if let Err(business_errors) = preview_details(conn, workspace, &tool.name, &request.arguments) {
-        if !business_errors.is_empty() {
-            let result = tool_call_error(
-                call_id,
-                audit_id.clone(),
-                &tool,
-                &request.arguments,
-                "INVALID_ARGUMENT",
-                "工具业务载荷校验失败，未执行任何本地写入或外部请求",
-                business_errors,
-                started.elapsed().as_millis(),
-            );
-            finish_audit(
-                conn,
-                &audit_id,
-                "rejected",
-                result.error.as_ref().map(|error| error.code.as_str()),
-                result.error.as_ref().map(|error| error.message.as_str()),
-            )?;
-            return Ok(result);
-        }
+    if let Err(business_errors) = preview_details(conn, workspace, &tool.name, &request.arguments)
+        && !business_errors.is_empty()
+    {
+        let result = tool_call_error(
+            call_id,
+            audit_id.clone(),
+            &tool,
+            &request.arguments,
+            "INVALID_ARGUMENT",
+            "工具业务载荷校验失败，未执行任何本地写入或外部请求",
+            business_errors,
+            started.elapsed().as_millis(),
+        );
+        finish_audit(
+            conn,
+            &audit_id,
+            "rejected",
+            result.error.as_ref().map(|error| error.code.as_str()),
+            result.error.as_ref().map(|error| error.message.as_str()),
+        )?;
+        return Ok(result);
     }
     if tool.permission == ToolPermission::Read && !settings.read_enabled {
         let result = tool_call_error(
@@ -3771,12 +3828,11 @@ pub fn plan_assistant_message(
             Some("proposed"),
             None,
         )?;
-        let message = get_assistant_thread(conn, &thread.id)?
+        get_assistant_thread(conn, &thread.id)?
             .messages
             .into_iter()
             .last()
-            .ok_or_else(|| "助手计划消息写入失败".to_string())?;
-        message
+            .ok_or_else(|| "助手计划消息写入失败".to_string())?
     } else {
         append_assistant_message(
             conn,
@@ -3984,6 +4040,13 @@ pub fn generate_assistant_reply(
         .and_then(|content_id| content::read_content_package(workspace, content_id).ok())
         .map(|package| package.manifest.kind)
         .unwrap_or(ContentKind::Article);
+    let request_title = request
+        .content_id
+        .as_deref()
+        .filter(|_| request.scope.include_title)
+        .and_then(|content_id| content::read_content_package(workspace, content_id).ok())
+        .map(|package| package.manifest.title)
+        .unwrap_or_default();
     let media_metadata = if request.scope.include_media_metadata {
         request
             .content_id
@@ -4015,11 +4078,7 @@ pub fn generate_assistant_reply(
         provider_id: provider.id.clone(),
         operation: "custom".to_string(),
         content_kind: package_kind,
-        title: if request.scope.include_title {
-            String::new()
-        } else {
-            String::new()
-        },
+        title: request_title,
         context: preview.context.clone(),
         media_metadata,
         instruction: request.instruction.clone(),

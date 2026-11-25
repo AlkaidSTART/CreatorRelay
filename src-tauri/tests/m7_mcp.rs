@@ -299,6 +299,9 @@ fn m7_host_lifecycle_discovery_schema_and_crash_restart_are_observable() {
     assert_eq!(restarted.restart_count, 1);
     assert!(restarted.pid.is_some());
     assert!(fixture.host.list_tools().unwrap().len() >= 10);
+    let stopped = fixture.host.stop().unwrap();
+    assert_eq!(stopped.state, "stopped");
+    assert!(stopped.pid.is_none());
 }
 
 #[test]
@@ -611,6 +614,21 @@ fn m7_timeout_cancel_and_audit_do_not_repeat_or_leak_secrets() {
     let cancelled = handle.join().unwrap();
     assert_eq!(cancelled.status, "cancelled");
     assert_eq!(cancelled.error.unwrap().code, "TOOL_CANCELLED");
+    let history = mcp::get_assistant_thread(&fixture.conn, &thread.id).unwrap();
+    let tool_message = history
+        .messages
+        .iter()
+        .find(|message| message.tool_call.is_some())
+        .unwrap();
+    assert_eq!(tool_message.provider_name.as_deref(), Some("本地编排器"));
+    assert_eq!(tool_message.model.as_deref(), Some("deterministic-v1"));
+    assert_eq!(
+        tool_message
+            .tool_call
+            .as_ref()
+            .map(|call| call.status.as_str()),
+        Some("cancelled")
+    );
 
     let audits = mcp::list_audit(&fixture.conn, 20).unwrap();
     assert!(audits.iter().any(|audit| audit.status == "timedOut"));
@@ -743,6 +761,18 @@ fn m7_assistant_history_privacy_and_model_payload_exclude_unselected_body() {
             .messages
             .iter()
             .any(|message| message.role == "user")
+    );
+    let proposal = reopened
+        .messages
+        .iter()
+        .find(|message| message.tool_call.is_some())
+        .unwrap();
+    assert_eq!(
+        proposal
+            .tool_call
+            .as_ref()
+            .and_then(|call| call.arguments.as_ref()),
+        Some(&json!({}))
     );
 
     let (base_url, server) = fixture_server();

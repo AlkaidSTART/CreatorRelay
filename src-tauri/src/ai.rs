@@ -668,7 +668,7 @@ pub fn audit_database_for_secret(conn: &Connection, secret: &str) -> Result<bool
 }
 
 pub fn assert_secret_absent_from_path(path: &Path, secret: &str) -> Result<(), String> {
-    if path.exists() && fs::read_to_string(path).map_or(false, |value| value.contains(secret)) {
+    if path.exists() && fs::read_to_string(path).is_ok_and(|value| value.contains(secret)) {
         return Err(format!("敏感值出现在文件：{}", path.to_string_lossy()));
     }
     Ok(())

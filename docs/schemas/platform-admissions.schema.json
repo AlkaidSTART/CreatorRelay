@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://creatorrelay.local/schemas/platform-admissions.schema.json",
+  "title": "CreatorRelay platform admission registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "policyVersion", "reviewedAt", "statusSemantics", "platforms"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "policyVersion": { "type": "string", "minLength": 1 },
+    "reviewedAt": { "type": "string", "format": "date" },
+    "statusSemantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["supported", "restricted", "experimental", "unsupported", "unavailable"],
+      "properties": {
+        "supported": { "type": "string" },
+        "restricted": { "type": "string" },
+        "experimental": { "type": "string" },
+        "unsupported": { "type": "string" },
+        "unavailable": { "type": "string" }
+      }
+    },
+    "platforms": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/platform" }
+    }
+  },
+  "$defs": {
+    "capabilityLevel": {
+      "enum": ["supported", "unsupported", "restricted", "experimental", "unavailable"]
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "evidence", "reason"],
+      "properties": {
+        "level": { "$ref": "#/$defs/capabilityLevel" },
+        "evidence": {
+          "enum": ["runtime_verified", "official_docs_only", "official_scope", "not_verified"]
+        },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "contentKindCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "label", "read", "publish"],
+      "properties": {
+        "kind": { "enum": ["video", "imageText", "imageArticle", "article"] },
+        "label": { "type": "string", "minLength": 1 },
+        "read": { "$ref": "#/$defs/capability" },
+        "publish": { "$ref": "#/$defs/capability" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "url", "httpStatus", "checkedAt", "result"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "format": "uri", "pattern": "^https://" },
+        "httpStatus": { "type": ["integer", "null"], "minimum": 0, "maximum": 599 },
+        "checkedAt": { "type": "string", "format": "date" },
+        "result": { "type": "string", "minLength": 1 }
+      }
+    },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "platformId",
+        "platformName",
+        "adapterContractVersion",
+        "admissionStatus",
+        "autoPublishAllowed",
+        "publishDispatch",
+        "accountTypes",
+        "reviewedAt",
+        "officialSources",
+        "contentKinds",
+        "unsupported",
+        "notes"
+      ],
+      "properties": {
+        "platformId": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "platformName": { "type": "string", "minLength": 1 },
+        "adapterContractVersion": { "const": 1 },
+        "admissionStatus": { "enum": ["evaluation_only", "restricted", "experimental", "verified"] },
+        "autoPublishAllowed": { "type": "boolean" },
+        "publishDispatch": { "enum": ["manual_only", "verified_auto"] },
+        "accountTypes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "reviewedAt": { "type": "string", "format": "date" },
+        "officialSources": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/source" }
+        },
+        "contentKinds": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/contentKindCapability" }
+        },
+        "unsupported": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}

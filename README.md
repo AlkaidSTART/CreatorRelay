@@ -4,6 +4,8 @@ This template should help get you started developing with Tauri, React and Types
 
 ## 功能文档
 
+- [生态扩展、平台准入与插件市场治理（M8）](./docs/ecosystem-expansion.md)
+- [M8 插件市场决策 ADR](./docs/adr/ADR-003-plugin-marketplace.md)
 - [发布、同步与运营数据实现说明（M6）](./docs/m6-publishing-operations.md)
 - [内容工作室实现说明（M5）](./docs/content-studio.md)
 - [平台账号、凭据与会话实现说明](./docs/platform-accounts.md)

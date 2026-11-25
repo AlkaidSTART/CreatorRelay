@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://creatorrelay.local/schemas/marketplace-policy.schema.json",
+  "title": "CreatorRelay plugin marketplace policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "decision",
+    "reviewedAt",
+    "rationale",
+    "gates",
+    "allowedDistribution",
+    "thirdPartyInstallAllowed",
+    "controlledPilotAllowed"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "decision": { "enum": ["closed", "controlled_pilot", "open"] },
+    "reviewedAt": { "type": "string", "format": "date" },
+    "rationale": { "type": "string", "minLength": 1 },
+    "gates": {
+      "type": "array",
+      "minItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "required", "passed", "evidence"],
+        "properties": {
+          "id": {
+            "enum": [
+              "threat_assessment",
+              "source_signature",
+              "strong_isolation",
+              "update_rollback",
+              "permission_revocation",
+              "emergency_takedown"
+            ]
+          },
+          "label": { "type": "string", "minLength": 1 },
+          "required": { "type": "boolean" },
+          "passed": { "type": "boolean" },
+          "evidence": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "allowedDistribution": { "enum": ["bundled_official_only", "signed_third_party", "open_marketplace"] },
+    "thirdPartyInstallAllowed": { "type": "boolean" },
+    "controlledPilotAllowed": { "type": "boolean" }
+  }
+}
