@@ -11,8 +11,8 @@
 > 本节记录实施跟踪状态，不是验收报告，也不能作为验收通过的依据。
 
 - **总结日期：** 2026-11-25
-- **总结范围：** M8 平台准入、账号级能力矩阵、统一平台数据差异、SQLite 迁移、插件升级权限、发布安全、平台专属 MCP profile、插件市场门禁、创作者中心链接 UI/MCP 目录与回归验证。
-- **实现状态：** 创作者中心链接目录与 UI/SQLite 接入已实现；本需求的前端检查通过。Rust 回归在当前工作树受并行源码拆分改动阻塞，真实平台 MCP 数据读取和发布仍未接入、未验证。
+- **总结范围：** M8 平台准入、账号级能力矩阵、统一平台数据差异、SQLite 迁移、插件升级权限、发布安全、平台专属 MCP profile、插件市场门禁、创作者中心链接及 Chrome 浏览器桥接。
+- **实现状态：** 创作者中心链接、隔离 Chrome 页面读取 MCP 工具已实现；真实网页导航检查通过。新 profile 下按实际页面状态报告登录要求；登录后作品/指标读取与发布未验证。
 - **已完成任务：**
   - 新增 10 个平台的[准入登记](../src-tauri/resources/ecosystem/platform-admissions.json)与 [JSON Schema](../docs/schemas/platform-admissions.schema.json)，记录官方来源、检查结果、账号类型和逐平台 × 四形态读/写结果。
   - 新增 [生态实现说明](../docs/ecosystem-expansion.md)，实现账号级能力降级、平台/账号能力 MCP 工具及“平台管理 → 生态治理”界面。
@@ -23,11 +23,11 @@
   - 新增 [平台 MCP 拆分与接口映射](../docs/platform-mcp.md)：10 个平台各自拥有 `*_mcp` profile、原生字段 Schema、接口来源、字段映射、内容规则和人工交接入口；所有自动发布保持关闭。
   - 新增 8 个[创作者中心链接](../src-tauri/src/creator_centers.rs)的 SQLite v8 持久化、前端编辑入口和 MCP `creator_centers_list` 只读工具；页面明确区分网页可达与真实 MCP/API 数据读取、发布能力。
   - 将 `mcp.rs`、`platforms.rs`、`operations.rs`、`lib.rs`、`content.rs` 拆分为主题模块，新增平台 profile 与只读发布校验测试。
-- **验证记录：** [M8 验证记录](./verification/M8-verification-2026-11-25.md)（链接功能前端自动化通过；本次 Rust 当前工作树回归 `blocked`；真实平台数据读取/发布 `not verified`；阶段 `blocked`）。
-- **未完成与阻塞：** 当前工作树 Rust 测试因 `src-tauri/src/lib.rs` 残留 `#[cfg(test)]` 且源码拆分中的引用/可见性错误而失败；该拆分不是本需求改动，本次保留并行工作、未修复。阶段验收前置 M6 仍未 accepted；也未配置 8 个平台远程 MCP/实时 API 或真实账号读取/发布证据。自动发布关闭，桌面 UI 手工保存/重启检查未验证。
+- **验证记录：** [M8 主验证记录](./verification/M8-verification-2026-11-25.md)；[隔离浏览器桥接与真实网页导航记录](./verification/M8-verification-2026-11-25-browser-bridge.md)（全目标 Rust 测试与 clippy、48 前端 tests、构建通过；8 平台经 MCP 授权调用隔离 Chrome 导航实测；登录后数据与发布仍未验证）。
+- **未完成与阻塞：** 新 profile 的 8 个平台未登录：抖音公开创作页面壳、快手与掘金页面可见；小红书、知乎、公众号、哔哩哔哩要求登录；CSDN页壳可见但被登录罩遮挡。没有登录后作品/指标读取或发布证据。远程平台 MCP/API 仍未配置；自动发布关闭。桌面 UI 手工回归待用户启动 CreatorRelay 后登录各平台验证。阶段验收前置 M6 仍未 accepted。
 - **验收状态：** 未验收（`blocked`：前置 M6 未 accepted）。实现完成不等于阶段验收通过。
 - **验收报告：** 未创建；只有前置条件满足且 M8 阶段验收完成后才创建 `progress/M8-acceptance.md`。
-- **下一步：** 先协调并行 Rust 源码拆分的修复并重跑全目标测试；再完成 M2 → M6 前置验收，逐平台取得官方接口与测试账号/授权验证实时读取/发布往返，并手工复核桌面链接编辑/重启持久化，最后复核准入登记。
+- **下一步：** 用户在 CreatorRelay 隔离 Chrome 中登录目标平台，再通过 `creator_browser_read_page` 验证真实账号作品/指标页面；按需另行评审平台 API 与发布确认设计。随后完成 M2 → M6 前置验收和桌面 UI 手工复核。
 
 ## 前置条件
 

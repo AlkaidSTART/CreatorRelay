@@ -10,6 +10,7 @@ use super::schema::{normalized_timeout, validate_tool_arguments};
 use super::security::{tool_by_name, truncate_json};
 use super::*;
 
+#[allow(clippy::too_many_arguments)]
 fn execute_core_tool(
     conn: &mut Connection,
     runtime: &PluginRuntime,
@@ -59,8 +60,12 @@ fn execute_core_tool(
                 message: error,
                 field_errors: Vec::new(),
             })?;
-        page.note
-            .push_str(" 用户需在此专用浏览器窗口自行登录；没有访问或复用日常浏览器的会话数据。 ");
+        page.note.push_str(match page.page_status.as_str() {
+            "login_required" => " 平台需要登录：请在 CreatorRelay 专用浏览器窗口手动完成登录，然后调用 creator_browser_read_page。",
+            "page_shell_or_loading" => " 页面目前只有空壳或加载状态；可等待后再调用 creator_browser_read_page。",
+            _ => " 页面可见文本已读取；不会访问隐藏数据接口。",
+        });
+        page.note.push_str(" 没有访问或复用日常浏览器的会话数据。 ");
         return Ok(crate::mcp::outcome::success_result(
             serde_json::to_value(page).unwrap_or(Value::Null),
         ));
@@ -139,6 +144,25 @@ fn preview_details(
         "publishing_create_task" | "publishing_publish_task" => {
             publishing_tools::preview_publishing_tool(conn, workspace, tool_name, arguments)
         }
+        "creator_browser_open" => {
+            let platform_id = arguments
+                .get("platformId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let link = crate::creator_centers::list(conn, Some(platform_id))
+                .map_err(|error| vec![field_error("platformId", &error)])?
+                .into_iter()
+                .next()
+                .ok_or_else(|| vec![field_error("platformId", "未找到创作者中心链接")])?;
+            Ok(json!({
+                "platformId": link.platform_id,
+                "platformName": link.platform_name,
+                "url": link.url,
+                "browserProfile": "CreatorRelay isolated profile",
+                "pageOperation": "navigate only; no form submission or publishing",
+                "readsAccountData": false
+            }))
+        }
         "mcp_test_hang" => Ok(json!({
             "simulation": "Hang until timeout or user cancellation",
             "milliseconds": arguments.get("milliseconds").and_then(Value::as_u64).unwrap_or(5000)
@@ -184,17 +208,26 @@ pub fn preview_tool_call(
     } else {
         (None, None)
     };
-    let effects = match tool.permission {
-        ToolPermission::Read => vec!["读取本地 Core 数据；不产生外部平台请求".to_string()],
-        ToolPermission::Write => vec![
-            "写入本地内容包、发布任务或删除本地草稿".to_string(),
-            "不直接访问 SQLite、凭据引用或任意文件路径".to_string(),
-        ],
-        ToolPermission::ExternalAction => vec![
-            "向外部平台发出发布请求".to_string(),
-            "每个目标独立执行，部分失败不会回滚已完成目标".to_string(),
-            "确认令牌仅可使用一次；结果不确定时不会自动重试".to_string(),
-        ],
+    let effects = if tool.name == "creator_browser_open" {
+        vec![
+            "在 CreatorRelay 隔离浏览器配置中导航至已配置的 HTTPS 平台链接".to_string(),
+            "网络连接会向该平台暴露常规连接元数据（如 IP 和请求 URL）；不提交表单、不发布内容"
+                .to_string(),
+            "不会访问日常浏览器 profile、Cookie 或密码".to_string(),
+        ]
+    } else {
+        match tool.permission {
+            ToolPermission::Read => vec!["读取本地 Core 数据；不产生外部平台请求".to_string()],
+            ToolPermission::Write => vec![
+                "写入本地内容包、发布任务或删除本地草稿".to_string(),
+                "不直接访问 SQLite、凭据引用或任意文件路径".to_string(),
+            ],
+            ToolPermission::ExternalAction => vec![
+                "向外部平台发出发布请求".to_string(),
+                "每个目标独立执行，部分失败不会回滚已完成目标".to_string(),
+                "确认令牌仅可使用一次；结果不确定时不会自动重试".to_string(),
+            ],
+        }
     };
     Ok(McpAuthorizationPreview {
         call_id,
@@ -283,6 +316,17 @@ pub fn call_tool(
     workspace: &Path,
     host: &McpHost,
     request: McpCallRequest,
+) -> Result<McpCallResult, String> {
+    call_tool_with_browser(conn, runtime, workspace, host, request, None)
+}
+
+pub fn call_tool_with_browser(
+    conn: &mut Connection,
+    runtime: &PluginRuntime,
+    workspace: &Path,
+    host: &McpHost,
+    request: McpCallRequest,
+    browser_bridge: Option<&crate::browser_bridge::BrowserBridge>,
 ) -> Result<McpCallResult, String> {
     let started = Instant::now();
     let tool = tool_by_name(&request.tool_name)
@@ -500,7 +544,7 @@ pub fn call_tool(
             &request.arguments,
             &scope,
             &cancel,
-            request.browser_bridge.as_ref(),
+            browser_bridge,
         )?;
         Ok((execution.status, execution.result))
     })();

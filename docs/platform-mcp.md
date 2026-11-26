@@ -111,7 +111,7 @@ src-tauri/src/
 
 CreatorRelay 的 MCP Host 是 **MCP Server**，把本地内容、账号能力和发布工作流暴露给 MCP Client；它不是 MCP Client，不会因为某个平台有创作者中心网页就自动连接该平台的远程 MCP 服务。当前平台专属工具读取的是 CreatorRelay 的本地数据库、执行本地内容校验并提供人工交接。未完成账号级官方 API 验证的平台，不会被当作实时作品读取或自动发布能力。
 
-平台管理新增“创作者中心”视图，8 个用户提供的网址在 SQLite `creator_center_links` 表中维护，并可在 UI 编辑。MCP `creator_centers_list` 只返回这些配置链接；它明确返回 `platformDataAccess: not_connected`、`automatedPublishing: disabled`，不发起登录、页面抓取或作品发布。通过 HTTPS 请求得到网页 HTTP 200 只证明匿名网页入口可响应，不代表 MCP 数据读取或已登录发布成功。
+平台管理新增“创作者中心与浏览器”视图。8 个用户提供的网址在 SQLite `creator_center_links` 表中维护；`creator_centers_list` 返回这些链接。桌面端还可通过 `creator_browser_status`、`creator_browser_open`、`creator_browser_read_page` MCP 工具操作一个 CreatorRelay 专属 Chrome profile：open 工具必须通过一次性 ExternalAction 确认；仅打开 SQLite 配置的 HTTPS 链接和同平台登录子域，read 工具只返回当前页面可见文本（最多 60,000 字符）。Chrome 使用随机 DevTools 端口绑定 loopback，不访问用户日常浏览器 profile、Cookie 或密码，也不执行表单提交或发布。该能力是受限浏览器中转，不是平台远程 MCP/API；未登录或平台权限不足时必须返回登录页/页面状态，而不能声称作品数据已读取。网页 HTTP 200 也只证明入口响应。
 
 每个平台注册四个只读工具：
 

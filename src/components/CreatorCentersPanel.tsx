@@ -4,14 +4,18 @@ import { useEffect, useState } from "react";
 import { ExternalLink, Link2, LoaderCircle, Save, ShieldAlert } from "./Icons";
 import { PlatformLogo } from "./PlatformLogo";
 import { useCreatorCenterStore } from "../stores/creatorCenterStore";
-import { useUiStore } from "../stores";
+import { useUiStore, useMcpStore } from "../stores";
+import type { McpAuthorizationPreview, McpCallResult } from "../types/mcp";
 
 interface BrowserBridgeStatus {
   state: "running" | "stopped";
   browserVersion?: string | null;
   currentPlatformId?: string | null;
   currentUrl?: string | null;
+  currentPageStatus?: string | null;
+  lastError?: string | null;
   isolatedProfile: boolean;
+  devtoolsReady: boolean;
 }
 
 interface BrowserPageSnapshot {
@@ -20,6 +24,7 @@ interface BrowserPageSnapshot {
   url: string;
   title: string;
   text: string;
+  pageStatus: string;
   note: string;
 }
 
@@ -34,11 +39,19 @@ export function CreatorCentersPanel() {
   const initialize = useCreatorCenterStore((state) => state.initialize);
   const saveUrl = useCreatorCenterStore((state) => state.saveUrl);
   const showToast = useUiStore((state) => state.showToast);
+  const mcpHostStatus = useMcpStore((state) => state.status);
+  const mcpReadEnabled = useMcpStore((state) => state.settings?.readEnabled ?? false);
+  const lastBrowsedPlatformId = useCreatorCenterStore((state) => state.lastBrowsedPlatformId);
+  const setLastBrowsedPlatformId = useCreatorCenterStore((state) => state.setLastBrowsedPlatformId);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState("");
   const [browserStatus, setBrowserStatus] = useState<BrowserBridgeStatus | null>(null);
   const [pageSnapshot, setPageSnapshot] = useState<BrowserPageSnapshot | null>(null);
   const [browserBusyId, setBrowserBusyId] = useState("");
+  const [pendingOpen, setPendingOpen] = useState<{
+    preview: McpAuthorizationPreview;
+    platformId: string;
+  } | null>(null);
 
   useEffect(() => {
     void initialize();
@@ -63,14 +76,52 @@ export function CreatorCentersPanel() {
   }
 
   async function openInIsolatedBrowser(platformId: string) {
+    if (!isTauri()) {
+      showToast("请在 CreatorRelay 桌面版中使用 MCP 专用浏览器");
+      return;
+    }
     setBrowserBusyId(platformId);
-    setPageSnapshot(null);
     try {
-      const page = await invoke<BrowserPageSnapshot>("creator_browser_open", { platformId });
+      const preview = await invoke<McpAuthorizationPreview>("mcp_preview_tool_call", {
+        request: { toolName: "creator_browser_open", arguments: { platformId }, threadId: null },
+      });
+      if (preview.fieldErrors.length) {
+        showToast(preview.fieldErrors.map((item) => item.message).join("；"));
+        return;
+      }
+      setPendingOpen({ preview, platformId });
+    } catch (cause) {
+      showToast(`无法预览浏览器操作：${errorMessage(cause)}`);
+    } finally {
+      setBrowserBusyId("");
+    }
+  }
+
+  async function confirmOpenInIsolatedBrowser() {
+    if (!pendingOpen) return;
+    const { preview, platformId } = pendingOpen;
+    setBrowserBusyId(platformId);
+    try {
+      const result = await invoke<McpCallResult>("mcp_call_tool", {
+        request: {
+          callId: preview.callId,
+          toolName: preview.toolName,
+          arguments: { platformId },
+          threadId: null,
+          authorizationToken: preview.authorizationToken ?? null,
+          timeoutMs: 30_000,
+        },
+      });
+      if (result.status !== "success") {
+        throw new Error(result.error?.message ?? `工具状态：${result.status}`);
+      }
+      const page = result.result as BrowserPageSnapshot;
       setPageSnapshot(page);
+      setLastBrowsedPlatformId(platformId);
       const status = await invoke<BrowserBridgeStatus>("creator_browser_status");
       setBrowserStatus(status);
-      showToast(`${page.platformName}已在 CreatorRelay 隔离浏览器打开`);
+      setPendingOpen(null);
+      showToast(`${page.platformName}已由 MCP 在隔离浏览器中打开`);
     } catch (cause) {
       showToast(`无法打开隔离浏览器：${errorMessage(cause)}`);
     } finally {
@@ -78,11 +129,35 @@ export function CreatorCentersPanel() {
     }
   }
 
+  async function stopBrowser() {
+    try {
+      const status = await invoke<BrowserBridgeStatus>("creator_browser_stop");
+      setBrowserStatus(status);
+      setPageSnapshot(null);
+      setLastBrowsedPlatformId(null);
+      showToast("CreatorRelay 专用浏览器已关闭");
+    } catch (cause) {
+      showToast(`无法关闭专用浏览器：${errorMessage(cause)}`);
+    }
+  }
+
   async function refreshPage(platformId: string) {
     setBrowserBusyId(platformId);
     try {
-      const page = await invoke<BrowserPageSnapshot>("creator_browser_read_page", { platformId });
+      const result = await invoke<McpCallResult>("mcp_call_tool", {
+        request: {
+          callId: `browser-read-${Date.now()}`,
+          toolName: "creator_browser_read_page",
+          arguments: { platformId },
+          threadId: null,
+          timeoutMs: 30_000,
+        },
+      });
+      if (result.status !== "success")
+        throw new Error(result.error?.message ?? `工具状态：${result.status}`);
+      const page = result.result as BrowserPageSnapshot;
       setPageSnapshot(page);
+      setLastBrowsedPlatformId(platformId);
       showToast(`已读取当前页面：${page.title || page.platformName}`);
     } catch (cause) {
       showToast(`无法读取页面：${errorMessage(cause)}`);
@@ -114,10 +189,10 @@ export function CreatorCentersPanel() {
           <div className="space-y-1.5">
             <h2 className="text-sm font-semibold text-ink">MCP 平台能力边界</h2>
             <p className="text-xs leading-5 text-ink-secondary">
-              CreatorRelay 可通过 MCP 启动一个隔离的 Chrome
-              配置，打开已配置的平台链接，并读取当前页面可见文本。 这不是平台远程 MCP/API
-              接入；不读取隐藏接口或
-              Cookie，不自动发布。实际能否读到作品数据取决于用户在隔离浏览器中的登录状态和页面权限。
+              CreatorRelay 可通过 MCP 调用专用 Chrome
+              配置，打开已配置的平台链接并读取当前页面可见文本。 这不是平台远程 MCP/API 接入；不读取
+              Cookie
+              或隐藏接口、不自动发布。账号作品/指标是否可见取决于用户在隔离浏览器的登录状态和平台页面权限。
             </p>
             <p className="text-[11px] leading-4 text-ink-muted">
               网页可达或能打开创作者中心不等同于已登录、已读取实时数据或已验证发布。授权后仍需逐平台完成官方接口与账号级验证。
@@ -131,16 +206,53 @@ export function CreatorCentersPanel() {
           <div>
             <h2 className="text-sm font-semibold text-ink">MCP 专用浏览器</h2>
             <p className="mt-1 text-xs text-ink-muted">
-              独立 Chrome 配置与日常浏览器隔离；首次使用请在打开的窗口中手动登录平台。
+              独立 Chrome
+              配置与日常浏览器隔离；打开平台会向其发起网络请求并暴露常规连接元数据。首次使用请在新窗口中手动登录。
             </p>
           </div>
-          <span
-            className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${browserStatus?.state === "running" ? "bg-mint-bg text-mint-text" : "bg-sidebar text-ink-muted"}`}
-          >
-            {browserStatus?.state === "running" ? "运行中" : "按需启动"}
-            {browserStatus?.browserVersion ? ` · ${browserStatus.browserVersion}` : ""}
-          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${browserStatus?.state === "running" ? "bg-mint-bg text-mint-text" : "bg-sidebar text-ink-muted"}`}
+            >
+              {browserStatus?.state === "running" ? "运行中" : "按需启动"}
+              {browserStatus?.browserVersion ? ` · ${browserStatus.browserVersion}` : ""}
+            </span>
+            {browserStatus?.state === "running" && (
+              <button
+                type="button"
+                onClick={() => void stopBrowser()}
+                className="h-7 cursor-pointer rounded-lg border border-line px-2.5 text-[10px] text-ink-secondary hover:bg-sidebar"
+              >
+                关闭浏览器
+              </button>
+            )}
+          </div>
         </div>
+        {isTauri() && (!mcpHostStatus || mcpHostStatus.state !== "healthy") && (
+          <p className="mt-2 rounded-lg border border-coral-border bg-coral-bg px-2.5 py-1.5 text-[10px] text-coral-text">
+            MCP 服务未就绪，浏览器桥接工具当前不可用。
+          </p>
+        )}
+        {isTauri() && !mcpReadEnabled && (
+          <p className="mt-2 rounded-lg border border-lemon-border bg-lemon-bg px-2.5 py-1.5 text-[10px] text-lemon-text">
+            MCP 只读权限已关闭，无法读取页面文本。
+          </p>
+        )}
+        {browserStatus?.lastError && (
+          <p className="mt-2 rounded-lg border border-coral-border bg-coral-bg px-2.5 py-1.5 text-[10px] text-coral-text">
+            {browserStatus.lastError}
+          </p>
+        )}
+        {browserStatus?.currentPageStatus && (
+          <p className="mt-2 text-[10px] text-ink-muted">
+            页面状态：
+            {browserStatus.currentPageStatus === "login_required"
+              ? "需要在专用浏览器登录"
+              : browserStatus.currentPageStatus === "page_shell_or_loading"
+                ? "页面加载未完成"
+                : "页面已加载"}
+          </p>
+        )}
         {browserStatus?.currentUrl && (
           <p className="mt-2 truncate text-[10px] text-ink-muted">
             当前页面：{browserStatus.currentUrl}
@@ -156,7 +268,11 @@ export function CreatorCentersPanel() {
                 <div className="truncate text-[10px] text-ink-muted">{pageSnapshot.url}</div>
               </div>
               <span className="rounded-full bg-lemon-bg px-2 py-1 text-[10px] text-lemon-text">
-                仅页面可见文本
+                {pageSnapshot.pageStatus === "login_required"
+                  ? "需在专用浏览器登录"
+                  : pageSnapshot.pageStatus === "page_shell_or_loading"
+                    ? "页面未加载完成"
+                    : "当前页面可见文本"}
               </span>
             </div>
             <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-5 text-ink-secondary">
@@ -209,9 +325,9 @@ export function CreatorCentersPanel() {
                     <div>
                       <div className="text-xs font-semibold text-ink">{link.platformName}</div>
                       <div className="mt-0.5 text-[10px] text-ink-muted">
-                        MCP 实时读取未验证
+                        浏览器页面可见文本读取
                         <span className="mx-1.5">·</span>
-                        自动发布关闭
+                        官方 API/自动发布未验证
                       </div>
                     </div>
                   </div>
@@ -260,7 +376,8 @@ export function CreatorCentersPanel() {
                       )}
                       隔离浏览器
                     </button>
-                    {browserStatus?.currentPlatformId === link.platformId && (
+                    {(browserStatus?.currentPlatformId === link.platformId ||
+                      lastBrowsedPlatformId === link.platformId) && (
                       <button
                         type="button"
                         disabled={browserBusyId === link.platformId}
@@ -292,6 +409,55 @@ export function CreatorCentersPanel() {
               </article>
             );
           })}
+        </div>
+      )}
+      {pendingOpen && (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/35 p-4 backdrop-blur-[2px]">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="确认打开创作者中心"
+            className="w-full max-w-lg rounded-2xl border border-line bg-surface p-5 shadow-2xl"
+          >
+            <h3 className="text-sm font-semibold text-ink">确认让 MCP 打开创作者中心？</h3>
+            <p className="mt-2 text-xs leading-5 text-ink-secondary">
+              这会在 CreatorRelay 独立 Chrome
+              配置中导航到目标平台。平台会收到网络连接请求和常规连接元数据；不会提交表单或发布作品。日常
+              Chrome 的 Cookie/密码不会被读取。
+            </p>
+            <div className="mt-3 rounded-xl border border-line bg-canvas p-3 text-[11px] text-ink-secondary">
+              <div>
+                <strong>平台：</strong>
+                {String(pendingOpen.preview.details.platformName ?? pendingOpen.platformId)}
+              </div>
+              <div className="mt-1 break-all">
+                <strong>目标网址：</strong>
+                {String(pendingOpen.preview.details.url ?? "")}
+              </div>
+            </div>
+            {pendingOpen.preview.effects.map((effect) => (
+              <p key={effect} className="mt-2 text-[10px] leading-4 text-ink-muted">
+                • {effect}
+              </p>
+            ))}
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingOpen(null)}
+                className="h-8 cursor-pointer rounded-lg border border-line px-3 text-xs text-ink-secondary"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(browserBusyId)}
+                onClick={() => void confirmOpenInIsolatedBrowser()}
+                className="h-8 cursor-pointer rounded-lg bg-accent px-3 text-xs font-medium text-accent-on disabled:opacity-50"
+              >
+                {browserBusyId ? "正在打开…" : "确认并打开"}
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </div>

@@ -15,7 +15,7 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 
 pub mod ai;
-pub(crate) mod browser_bridge;
+pub mod browser_bridge;
 pub mod content;
 pub mod creator_centers;
 pub mod database;
@@ -31,9 +31,6 @@ mod commands;
 mod workspace_support;
 pub(crate) use workspace_support::*;
 
-#[cfg(test)]
-#[path = "browser_probe.rs"]
-mod browser_probe;
 #[cfg(test)]
 #[path = "lib_tests.rs"]
 mod tests;
@@ -543,8 +540,11 @@ pub fn run() {
             .map_err(std::io::Error::other)?;
             let mcp_settings = mcp::get_settings(&conn).unwrap_or_default();
             let mcp_host = mcp::McpHost::new(runner_executable);
-            let browser_bridge = browser_bridge::BrowserBridge::new(data_dir.clone())
-                .map_err(std::io::Error::other)?;
+            let browser_bridge = browser_bridge::BrowserBridge::new_with_database(
+                data_dir.clone(),
+                database_path.clone(),
+            )
+            .map_err(std::io::Error::other)?;
             if let Err(error) = mcp_host.start(Some(mcp::McpHostConfig {
                 auto_restart: mcp_settings.auto_restart,
                 max_restarts: mcp_settings.max_restarts,
@@ -669,10 +669,7 @@ pub fn run() {
             commands::creator_centers::list_creator_center_links,
             commands::creator_centers::save_creator_center_link,
             commands::browser_bridge::creator_browser_status,
-            commands::browser_bridge::creator_browser_start,
             commands::browser_bridge::creator_browser_stop,
-            commands::browser_bridge::creator_browser_open,
-            commands::browser_bridge::creator_browser_read_page,
             commands::mcp::list_platform_mcp_servers,
             commands::mcp::mcp_list_tools,
             commands::mcp::mcp_cancel_tool,

@@ -13,6 +13,7 @@ import {
 } from "../components/Icons";
 import { PageHeader } from "../components/PageHeader";
 import { PlatformLogo } from "../components/PlatformLogo";
+import { CreatorCentersPanel } from "../components/CreatorCentersPanel";
 import { PLATFORM_CATEGORIES } from "../data/demoData";
 import { usePlatformStore, useUiStore } from "../stores";
 import type {
@@ -171,6 +172,7 @@ export function PlatformsPage() {
   const [manualPrompt, setManualPrompt] = useState<ManualPrompt | null>(null);
   const [deleteState, setDeleteState] = useState<DeleteState | null>(null);
   const [busyAccountId, setBusyAccountId] = useState("");
+  const [showCreatorCenters, setShowCreatorCenters] = useState(false);
 
   useEffect(() => {
     void initialize();
@@ -375,20 +377,33 @@ export function PlatformsPage() {
         title="平台账号"
         description="管理平台账号、真实会话校验、系统凭据与隔离会话容器；未验证身份不会显示为已连接。"
         actions={
-          <button
-            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.24)] transition-colors hover:bg-accent-hover"
-            onClick={() => {
-              setAddPlatformId(catalog[0]?.id ?? null);
-              setAddAlias("");
-            }}
-          >
-            <Plus size={13} />
-            接入平台账号
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowCreatorCenters((value) => !value)}
+              className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-medium text-ink-secondary transition-colors hover:bg-sidebar"
+            >
+              {showCreatorCenters ? "返回账号" : "创作者中心与浏览器"}
+            </button>
+            {!showCreatorCenters && (
+              <button
+                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.24)] transition-colors hover:bg-accent-hover"
+                onClick={() => {
+                  setAddPlatformId(catalog[0]?.id ?? null);
+                  setAddAlias("");
+                }}
+              >
+                <Plus size={13} />
+                接入平台账号
+              </button>
+            )}
+          </div>
         }
       />
 
-      <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-7 py-6">
+      <div
+        className={`${showCreatorCenters ? "hidden " : ""}min-h-0 flex-1 space-y-7 overflow-y-auto px-7 py-6`}
+      >
         <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="平台类型筛选">
           {categoryFilterOptions.map((option) => {
             const count =
@@ -636,6 +651,7 @@ export function PlatformsPage() {
           </div>
         </section>
       </div>
+      {showCreatorCenters && <CreatorCentersPanel />}
 
       {addPlatformId && selectedPlatform && (
         <ModalShell label="添加平台账号" onClose={() => setAddPlatformId(null)}>

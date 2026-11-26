@@ -339,6 +339,12 @@ fn m7_core_boundary_and_security_evidence_do_not_expose_database_or_credentials(
             .forbidden_argument_fields
             .contains(&"filePath".to_string())
     );
+    assert!(
+        evidence
+            .observations
+            .iter()
+            .any(|value| value.contains("独立 Chrome profile"))
+    );
 }
 
 #[test]

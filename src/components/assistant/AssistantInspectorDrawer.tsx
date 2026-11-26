@@ -235,7 +235,7 @@ export function AssistantInspectorDrawer({
                     </select>
                   </label>
                   <p className="rounded-lg bg-surface px-2.5 py-1.5 text-[10px] text-ink-muted">
-                    外部发布始终每次确认；该策略不可关闭。
+                    外部平台操作每次都需确认；浏览器中转只读页面可见文本，不会代替发布。
                   </p>
                   <button
                     type="button"

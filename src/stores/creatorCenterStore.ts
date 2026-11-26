@@ -57,14 +57,18 @@ interface CreatorCenterState {
   links: CreatorCenterLink[];
   loading: boolean;
   error: string;
+  lastBrowsedPlatformId: string | null;
   initialize: () => Promise<void>;
   saveUrl: (platformId: string, url: string) => Promise<CreatorCenterLink>;
+  setLastBrowsedPlatformId: (platformId: string | null) => void;
 }
 
 export const useCreatorCenterStore = create<CreatorCenterState>((set, get) => ({
   links: DEFAULT_CREATOR_CENTERS,
   loading: false,
   error: "",
+  lastBrowsedPlatformId: null,
+  setLastBrowsedPlatformId: (lastBrowsedPlatformId) => set({ lastBrowsedPlatformId }),
   initialize: async () => {
     if (!isTauri()) {
       set({ links: DEFAULT_CREATOR_CENTERS, loading: false, error: "" });

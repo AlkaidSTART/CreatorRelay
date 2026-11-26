@@ -56,6 +56,38 @@ const demoTools: McpToolDefinition[] = [
     inputSchema: { type: "object", properties: {} },
   },
   {
+    name: "creator_browser_status",
+    title: "查看专用浏览器状态",
+    description: "查看 CreatorRelay 隔离 Chrome 状态",
+    schemaVersion: "1.0",
+    permission: "read",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "creator_browser_open",
+    title: "在专用浏览器打开创作者中心",
+    description: "导航到已配置的平台链接；需确认，不提交或发布",
+    schemaVersion: "1.0",
+    permission: "externalAction",
+    inputSchema: {
+      type: "object",
+      properties: { platformId: { type: "string" } },
+      required: ["platformId"],
+    },
+  },
+  {
+    name: "creator_browser_read_page",
+    title: "读取当前创作者中心页面",
+    description: "只读 MCP 专用浏览器当前页的可见文本",
+    schemaVersion: "1.0",
+    permission: "read",
+    inputSchema: {
+      type: "object",
+      properties: { platformId: { type: "string" } },
+      required: ["platformId"],
+    },
+  },
+  {
     name: "publishing_publish_task",
     title: "发布已确认内容",
     description: "外部动作，每次执行前确认",

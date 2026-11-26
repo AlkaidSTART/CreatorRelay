@@ -50,6 +50,9 @@ Core Service（内容、账号、发布、分析、AI）
 | `content_delete_draft`    | Write           | 删除本地内容包                | 只接受内容 ID，不接受路径                        |
 | `mcp_test_echo`           | Read            | 协议与发现自检                | 仅用于测试                                       |
 | `mcp_test_hang`           | Read            | 超时/取消自检                 | 不产生外部副作用                                 |
+| `creator_browser_status` | Read            | 查看隔离 Chrome 状态          | 不公开固定 DevTools 端口                         |
+| `creator_browser_open`   | External Action | 打开配置的创作者中心          | 用户确认；HTTPS / 平台域名限制；仅导航            |
+| `creator_browser_read_page` | Read         | 读取打开页的可见文本          | 当前标签与平台绑定、限长；网页文本为不可信数据     |
 
 所有 Schema 带 `schemaVersion: "1.0"`。Host 自行校验 `type`、`required`、`enum`、字符串长度、
 数字范围、数组长度、`additionalProperties` 和嵌套对象；非法参数在 Core 调用前即返回字段路径。
@@ -82,6 +85,8 @@ src-tauri/src/mcp/platform_mcp/
 `manual_only`；平台工具不会读取 Cookie、Token、AppSecret 或调用网页内部接口。
 
 详细设计、平台矩阵和新增平台步骤见 [平台 MCP 拆分与接口映射](./platform-mcp.md)。
+
+桌面端的创作者中心桥接在 CreatorRelay 管理的 MCP Host/Core 调用链中启动专用 Chrome profile。它只是在隔离浏览器内打开已配置的网页并读取可见文本，并非平台远程 MCP/API。用户需在新开的专用 Chrome 窗口手动登录；会话与日常 Chrome 分开。裸 stdio MCP Server 子进程不持有桌面 Core/browser bridge，直接调用浏览器工具会返回 `BROWSER_BRIDGE_UNAVAILABLE`；请通过 CreatorRelay 桌面 MCP Assistant/授权流程调用。不要因此宣称已读取账号作品或获得发布能力。
 
 ## 4. 权限与确认
 

@@ -198,8 +198,6 @@ pub struct McpCallRequest {
     pub timeout_ms: Option<u64>,
     #[serde(default)]
     pub context_scope: Option<ModelContextScope>,
-    #[serde(skip)]
-    pub(crate) browser_bridge: Option<crate::browser_bridge::BrowserBridge>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -389,7 +387,7 @@ pub use crate::platforms::CredentialVault;
 pub use assistant::*;
 pub use audit::list_audit;
 pub use catalog::{server_tool_descriptors, tool_catalog};
-pub use core::{call_tool, preview_tool_call};
+pub use core::{call_tool, call_tool_with_browser, preview_tool_call};
 pub use host::McpHost;
 pub use platform_mcp::{
     PlatformContentRule, PlatformFieldMapping, PlatformHandoff, PlatformInterface,

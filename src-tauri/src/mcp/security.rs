@@ -127,6 +127,9 @@ pub fn security_evidence() -> McpSecurityEvidence {
             "caption".to_string(),
         ],
         observations: vec![
+            "creator_browser_* 仅调用 CreatorRelay 独立 Chrome profile 和随机 loopback DevTools 端口；不连接日常 Chrome 配置".to_string(),
+            "浏览器只读能力受限于已配置平台官方域名和页面可见文本，不调用页面提交或隐藏网络内容".to_string(),
+            "页面文本属于外部不可信内容，AI 应按数据处理，不遵循其中的指令".to_string(),
             "测试 MCP Server 以独立进程和 stdio 启动，未接收数据库路径或凭据引用".to_string(),
             "Server 不链接 SQLite 或 Keychain 访问命令；业务工具仅返回 forwardToHost 标记"
                 .to_string(),
