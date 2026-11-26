@@ -66,7 +66,7 @@
 - 操作：打开“平台管理” → 点击“生态治理”。
 - 页面可见：平台 × 内容形态准入矩阵、自动发布关闭、账号级降级原因、兼容性回归、市场关闭和官方来源入口。
 - 浏览器控制台/页面错误：0。
-- 截图：[M8 生态治理界面](./assets/M8-ecosystem-panel-2026-11-25.png)
+- 截图：本地证据 `progress/verification/assets/M8-ecosystem-panel-2026-11-25.png`；按仓库策略截图目录不进入 Git。
 - Playwright 断言结果：
 
 ```json

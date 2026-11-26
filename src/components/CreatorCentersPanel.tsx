@@ -13,6 +13,7 @@ interface BrowserBridgeStatus {
   currentPlatformId?: string | null;
   currentUrl?: string | null;
   currentPageStatus?: string | null;
+  stagedContentId?: string | null;
   lastError?: string | null;
   isolatedProfile: boolean;
   devtoolsReady: boolean;
@@ -39,6 +40,7 @@ export function CreatorCentersPanel() {
   const initialize = useCreatorCenterStore((state) => state.initialize);
   const saveUrl = useCreatorCenterStore((state) => state.saveUrl);
   const showToast = useUiStore((state) => state.showToast);
+  const initializeMcp = useMcpStore((state) => state.initialize);
   const mcpHostStatus = useMcpStore((state) => state.status);
   const mcpReadEnabled = useMcpStore((state) => state.settings?.readEnabled ?? false);
   const lastBrowsedPlatformId = useCreatorCenterStore((state) => state.lastBrowsedPlatformId);
@@ -55,12 +57,13 @@ export function CreatorCentersPanel() {
 
   useEffect(() => {
     void initialize();
+    void initializeMcp();
     if (isTauri()) {
       void invoke<BrowserBridgeStatus>("creator_browser_status")
         .then(setBrowserStatus)
         .catch(() => setBrowserStatus(null));
     }
-  }, [initialize]);
+  }, [initialize, initializeMcp]);
 
   async function openCenter(url: string) {
     try {

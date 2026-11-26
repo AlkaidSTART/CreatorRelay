@@ -135,6 +135,30 @@ pub(super) fn target_summary_for(tool_name: &str, arguments: &Value) -> String {
             .and_then(Value::as_str)
             .map(|keyword| format!("平台作品搜索：{keyword}"))
             .unwrap_or_else(|| "平台作品列表".to_string()),
+        name if name.ends_with("_work_get") => arguments
+            .get("workId")
+            .or_else(|| arguments.get("itemId"))
+            .or_else(|| arguments.get("noteId"))
+            .or_else(|| arguments.get("bvid"))
+            .or_else(|| arguments.get("videoId"))
+            .or_else(|| arguments.get("msgId"))
+            .or_else(|| arguments.get("statusId"))
+            .or_else(|| arguments.get("articleId"))
+            .and_then(Value::as_str)
+            .map(|id| format!("平台作品详情：{id}"))
+            .unwrap_or_else(|| "平台作品详情".to_string()),
+        name if name.ends_with("_work_changes") => "平台作品增量变更".to_string(),
+        name if name.ends_with("_work_sync") => "平台作品账号同步".to_string(),
+        name if name.ends_with("_media_stage") => arguments
+            .get("contentId")
+            .and_then(Value::as_str)
+            .map(|id| format!("隔离浏览器暂存内容 {id}"))
+            .unwrap_or_else(|| "隔离浏览器暂存发布内容".to_string()),
+        name if name.ends_with("_publish_submit") => arguments
+            .get("contentId")
+            .and_then(Value::as_str)
+            .map(|id| format!("提交发布表单：内容 {id}"))
+            .unwrap_or_else(|| "提交平台发布表单".to_string()),
         name if name.ends_with("_analytics_get_trend") => format!(
             "{} 趋势 / 粒度 {}",
             arguments

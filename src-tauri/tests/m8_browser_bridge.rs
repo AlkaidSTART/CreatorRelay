@@ -333,3 +333,33 @@ fn live_creator_browser_opens_all_eight_platform_urls_through_mcp() {
     }
     bridge.stop().unwrap();
 }
+
+#[test]
+fn platform_final_publish_requires_explicit_confirmation_before_browser_action() {
+    let (temp, conn, _runtime, host, workspace) = fixture();
+    let bridge = BrowserBridge::new_with_database(
+        temp.path().to_path_buf(),
+        temp.path().join("creatorrelay.sqlite3"),
+    )
+    .unwrap();
+    let preview = mcp::preview_tool_call(
+        &conn,
+        &workspace,
+        McpPreviewRequest {
+            tool_name: "douyin_publish_submit".to_string(),
+            arguments: json!({
+                "contentId": "content-1",
+                "mode": "publish",
+                "buttonLabel": "发布"
+            }),
+            thread_id: None,
+        },
+    )
+    .unwrap();
+    assert!(preview.authorization_token.is_none());
+    assert!(preview.field_errors.iter().any(|error| {
+        error.path == "confirmFinalPublish" && error.message.contains("必须设置为 true")
+    }));
+    assert_eq!(bridge.status().unwrap().state, "stopped");
+    host.stop().unwrap();
+}

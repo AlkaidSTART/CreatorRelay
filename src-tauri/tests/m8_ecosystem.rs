@@ -87,6 +87,45 @@ fn insert_active_account(fixture: &Fixture, id: &str, platform_id: &str) {
         .unwrap();
 }
 
+fn call_mcp_tool(
+    fixture: &mut Fixture,
+    host: &mcp::McpHost,
+    tool_name: &str,
+    arguments: Value,
+) -> mcp::McpCallResult {
+    let preview = mcp::preview_tool_call(
+        &fixture.conn,
+        &fixture.workspace,
+        mcp::McpPreviewRequest {
+            tool_name: tool_name.to_string(),
+            arguments: arguments.clone(),
+            thread_id: None,
+        },
+    )
+    .unwrap();
+    assert!(
+        preview.field_errors.is_empty(),
+        "preview errors for {tool_name}: {:?}",
+        preview.field_errors
+    );
+    mcp::call_tool(
+        &mut fixture.conn,
+        &fixture.runtime,
+        &fixture.workspace,
+        host,
+        mcp::McpCallRequest {
+            call_id: Some(preview.call_id),
+            tool_name: tool_name.to_string(),
+            arguments,
+            thread_id: None,
+            authorization_token: preview.authorization_token,
+            timeout_ms: Some(30_000),
+            context_scope: None,
+        },
+    )
+    .unwrap()
+}
+
 #[test]
 fn m8_platform_sync_preserves_raw_fields_content_mapping_and_metric_provenance() {
     let mut fixture = fixture();
@@ -106,6 +145,7 @@ fn m8_platform_sync_preserves_raw_fields_content_mapping_and_metric_provenance()
             account_alias: "M8 同步账号".to_string(),
             adapter_id: plugin_id.to_string(),
             as_of: Some("2026-11-25T09:30:00Z".to_string()),
+            cursor: None,
         },
     )
     .unwrap();
@@ -551,6 +591,229 @@ fn m8_platform_publish_validate_is_read_only_and_returns_field_mapping() {
             .as_str()
             .unwrap()
             .contains("creator.douyin.com")
+    );
+    host.stop().unwrap();
+}
+
+#[test]
+fn m8_platform_extended_tools_cover_fields_pagination_changes_sync_and_staged_publish() {
+    let profiles = mcp::platform_mcp_catalog();
+    assert_eq!(profiles.len(), 10);
+    for profile in &profiles {
+        let names = profile
+            .tools
+            .iter()
+            .map(|tool| tool.name.as_str())
+            .collect::<std::collections::HashSet<_>>();
+        for suffix in [
+            "work_get",
+            "work_changes",
+            "work_sync",
+            "media_stage",
+            "publish_submit",
+        ] {
+            assert!(
+                names.contains(format!("{}_{suffix}", profile.platform_id).as_str()),
+                "{} missing {suffix}",
+                profile.platform_id
+            );
+        }
+    }
+
+    let tools = mcp::tool_catalog();
+    let douyin_list = tools
+        .iter()
+        .find(|tool| tool.name == "douyin_work_list")
+        .unwrap();
+    assert!(
+        douyin_list.input_schema["properties"]
+            .get("cursor")
+            .is_some()
+    );
+    assert!(
+        douyin_list.input_schema["properties"]
+            .get("pageSize")
+            .is_some()
+    );
+
+    let mut fixture = fixture();
+    let host = mcp::McpHost::new(PathBuf::from(env!("CARGO_BIN_EXE_creatorrelay")));
+    host.start(None).unwrap();
+    let account = call_mcp_tool(
+        &mut fixture,
+        &host,
+        "douyin_account_get_info",
+        json!({"accountId": "missing-account"}),
+    );
+    assert_eq!(account.status, "success");
+    let value = account.result.unwrap();
+    assert_eq!(value["count"], 0);
+    assert!(value["fieldModel"].as_array().unwrap().iter().any(|field| {
+        field["unifiedField"] == "media.video"
+            && field["platformField"] == "video_id"
+            && field["valueType"] == "object"
+    }));
+
+    let package =
+        content::create_content_package(&fixture.workspace, ContentKind::Video, "浏览器暂存测试")
+            .unwrap();
+    let stage = call_mcp_tool(
+        &mut fixture,
+        &host,
+        "douyin_media_stage",
+        json!({"contentId": package.manifest.id, "assetIds": []}),
+    );
+    assert_eq!(stage.status, "failed");
+    assert_eq!(
+        stage.error.as_ref().map(|error| error.code.as_str()),
+        Some("BROWSER_BRIDGE_UNAVAILABLE")
+    );
+
+    let final_publish = call_mcp_tool(
+        &mut fixture,
+        &host,
+        "douyin_publish_submit",
+        json!({
+            "contentId": "missing",
+            "mode": "publish",
+            "buttonLabel": "发布",
+            "confirmFinalPublish": true
+        }),
+    );
+    assert_eq!(final_publish.status, "failed");
+    assert_eq!(
+        final_publish
+            .error
+            .as_ref()
+            .map(|error| error.code.as_str()),
+        Some("BROWSER_BRIDGE_UNAVAILABLE")
+    );
+    host.stop().unwrap();
+}
+
+#[test]
+fn m8_platform_structured_sync_cursor_pagination_and_incremental_changes() {
+    let mut fixture = fixture();
+    insert_active_account(&fixture, "account-tool-sync", "juejin");
+    let plugin_id = "creatorrelay.official.sync-adapter";
+    plugins::install_official_plugin(&mut fixture.conn, &fixture.runtime, plugin_id).unwrap();
+    grant_all(&mut fixture, plugin_id, &[]);
+    plugins::enable_plugin(&mut fixture.conn, &fixture.runtime, plugin_id).unwrap();
+
+    let host = mcp::McpHost::new(PathBuf::from(env!("CARGO_BIN_EXE_creatorrelay")));
+    host.start(None).unwrap();
+    let synced = call_mcp_tool(
+        &mut fixture,
+        &host,
+        "juejin_work_sync",
+        json!({
+            "accountId": "account-tool-sync",
+            "adapterId": plugin_id,
+            "asOf": "2026-11-25T09:30:00Z"
+        }),
+    );
+    assert_eq!(synced.status, "success", "error={:?}", synced.error);
+    assert_eq!(synced.result.as_ref().unwrap()["sync"]["importedCount"], 4);
+    assert_eq!(
+        synced.result.as_ref().unwrap()["sync"]["nextCursor"],
+        "fixture-cursor-initial"
+    );
+
+    let resumed = call_mcp_tool(
+        &mut fixture,
+        &host,
+        "juejin_work_sync",
+        json!({
+            "accountId": "account-tool-sync",
+            "adapterId": plugin_id,
+            "cursor": "opaque-sync-watermark"
+        }),
+    );
+    assert_eq!(resumed.status, "success", "error={:?}", resumed.error);
+    assert_eq!(
+        resumed.result.as_ref().unwrap()["sync"]["nextCursor"],
+        "fixture-cursor-opaque-sync-watermark"
+    );
+    assert_eq!(resumed.result.as_ref().unwrap()["sync"]["updatedCount"], 4);
+
+    let first = call_mcp_tool(
+        &mut fixture,
+        &host,
+        "juejin_work_list",
+        json!({"pageSize": 2}),
+    );
+    assert_eq!(first.status, "success");
+    let first = first.result.unwrap();
+    assert_eq!(first["items"].as_array().unwrap().len(), 2);
+    assert_eq!(first["pageInfo"]["totalCount"], 4);
+    assert_eq!(first["pageInfo"]["hasNextPage"], true);
+    assert!(!first["fieldModel"].as_array().unwrap().is_empty());
+    let cursor = first["pageInfo"]["nextCursor"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let first_ids = first["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["workId"].as_str().unwrap().to_string())
+        .collect::<std::collections::HashSet<_>>();
+
+    let second = call_mcp_tool(
+        &mut fixture,
+        &host,
+        "juejin_work_list",
+        json!({"pageSize": 2, "cursor": cursor}),
+    );
+    let second = second.result.unwrap();
+    assert_eq!(second["items"].as_array().unwrap().len(), 2);
+    assert_eq!(second["pageInfo"]["hasNextPage"], false);
+    for item in second["items"].as_array().unwrap() {
+        assert!(!first_ids.contains(item["workId"].as_str().unwrap()));
+    }
+
+    let work_id = second["items"][0]["workId"].as_str().unwrap().to_string();
+    let detail = call_mcp_tool(
+        &mut fixture,
+        &host,
+        "juejin_work_get",
+        json!({"workId": work_id}),
+    );
+    assert_eq!(detail.status, "success");
+    let detail = detail.result.unwrap();
+    assert!(detail["work"]["rawFields"].is_object());
+    assert!(detail["work"]["metrics"].is_array());
+
+    let changes = call_mcp_tool(
+        &mut fixture,
+        &host,
+        "juejin_work_changes",
+        json!({"pageSize": 2}),
+    );
+    assert_eq!(changes.status, "success");
+    let changes = changes.result.unwrap();
+    assert_eq!(changes["changes"].as_array().unwrap().len(), 2);
+    assert_eq!(changes["pageInfo"]["hasNextPage"], true);
+    let change_cursor = changes["pageInfo"]["nextCursor"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let next_changes = call_mcp_tool(
+        &mut fixture,
+        &host,
+        "juejin_work_changes",
+        json!({"pageSize": 2, "cursor": change_cursor}),
+    );
+    assert_eq!(next_changes.status, "success");
+    let next_changes = next_changes.result.unwrap();
+    assert_eq!(next_changes["changes"].as_array().unwrap().len(), 2);
+    assert_eq!(next_changes["pageInfo"]["hasNextPage"], false);
+    assert!(
+        next_changes["warnings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|warning| warning.as_str().unwrap().contains("删除事件"))
     );
     host.stop().unwrap();
 }

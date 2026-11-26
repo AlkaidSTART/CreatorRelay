@@ -2,7 +2,7 @@ use chrono::Utc;
 use rusqlite::{Connection, params};
 use serde::Serialize;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 8;
+pub const CURRENT_SCHEMA_VERSION: i64 = 9;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -412,6 +412,8 @@ fn migration_sql(version: i64) -> Result<&'static str, String> {
                 ('bilibili', '哔哩哔哩', 'https://member.bilibili.com/platform/home', 6, '2026-11-25T00:00:00Z'),
                 ('juejin', '稀土掘金', 'https://juejin.cn/creator/home', 7, '2026-11-25T00:00:00Z'),
                 ('csdn', 'CSDN', 'https://mp.csdn.net/', 8, '2026-11-25T00:00:00Z');"),
+        9 => Ok("ALTER TABLE sync_runs
+                ADD COLUMN next_cursor TEXT;"),
         _ => Err(format!("没有定义 schema v{version} 的迁移脚本")),
     }
 }
@@ -443,8 +445,16 @@ mod tests {
         let report = migrate(&mut conn).unwrap();
         assert_eq!(report.from_version, 0);
         assert_eq!(report.to_version, CURRENT_SCHEMA_VERSION);
-        assert_eq!(report.applied_versions, vec![1, 2, 3, 4, 5, 6, 7, 8]);
+        assert_eq!(report.applied_versions, vec![1, 2, 3, 4, 5, 6, 7, 8, 9]);
         assert_eq!(current_version(&conn).unwrap(), CURRENT_SCHEMA_VERSION);
+        let has_sync_cursor: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('sync_runs') WHERE name='next_cursor'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(has_sync_cursor, 1);
     }
 
     #[test]
@@ -454,7 +464,7 @@ mod tests {
         let report = migrate(&mut conn).unwrap();
         assert_eq!(report.from_version, 1);
         assert_eq!(report.to_version, CURRENT_SCHEMA_VERSION);
-        assert_eq!(report.applied_versions, vec![2, 3, 4, 5, 6, 7, 8]);
+        assert_eq!(report.applied_versions, vec![2, 3, 4, 5, 6, 7, 8, 9]);
         let workspace: String = conn
             .query_row(
                 "SELECT value FROM app_settings WHERE key='workspace_path'",
@@ -502,7 +512,7 @@ mod tests {
         let report = migrate(&mut conn).unwrap();
         assert_eq!(report.from_version, 2);
         assert_eq!(report.to_version, CURRENT_SCHEMA_VERSION);
-        assert_eq!(report.applied_versions, vec![3, 4, 5, 6, 7, 8]);
+        assert_eq!(report.applied_versions, vec![3, 4, 5, 6, 7, 8, 9]);
         let alias: String = conn
             .query_row(
                 "SELECT alias FROM platform_accounts WHERE id='account-m3'",
@@ -609,7 +619,7 @@ mod tests {
 
         let report = migrate_to_version(&mut conn, CURRENT_SCHEMA_VERSION).unwrap();
         assert_eq!(report.from_version, 6);
-        assert_eq!(report.applied_versions, vec![7, 8]);
+        assert_eq!(report.applied_versions, vec![7, 8, 9]);
         let packages = content::list_content_packages(&workspace).unwrap();
         assert_eq!(packages.len(), 4);
         assert_eq!(

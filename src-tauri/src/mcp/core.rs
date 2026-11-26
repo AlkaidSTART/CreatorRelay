@@ -119,7 +119,14 @@ fn execute_core_tool(
         );
     }
     if super::platform_mcp::find_platform_tool(tool_name).is_some() {
-        return super::platform_mcp::execute_platform_tool(conn, workspace, tool_name, arguments);
+        return super::platform_mcp::execute_platform_tool(
+            conn,
+            runtime,
+            workspace,
+            tool_name,
+            arguments,
+            browser_bridge,
+        );
     }
     Err(McpCallError {
         code: "TOOL_NOT_FOUND".to_string(),
@@ -187,6 +194,9 @@ fn preview_details(
             "simulation": "Hang until timeout or user cancellation",
             "milliseconds": arguments.get("milliseconds").and_then(Value::as_u64).unwrap_or(5000)
         })),
+        _ if super::platform_mcp::find_platform_tool(tool_name).is_some() => {
+            super::platform_mcp::preview_platform_tool(conn, workspace, tool_name, arguments)
+        }
         _ => Ok(arguments.clone()),
     }
 }
@@ -241,6 +251,8 @@ pub fn preview_tool_call(
                 .to_string(),
             "不会访问日常浏览器 profile、Cookie 或密码".to_string(),
         ]
+    } else if super::platform_mcp::find_platform_tool(&tool.name).is_some() {
+        super::platform_mcp::platform_tool_effects(&tool.name)
     } else {
         match tool.permission {
             ToolPermission::Read => vec!["读取本地 Core 数据；不产生外部平台请求".to_string()],
@@ -485,11 +497,17 @@ pub fn call_tool_with_browser(
         }
     }
 
-    if matches!(
-        tool.name.as_str(),
-        "creator_browser_status" | "creator_browser_open" | "creator_browser_read_page"
-    ) && browser_bridge.is_none()
-    {
+    let browser_required =
+        matches!(
+            tool.name.as_str(),
+            "creator_browser_status" | "creator_browser_open" | "creator_browser_read_page"
+        ) || super::platform_mcp::find_platform_tool(&tool.name).is_some_and(|(_, tool)| {
+            matches!(
+                tool.kind,
+                PlatformToolKind::MediaStage | PlatformToolKind::PublishSubmit
+            )
+        });
+    if browser_required && browser_bridge.is_none() {
         let result = tool_call_error(
             call_id,
             audit_id.clone(),

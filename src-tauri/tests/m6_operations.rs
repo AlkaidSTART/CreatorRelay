@@ -596,6 +596,7 @@ fn m6_ac_02_04_07_to_12_and_14_capabilities_sync_analytics_dashboard_and_manual_
         account_alias: "同步主号".to_string(),
         adapter_id: "creatorrelay.official.sync-adapter".to_string(),
         as_of: Some("2026-11-23T09:00:00Z".to_string()),
+        cursor: None,
     };
     let first_sync =
         operations::sync_platform_works(&mut fixture.conn, &fixture.runtime, &sync_input).unwrap();
@@ -637,6 +638,7 @@ fn m6_ac_02_04_07_to_12_and_14_capabilities_sync_analytics_dashboard_and_manual_
         &fixture.runtime,
         &SyncPlatformWorksInput {
             as_of: Some("2026-11-24T09:00:00Z".to_string()),
+            cursor: None,
             ..sync_input.clone()
         },
     )
@@ -649,6 +651,7 @@ fn m6_ac_02_04_07_to_12_and_14_capabilities_sync_analytics_dashboard_and_manual_
         &fixture.runtime,
         &SyncPlatformWorksInput {
             as_of: Some("2026-11-24T18:00:00Z".to_string()),
+            cursor: None,
             ..sync_input.clone()
         },
     )
@@ -660,6 +663,7 @@ fn m6_ac_02_04_07_to_12_and_14_capabilities_sync_analytics_dashboard_and_manual_
             &fixture.runtime,
             &SyncPlatformWorksInput {
                 as_of: Some(as_of.to_string()),
+                cursor: None,
                 ..sync_input.clone()
             },
         )
@@ -819,6 +823,7 @@ fn m6_ac_02_04_07_to_12_and_14_capabilities_sync_analytics_dashboard_and_manual_
             account_alias: "过期同步号".to_string(),
             adapter_id: "creatorrelay.official.sync-adapter".to_string(),
             as_of: Some("2026-11-24T09:00:00Z".to_string()),
+            cursor: None,
         },
     )
     .unwrap();
@@ -874,6 +879,7 @@ fn m6_ac_12_account_invalidation_pauses_unfinished_dependent_tasks() {
             account_alias: "过期同步号".to_string(),
             adapter_id: "creatorrelay.official.sync-adapter".to_string(),
             as_of: None,
+            cursor: None,
         },
     )
     .unwrap();
@@ -977,6 +983,7 @@ fn m6_partial_sync_failure_is_visible_and_keeps_successful_works() {
             account_alias: "部分失败账号".to_string(),
             adapter_id: "creatorrelay.official.sync-adapter".to_string(),
             as_of: Some("2026-11-24T09:00:00Z".to_string()),
+            cursor: None,
         },
     )
     .unwrap();

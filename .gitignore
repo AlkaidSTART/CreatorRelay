@@ -37,5 +37,8 @@ docs/*
 !docs/adr/ADR-003-plugin-marketplace.md
 !docs/schemas/platform-admissions.schema.json
 !docs/schemas/marketplace-policy.schema.json
-!progress/verification/assets/
-!progress/verification/assets/*
+/progress/verification/assets/
+/docs/plans/
+*.screenshot.png
+*.screenshot.jpg
+*.screenshot.jpeg

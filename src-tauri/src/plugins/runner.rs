@@ -340,6 +340,7 @@ fn handle_request(
                 .get("asOf")
                 .and_then(Value::as_str)
                 .unwrap_or("2026-11-25T09:30:00Z");
+            let previous_cursor = params.get("cursor").and_then(Value::as_str);
             let safe_account = account_ref
                 .chars()
                 .map(|character| {
@@ -417,7 +418,11 @@ fn handle_request(
                   "accountRef": account_ref,
                   "works": works,
                   "errors": errors,
-                  "partialFailure": !errors.is_empty()
+                  "partialFailure": !errors.is_empty(),
+                  "nextCursor": format!(
+                    "fixture-cursor-{}",
+                    previous_cursor.unwrap_or("initial")
+                  )
                 }),
                 Value::Null,
             )

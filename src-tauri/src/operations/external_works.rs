@@ -69,6 +69,8 @@ pub struct SyncPlatformWorksInput {
     pub adapter_id: String,
     #[serde(default)]
     pub as_of: Option<String>,
+    #[serde(default)]
+    pub cursor: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -86,6 +88,7 @@ pub struct SyncRunResult {
     pub error_count: u32,
     pub account_invalid: bool,
     pub errors: Vec<String>,
+    pub next_cursor: Option<String>,
     pub started_at: String,
     pub completed_at: String,
 }
@@ -467,6 +470,7 @@ pub fn sync_platform_works(
         &input.adapter_id,
         &input.account_id,
         Some(&as_of.to_rfc3339()),
+        input.cursor.as_deref(),
     );
     let run_id = Uuid::new_v4().to_string();
     match adapter_result {
@@ -518,12 +522,13 @@ pub fn sync_platform_works(
                 )
             };
             let completed_at = Utc::now().to_rfc3339();
+            let next_cursor = output.next_cursor.clone();
             tx.execute(
                 "INSERT INTO sync_runs(
                     id, account_id, platform_id, adapter_id, status, message,
                     imported_count, updated_count, skipped_count, error_count,
-                    started_at, completed_at
-                 ) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                    started_at, completed_at, next_cursor
+                 ) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                 params![
                     run_id,
                     input.account_id,
@@ -536,7 +541,8 @@ pub fn sync_platform_works(
                     skipped_count,
                     error_count,
                     started_at.to_rfc3339(),
-                    completed_at
+                    completed_at,
+                    next_cursor
                 ],
             )
             .map_err(|error| format!("同步运行记录保存失败：{error}"))?;
@@ -555,6 +561,7 @@ pub fn sync_platform_works(
                 error_count,
                 account_invalid: false,
                 errors: std::mem::take(&mut errors),
+                next_cursor,
                 started_at: started_at.to_rfc3339(),
                 completed_at: Utc::now().to_rfc3339(),
             })
@@ -575,8 +582,8 @@ pub fn sync_platform_works(
                 "INSERT INTO sync_runs(
                     id, account_id, platform_id, adapter_id, status, message,
                     imported_count, updated_count, skipped_count, error_count,
-                    started_at, completed_at
-                 ) VALUES(?1, ?2, ?3, ?4, ?5, ?6, 0, 0, 0, 1, ?7, ?8)",
+                    started_at, completed_at, next_cursor
+                 ) VALUES(?1, ?2, ?3, ?4, ?5, ?6, 0, 0, 0, 1, ?7, ?8, NULL)",
                 params![
                     run_id,
                     input.account_id,
@@ -610,6 +617,7 @@ pub fn sync_platform_works(
                 error_count: 1,
                 account_invalid,
                 errors: vec![error.message],
+                next_cursor: None,
                 started_at: started_at.to_rfc3339(),
                 completed_at,
             })
@@ -622,7 +630,7 @@ pub fn list_sync_runs(conn: &Connection, limit: usize) -> Result<Vec<SyncRunResu
         .prepare(
             "SELECT id, account_id, platform_id, adapter_id, status, message,
                     imported_count, updated_count, skipped_count, error_count,
-                    started_at, completed_at
+                    started_at, completed_at, next_cursor
              FROM sync_runs ORDER BY completed_at DESC LIMIT ?1",
         )
         .map_err(|error| format!("同步记录准备失败：{error}"))?;
@@ -643,6 +651,7 @@ pub fn list_sync_runs(conn: &Connection, limit: usize) -> Result<Vec<SyncRunResu
                 errors: Vec::new(),
                 started_at: row.get(10)?,
                 completed_at: row.get(11)?,
+                next_cursor: row.get(12)?,
             })
         })
         .map_err(|error| format!("同步记录读取失败：{error}"))?;

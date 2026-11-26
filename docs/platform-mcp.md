@@ -1,6 +1,6 @@
 # 平台 MCP 拆分与接口映射
 
-> 状态：已实现平台 profile 与只读工具面；所有平台自动发布仍为关闭，需逐平台完成账号级接口与政策验证后才能升级能力。
+> 状态：已实现平台结构化读取、游标分页、增量变更、Adapter 同步和隔离浏览器分阶段发布工具；所有平台自动发布仍为关闭，最终发布必须逐次确认。
 
 ## 1. 为什么按平台拆
 
@@ -34,7 +34,7 @@ src-tauri/src/mcp/
 ├── outcome.rs             # 工具执行结果结构
 └── platform_mcp/
     ├── mod.rs             # PlatformMcpProfile、工具构造器、注册表
-    ├── execute.rs         # 平台工具的 Core 只读执行
+    ├── execute.rs         # 平台结构化读取、同步与发布页编排
     ├── douyin_mcp.rs
     ├── xiaohongshu_mcp.rs
     ├── bilibili_mcp.rs
@@ -109,39 +109,57 @@ src-tauri/src/
 
 ## 4. 平台工具面
 
-CreatorRelay 的 MCP Host 是 **MCP Server**，把本地内容、账号能力和发布工作流暴露给 MCP Client；它不是 MCP Client，不会因为某个平台有创作者中心网页就自动连接该平台的远程 MCP 服务。当前平台专属工具读取的是 CreatorRelay 的本地数据库、执行本地内容校验并提供人工交接。未完成账号级官方 API 验证的平台，不会被当作实时作品读取或自动发布能力。
+CreatorRelay 的 MCP Host 是 **MCP Server**，把本地内容、账号能力、结构化作品数据和发布工作流暴露给 MCP Client；它不是 MCP Client，不会因为某个平台有创作者中心网页就自动连接该平台的远程 MCP 服务。结构化作品读取来自 SQLite；远端刷新必须显式提供已安装且获授权的 Adapter。发布页动作只发生在 CreatorRelay 隔离 Chrome profile 中。
 
 平台管理新增“创作者中心与浏览器”视图。8 个用户提供的网址在 SQLite `creator_center_links` 表中维护；`creator_centers_list` 返回这些链接。桌面端还可通过 `creator_browser_status`、`creator_browser_open`、`creator_browser_read_page` MCP 工具操作一个 CreatorRelay 专属 Chrome profile：open 工具必须通过一次性 ExternalAction 确认；仅打开 SQLite 配置的 HTTPS 链接和同平台登录子域，read 工具只返回当前页面可见文本（最多 60,000 字符）。Chrome 使用随机 DevTools 端口绑定 loopback，不访问用户日常浏览器 profile、Cookie 或密码，也不执行表单提交或发布。该能力是受限浏览器中转，不是平台远程 MCP/API；未登录或平台权限不足时必须返回登录页/页面状态，而不能声称作品数据已读取。网页 HTTP 200 也只证明入口响应。
 
-每个平台注册四个只读工具：
+每个平台注册以下工具：
 
-| 工具后缀                         | 权限 | 行为                                                             |
-| -------------------------------- | ---- | ---------------------------------------------------------------- |
-| `<platform>_account_get_info`    | Read | 读取 Core 中该平台的脱敏账号、状态和能力                         |
-| `<platform>_work_list`           | Read | 按平台原生作品 ID、形态、时间和关键词查询本地已同步作品          |
-| `<platform>_analytics_get_trend` | Read | 读取本地指标趋势，可选按平台指标名过滤                           |
-| `<platform>_publish_validate`    | Read | 校验本地内容包的形态/媒体/封面，并返回平台字段映射和人工交接信息 |
+| 工具后缀 | 权限 | 行为 |
+| --- | --- | --- |
+| `<platform>_account_get_info` | Read | 读取脱敏账号状态、账号级能力和 typed field model |
+| `<platform>_work_list` | Read | 按平台原生作品 ID、形态、时间和关键词分页查询本地作品；返回 `pageInfo.nextCursor` |
+| `<platform>_work_get` | Read | 按本地 `workId` 或平台原生 ID 返回作品、`rawFields`、指标快照和字段模型 |
+| `<platform>_work_changes` | Read | 按 `updatedAt + workId` 游标增量读取本地 upsert 变更 |
+| `<platform>_work_sync` | ExternalAction | 通过显式 `adapterId` 调用既有 Adapter Runtime 同步作品/指标并记录 `sync_runs` |
+| `<platform>_analytics_get_trend` | Read | 读取本地指标趋势，可选按平台指标名过滤 |
+| `<platform>_publish_validate` | Read | 校验本地内容包的形态/媒体/封面，并返回平台字段映射和人工交接信息 |
+| `<platform>_media_stage` | ExternalAction | 在隔离浏览器打开平台发布页，附加内容包媒体并填写标题/正文；不点击保存或发布 |
+| `<platform>_publish_submit` | ExternalAction | 在已暂存页面点击唯一精确匹配的按钮；`publish` 模式还必须显式 `confirmFinalPublish=true` |
 
 例如：
 
 ```text
 douyin_account_get_info
-douyin_work_list               # itemId
+douyin_work_list               # itemId + cursor/pageSize
+douyin_work_get                # workId 或 itemId
+douyin_work_changes            # 增量游标
+douyin_work_sync               # 显式 adapterId
 douyin_analytics_get_trend     # itemId + play_count/digg_count/...
 douyin_publish_validate        # 返回 text/video_id/image_list/cover_tsp 映射
+douyin_media_stage             # 隔离浏览器上传媒体并填表，不提交
+douyin_publish_submit          # 精确按钮；最终发布二次确认
 
 xiaohongshu_work_list          # noteId
 xiaohongshu_publish_validate   # 返回 title/content/topics/images/cover 映射
 ```
 
+分页游标是不透明 base64 JSON，包含平台 ID 和偏移/变更水位；游标不能跨平台复用。`work_sync` 把调用方提供的 `cursor` 传给 Adapter，并把 Adapter 返回的 `nextCursor` 持久化到 `sync_runs.next_cursor`，供下一次增量同步续传。`work_changes` 当前只产生本地 upsert 变更，平台删除事件尚未同步，因此不会伪造 tombstone。字段模型使用 `unifiedField`、`platformField`、`direction`、`valueType`、`required` 和 `notes` 描述每个字段；未知平台字段继续原样保留在 `rawFields`。
+
+发布页编排分两步：`media_stage` 只上传本地内容包允许的素材并填写标题/正文/标签；`publish_submit` 必须与同一 `contentId` 的暂存页面匹配，并只点击唯一、精确、启用的按钮。匹配数不是 1 或按钮禁用时 fail closed，不会猜测按钮或自动重试。
+
 这些工具不会：
 
 - 读取 Cookie、Browser profile、access_token、AppSecret 或 Keychain；
 - 调用平台网页内部接口；
-- 自动发布、自动登录或绕过审核；
+- 在没有 Adapter 的情况下伪造远端作品同步；
+- 在 `media_stage` 中点击保存草稿或最终发布；
+- 对未验证平台自动改用浏览器发布；
+- 在 `publish_submit` 中执行模糊按钮匹配、自动重试或自动回滚；
+- 自动登录或绕过审核；
 - 把未验证能力标记为 `supported`。
 
-真正的发布仍走通用 `publishing_create_task` / `publishing_publish_task`，并受 M6/M7 的预览、授权、平台准入和逐目标结果约束。
+Adapter 自动发布仍走通用 `publishing_create_task` / `publishing_publish_task`，并受 M6/M7 的预览、授权、平台准入和逐目标结果约束。隔离浏览器分阶段发布不改变平台准入结论，`autoPublishAllowed=false` 时只能由用户逐次确认网页动作。
 
 ## 5. 平台接口矩阵
 
@@ -202,9 +220,9 @@ xiaohongshu_publish_validate   # 返回 title/content/topics/images/cover 映射
 1. 在 `src-tauri/src/mcp/platform_mcp/` 新建 `<platform>_mcp.rs`。
 2. 在 `mod.rs` 注册模块，并把 profile 加入 `platform_mcp_catalog()`。
 3. 只声明有来源或实际验证的 interface；人工网页明确写 `manual_web`。
-4. 为四个平台工具提供平台原生字段 Schema，不要复用其他平台的字段名。
+4. 为平台原生字段提供 Schema/映射，不要复用其他平台的字段名；公共结构化工具会由 `extend_platform_profile` 自动挂载。
 5. 添加字段映射与内容规则；未验证的长度/规格只能作为 warning，不能伪造硬限制。
-6. 在 `src-tauri/tests/m8_ecosystem.rs` 增加 profile、Schema 和只读执行测试。
+6. 在 `src-tauri/tests/m8_ecosystem.rs` 增加 profile、Schema、分页、增量游标、同步和发布门禁测试。
 7. 更新 `src-tauri/resources/ecosystem/platform-admissions.json` 的来源、日期、逐形态结果和 `autoPublishAllowed`；没有账号级证据时保持关闭。
 8. 只有真实账号、接口、发布与回滚验证全部通过后，才可把某个形态提升为 `supported` 并开放自动发布。
 
@@ -222,4 +240,4 @@ pnpm lint
 pnpm build
 ```
 
-当前验证结果见 [M8 验证记录](../progress/verification/M8-verification-2026-11-25.md)。
+当前验证结果见 [M8 2026-11-26 验证记录](../progress/verification/M8-verification-2026-11-26.md)。

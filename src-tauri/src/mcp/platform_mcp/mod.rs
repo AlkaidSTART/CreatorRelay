@@ -21,15 +21,20 @@ mod xiaohongshu_mcp;
 mod youtube_mcp;
 mod zhihu_mcp;
 
-pub(crate) use execute::execute_platform_tool;
+pub(crate) use execute::{execute_platform_tool, platform_tool_effects, preview_platform_tool};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PlatformToolKind {
     AccountInfo,
     WorkList,
+    WorkGet,
+    WorkChanges,
+    WorkSync,
     AnalyticsTrend,
     PublishValidate,
+    MediaStage,
+    PublishSubmit,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -78,6 +83,17 @@ pub struct PlatformFieldMapping {
     pub unified_field: String,
     pub platform_field: String,
     pub direction: String,
+    pub required: bool,
+    pub notes: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlatformFieldDefinition {
+    pub unified_field: String,
+    pub platform_field: String,
+    pub direction: String,
+    pub value_type: String,
     pub required: bool,
     pub notes: String,
 }
@@ -133,7 +149,7 @@ pub struct PlatformMcpProfile {
 }
 
 pub fn platform_mcp_catalog() -> Vec<PlatformMcpProfile> {
-    vec![
+    let profiles = vec![
         bilibili_mcp::profile(),
         csdn_mcp::profile(),
         douyin_mcp::profile(),
@@ -144,7 +160,14 @@ pub fn platform_mcp_catalog() -> Vec<PlatformMcpProfile> {
         xiaohongshu_mcp::profile(),
         youtube_mcp::profile(),
         zhihu_mcp::profile(),
-    ]
+    ];
+    profiles
+        .into_iter()
+        .map(|mut profile| {
+            extend_platform_profile(&mut profile);
+            profile
+        })
+        .collect()
 }
 
 pub fn platform_mcp_profile(platform_id: &str) -> Option<PlatformMcpProfile> {
@@ -181,6 +204,106 @@ fn object_schema(properties: Value, required: Vec<&str>) -> Value {
         "properties": properties,
         "required": required,
     })
+}
+
+fn extend_platform_profile(profile: &mut PlatformMcpProfile) {
+    let native_field = profile.native_work_id_field.clone();
+    let platform_id = profile.platform_id.clone();
+    let platform_name = profile.platform_name.clone();
+    let native_label = native_field.clone();
+    profile.tools.extend(vec![
+        PlatformToolSpec {
+            name: format!("{platform_id}_work_get"),
+            title: format!("读取{platform_name}作品详情"),
+            description: format!(
+                "按本地 workId 或平台原生 {native_field} 读取结构化作品详情、原始字段和指标快照；不会发起外部请求。"
+            ),
+            permission: ToolPermission::Read,
+            kind: PlatformToolKind::WorkGet,
+            input_schema: object_schema(
+                json!({
+                    "workId": optional_string_property(128),
+                    "accountId": optional_string_property(128),
+                    native_field.clone(): optional_string_property(160),
+                }),
+                vec![],
+            ),
+        },
+        PlatformToolSpec {
+            name: format!("{platform_id}_work_changes"),
+            title: format!("增量读取{platform_name}作品变更"),
+            description: "从本地同步库按 updatedAt + id 游标增量读取作品变更；返回稳定的 nextCursor，不发起外部请求。"
+                .to_string(),
+            permission: ToolPermission::Read,
+            kind: PlatformToolKind::WorkChanges,
+            input_schema: object_schema(
+                json!({
+                    "accountId": optional_string_property(128),
+                    "updatedAfter": optional_string_property(40),
+                    "cursor": optional_string_property(2048),
+                    "pageSize": { "type": "integer", "minimum": 1, "maximum": 200 },
+                }),
+                vec![],
+            ),
+        },
+        PlatformToolSpec {
+            name: format!("{platform_id}_work_sync"),
+            title: format!("同步{platform_name}作品"),
+            description: format!(
+                "通过已安装且获授权的平台 Adapter 同步账号作品与指标；Adapter 必须显式提供。未验证平台不会自动改用人工或浏览器发布。{native_label} 字段进入 rawFields。"
+            ),
+            permission: ToolPermission::ExternalAction,
+            kind: PlatformToolKind::WorkSync,
+            input_schema: object_schema(
+                json!({
+                    "accountId": string_property(128),
+                    "adapterId": string_property(160),
+                    "asOf": optional_string_property(40),
+                    "pageSize": { "type": "integer", "minimum": 1, "maximum": 200 },
+                    "cursor": optional_string_property(2048),
+                }),
+                vec!["accountId", "adapterId"],
+            ),
+        },
+        PlatformToolSpec {
+            name: format!("{platform_id}_media_stage"),
+            title: format!("暂存{platform_name}发布内容"),
+            description: "在隔离浏览器打开平台发布页，附加本地内容包媒体并填写标题/正文；不点击保存草稿或最终发布。每次执行需确认。"
+                .to_string(),
+            permission: ToolPermission::ExternalAction,
+            kind: PlatformToolKind::MediaStage,
+            input_schema: object_schema(
+                json!({
+                    "contentId": string_property(128),
+                    "accountId": optional_string_property(128),
+                    "assetIds": {
+                        "type": "array",
+                        "maxItems": 20,
+                        "items": string_property(128)
+                    }
+                }),
+                vec!["contentId"],
+            ),
+        },
+        PlatformToolSpec {
+            name: format!("{platform_id}_publish_submit"),
+            title: format!("提交{platform_name}发布表单"),
+            description: "在已暂存的隔离浏览器页面点击用户指定的精确按钮文本。draft 模式保存草稿；publish 模式会最终公开发布，必须同时提供 confirmFinalPublish=true。"
+                .to_string(),
+            permission: ToolPermission::ExternalAction,
+            kind: PlatformToolKind::PublishSubmit,
+            input_schema: object_schema(
+                json!({
+                    "contentId": string_property(128),
+                    "accountId": optional_string_property(128),
+                    "mode": { "type": "string", "enum": ["draft", "publish"] },
+                    "buttonLabel": string_property(40),
+                    "confirmFinalPublish": { "type": "boolean" },
+                }),
+                vec!["contentId", "mode", "buttonLabel"],
+            ),
+        },
+    ]);
 }
 
 fn string_property(max_length: usize) -> Value {
@@ -224,6 +347,11 @@ pub(super) fn work_list_tool(
     properties.insert("keyword".to_string(), optional_string_property(200));
     properties.insert("publishedFrom".to_string(), optional_string_property(40));
     properties.insert("publishedTo".to_string(), optional_string_property(40));
+    properties.insert("cursor".to_string(), optional_string_property(2048));
+    properties.insert(
+        "pageSize".to_string(),
+        json!({ "type": "integer", "minimum": 1, "maximum": 100 }),
+    );
     properties.insert(
         "limit".to_string(),
         json!({ "type": "integer", "minimum": 1, "maximum": 100 }),

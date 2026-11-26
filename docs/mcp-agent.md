@@ -75,18 +75,23 @@ src-tauri/src/mcp/platform_mcp/
 └── zhihu_mcp.rs
 ```
 
-每个平台注册 `<platform>_account_get_info`、`<platform>_work_list`、
-`<platform>_analytics_get_trend`、`<platform>_publish_validate` 四个只读工具。工具 Schema
-使用平台原生字段，例如抖音 `itemId` / `video_id` / `cover_tsp`，小红书 `noteId` /
-`content` / `images`，YouTube `videoId` / `snippet.title`。
+每个平台注册 `<platform>_account_get_info`、`<platform>_work_list`、`<platform>_work_get`、
+`<platform>_work_changes`、`<platform>_work_sync`、`<platform>_analytics_get_trend`、
+`<platform>_publish_validate`、`<platform>_media_stage` 与 `<platform>_publish_submit`。
+工具 Schema 使用平台原生字段，例如抖音 `itemId` / `video_id` / `cover_tsp`，小红书 `noteId` /
+`content` / `images`，YouTube `videoId` / `snippet.title`。`work_list` 使用不透明游标分页，
+`work_changes` 使用 `updatedAt + workId` 增量游标，所有响应都携带 typed `fieldModel`。
 
 平台 profile 同时记录官方接口/人工网页来源、鉴权方式、验证状态、字段映射、内容规则和人工交接入口。
 在账号级授权、发布与回滚证据完成前，`autoPublishAllowed` 保持 `false`，`publishDispatch` 保持
-`manual_only`；平台工具不会读取 Cookie、Token、AppSecret 或调用网页内部接口。
+`manual_only`。`work_sync` 必须显式指定 Adapter；`media_stage` 只在隔离 Chrome
+中上传允许的本地内容包素材并填写表单，不点击保存/发布；`publish_submit` 只接受唯一精确匹配的
+按钮，最终发布还必须 `confirmFinalPublish=true`。平台工具不会读取 Cookie、Token、AppSecret
+或调用网页内部接口。
 
 详细设计、平台矩阵和新增平台步骤见 [平台 MCP 拆分与接口映射](./platform-mcp.md)。
 
-桌面端的创作者中心桥接在 CreatorRelay 管理的 MCP Host/Core 调用链中启动专用 Chrome profile。它只是在隔离浏览器内打开已配置的网页并读取可见文本，并非平台远程 MCP/API。用户需在新开的专用 Chrome 窗口手动登录；会话与日常 Chrome 分开。裸 stdio MCP Server 子进程不持有桌面 Core/browser bridge，直接调用浏览器工具会返回 `BROWSER_BRIDGE_UNAVAILABLE`；请通过 CreatorRelay 桌面 MCP Assistant/授权流程调用。不要因此宣称已读取账号作品或获得发布能力。
+桌面端的创作者中心桥接在 CreatorRelay 管理的 MCP Host/Core 调用链中启动专用 Chrome profile。它可以在隔离浏览器内打开已配置页面、读取可见文本，并在用户逐次确认后给平台发布页附加本地内容包素材、填写表单和点击唯一精确匹配的按钮；这不是平台远程 MCP/API。用户需在新开的专用 Chrome 窗口手动登录；会话与日常 Chrome 分开。裸 stdio MCP Server 子进程不持有桌面 Core/browser bridge，直接调用浏览器工具会返回 `BROWSER_BRIDGE_UNAVAILABLE`；请通过 CreatorRelay 桌面 MCP Assistant/授权流程调用。页面动作成功只证明按钮被点击，仍须通过平台页面或作品同步复核结果。
 
 ## 4. 权限与确认
 

@@ -283,6 +283,7 @@ pub struct AdapterSyncWork {
 pub struct AdapterSyncOutput {
     pub works: Vec<AdapterSyncWork>,
     pub errors: Vec<String>,
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -1375,6 +1376,7 @@ pub fn execute_plugin_sync(
     plugin_id: &str,
     account_ref: &str,
     as_of: Option<&str>,
+    cursor: Option<&str>,
 ) -> Result<AdapterSyncOutput, AdapterOperationError> {
     let row = plugin_row(conn, plugin_id)
         .map_err(|message| AdapterOperationError {
@@ -1403,7 +1405,7 @@ pub fn execute_plugin_sync(
         .request(
             &row.manifest,
             "syncWorks",
-            json!({ "accountRef": account_ref, "asOf": as_of }),
+            json!({ "accountRef": account_ref, "asOf": as_of, "cursor": cursor }),
             &granted_set(&grants),
             active_workspace(conn),
             Some(account_ref.to_string()),
@@ -1521,9 +1523,15 @@ fn parse_adapter_sync_output(value: &Value) -> Result<AdapterSyncOutput, String>
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    let next_cursor = value
+        .get("nextCursor")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_string);
     Ok(AdapterSyncOutput {
         works: parsed,
         errors,
+        next_cursor,
     })
 }
 
