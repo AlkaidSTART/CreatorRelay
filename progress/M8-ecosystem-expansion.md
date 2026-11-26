@@ -10,7 +10,7 @@
 
 > 本节记录实施跟踪状态，不是验收报告，也不能作为验收通过的依据。
 
-- **总结日期：** 2026-11-25
+- **总结日期：** 2026-11-26
 - **总结范围：** M8 平台准入、账号级能力矩阵、统一平台数据差异、SQLite 迁移、插件升级权限、发布安全、平台专属 MCP profile、插件市场门禁、创作者中心链接及 Chrome 浏览器桥接。
 - **实现状态：** 创作者中心链接、隔离 Chrome 页面读取 MCP 工具已实现；真实网页导航检查通过。新 profile 下按实际页面状态报告登录要求；登录后作品/指标读取与发布未验证。
 - **已完成任务：**
@@ -23,8 +23,8 @@
   - 新增 [平台 MCP 拆分与接口映射](../docs/platform-mcp.md)：10 个平台各自拥有 `*_mcp` profile、原生字段 Schema、接口来源、字段映射、内容规则和人工交接入口；所有自动发布保持关闭。
   - 新增 8 个[创作者中心链接](../src-tauri/src/creator_centers.rs)的 SQLite v8 持久化、前端编辑入口和 MCP `creator_centers_list` 只读工具；页面明确区分网页可达与真实 MCP/API 数据读取、发布能力。
   - 将 `mcp.rs`、`platforms.rs`、`operations.rs`、`lib.rs`、`content.rs` 拆分为主题模块，新增平台 profile 与只读发布校验测试。
-- **验证记录：** [M8 主验证记录](./verification/M8-verification-2026-11-25.md)；[隔离浏览器桥接与真实网页导航记录](./verification/M8-verification-2026-11-25-browser-bridge.md)（全目标 Rust 测试与 clippy、48 前端 tests、构建通过；8 平台经 MCP 授权调用隔离 Chrome 导航实测；登录后数据与发布仍未验证）。
-- **未完成与阻塞：** 新 profile 的 8 个平台未登录：抖音公开创作页面壳、快手与掘金页面可见；小红书、知乎、公众号、哔哩哔哩要求登录；CSDN页壳可见但被登录罩遮挡。没有登录后作品/指标读取或发布证据。远程平台 MCP/API 仍未配置；自动发布关闭。桌面 UI 手工回归待用户启动 CreatorRelay 后登录各平台验证。阶段验收前置 M6 仍未 accepted。
+- **验证记录：** [M8 主验证记录](./verification/M8-verification-2026-11-25.md)；[M8 2026-11-26 验证记录](./verification/M8-verification-2026-11-26.md)（全目标 Rust 测试与 clippy、48 前端 tests、构建通过；8 平台经 MCP 授权调用隔离 Chrome 导航实测；登录后数据与发布仍未验证）。
+- **未完成与阻塞：** 新 profile 的 8 个平台均未登录：小红书、知乎、公众号、哔哩哔哩明确要求登录；抖音、快手、掘金和 CSDN 的公开创作页面入口可见，但不能证明账号作品/指标可读。没有登录后的账号级数据读取或发布证据。远程平台 MCP/API 仍未配置；自动发布关闭。桌面 UI 手工回归待用户启动 CreatorRelay 后登录各平台验证。阶段验收前置 M6 仍未 accepted。
 - **验收状态：** 未验收（`blocked`：前置 M6 未 accepted）。实现完成不等于阶段验收通过。
 - **验收报告：** 未创建；只有前置条件满足且 M8 阶段验收完成后才创建 `progress/M8-acceptance.md`。
 - **下一步：** 用户在 CreatorRelay 隔离 Chrome 中登录目标平台，再通过 `creator_browser_read_page` 验证真实账号作品/指标页面；按需另行评审平台 API 与发布确认设计。随后完成 M2 → M6 前置验收和桌面 UI 手工复核。

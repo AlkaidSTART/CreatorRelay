@@ -14,7 +14,7 @@
 
 | 命令 | 结果 |
 |---|---|
-| `cargo test --manifest-path src-tauri/Cargo.toml --all-targets` | pass：80 unit、2 MCP fixture、9 M4 integration、5 M6 operations、8 M7 MCP、3 M8 browser bridge、8 M8 ecosystem |
+| `cargo test --manifest-path src-tauri/Cargo.toml --all-targets` | pass：80 unit、3 MCP fixture、9 M4 integration、5 M6 operations、8 M7 MCP、3 M8 browser bridge、8 M8 ecosystem |
 | `CREATORRELAY_LIVE_BROWSER_TEST=1 cargo test --manifest-path src-tauri/Cargo.toml --test m8_browser_bridge live_creator_browser_opens_all_eight_platform_urls_through_mcp -- --nocapture --test-threads=1` | pass，8 个真实网站探测结果见下表 |
 | `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings` | pass |
 | `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` | pass |
