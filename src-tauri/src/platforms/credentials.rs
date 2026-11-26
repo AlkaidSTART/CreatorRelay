@@ -1,5 +1,5 @@
 use super::*;
-use std::{fs, path::Path, time::Duration};
+use std::{path::Path, time::Duration};
 
 pub trait CredentialVault {
     fn set(&self, reference: &str, secret: &str) -> Result<(), String>;
@@ -164,7 +164,7 @@ pub(super) fn normalize_credential(raw: &str) -> Result<String, String> {
 
 #[cfg(unix)]
 pub(super) fn set_private_mode(path: &Path, mode: u32) -> Result<(), String> {
-    use std::os::unix::fs::PermissionsExt;
+    use std::{fs, os::unix::fs::PermissionsExt};
     let mut permissions = fs::metadata(path)
         .map_err(|_| "无法读取会话容器权限".to_string())?
         .permissions();
@@ -173,6 +173,6 @@ pub(super) fn set_private_mode(path: &Path, mode: u32) -> Result<(), String> {
 }
 
 #[cfg(not(unix))]
-fn set_private_mode(_path: &Path, _mode: u32) -> Result<(), String> {
+pub(super) fn set_private_mode(_path: &Path, _mode: u32) -> Result<(), String> {
     Ok(())
 }
