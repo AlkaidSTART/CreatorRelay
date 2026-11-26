@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
-  Bot,
   CheckCircle2,
   FileText,
   Globe2,
@@ -62,9 +61,9 @@ export const STATUS_META: Record<string, { label: string; className: string }> =
   success: { label: "已完成", className: "bg-mint-bg text-mint-text" },
   partial: { label: "部分完成", className: "bg-lemon-bg text-lemon-text" },
   failed: { label: "失败", className: "bg-coral-bg text-coral-text" },
-  cancelled: { label: "已取消", className: "bg-sidebar text-ink-secondary" },
+  cancelled: { label: "已取消", className: "bg-subtle text-ink-secondary" },
   timedOut: { label: "已超时", className: "bg-coral-bg text-coral-text" },
-  no_tool: { label: "无工具调用", className: "bg-sidebar text-ink-secondary" },
+  no_tool: { label: "无工具调用", className: "bg-subtle text-ink-secondary" },
   no_provider: { label: "未配置模型", className: "bg-lemon-bg text-lemon-text" },
 };
 
@@ -92,14 +91,13 @@ function MessageTurn({
 
   if (isUser) {
     return (
-      <article className="group flex flex-col gap-1.5">
-        <div className="flex items-center justify-between px-1 text-[10.5px] text-ink-muted">
-          <span className="font-medium text-ink-secondary">创作者</span>
-          <span>{formatTimestamp(message.createdAt)}</span>
-        </div>
-        <div className="rounded-2xl border border-line bg-surface px-4 py-3 text-[13.5px] leading-relaxed text-ink shadow-[0_1px_2px_rgba(51,43,41,0.03)]">
+      <article className="group flex flex-col items-end gap-1">
+        <div className="max-w-[85%] rounded-lg border border-line bg-subtle px-3.5 py-2.5 text-[13.5px] leading-relaxed text-ink">
           <p className="whitespace-pre-wrap">{message.content}</p>
         </div>
+        <span className="px-1 font-mono text-[10px] text-ink-faint opacity-0 transition-opacity group-hover:opacity-100">
+          {formatTimestamp(message.createdAt)}
+        </span>
       </article>
     );
   }
@@ -108,24 +106,22 @@ function MessageTurn({
   const perm = tool ? PERMISSION_META[tool.permission] : null;
 
   return (
-    <article className="flex flex-col gap-2.5">
-      {/* Assistant Turn Header */}
+    <article className="flex flex-col gap-2">
+      {/* Minimal Editorial Assistant Header */}
       <div className="flex flex-wrap items-center gap-2 text-[11px]">
-        <span className="grid h-5.5 w-5.5 place-items-center rounded-lg bg-accent-soft text-accent">
-          <Bot size={11} />
-        </span>
+        <span className="h-2 w-2 rounded-xs bg-accent" aria-hidden="true" />
         <span className="font-semibold text-ink">CreatorRelay</span>
-        <span className="rounded-md border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] text-ink-muted">
+        <span className="font-mono text-[10.5px] text-ink-muted">
           {message.providerName ?? "本地编排器"} · {message.model ?? "deterministic-v1"}
         </span>
-        <span className="ml-auto text-[10px] text-ink-muted">
+        <span className="ml-auto font-mono text-[10px] text-ink-faint">
           {formatTimestamp(message.createdAt)}
         </span>
       </div>
 
-      {/* Assistant Editorial Markdown Body */}
-      <div className="pl-7.5">
-        <div className="prose-assistant space-y-2 text-[13.5px] leading-[1.7] text-ink">
+      {/* Assistant Markdown Body */}
+      <div className="pl-4">
+        <div className="prose-assistant space-y-2 text-[13.5px] leading-[1.75] text-ink">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
@@ -138,13 +134,13 @@ function MessageTurn({
                 const isBlock = Boolean(className);
                 if (isBlock) {
                   return (
-                    <code className="block overflow-x-auto rounded-xl border border-line bg-sidebar/70 p-3 font-mono text-[11.5px] leading-relaxed text-ink">
+                    <code className="block overflow-x-auto rounded-md border border-line bg-subtle p-3 font-mono text-[11.5px] leading-relaxed text-ink">
                       {children}
                     </code>
                   );
                 }
                 return (
-                  <code className="rounded bg-subtle px-1.5 py-0.5 font-mono text-[12px] text-accent-deep">
+                  <code className="rounded-xs border border-line bg-subtle px-1 py-px font-mono text-[12px] text-ink">
                     {children}
                   </code>
                 );
@@ -166,25 +162,25 @@ function MessageTurn({
           </ReactMarkdown>
         </div>
 
-        {/* Codex-style Inline Tool Step Card */}
+        {/* Crisp Inline Tool Execution Block */}
         {tool && (
-          <div className="mt-3 overflow-hidden rounded-xl border border-line bg-surface shadow-[0_1px_3px_rgba(51,43,41,0.03)]">
-            <div className="flex flex-wrap items-center gap-2 border-b border-line bg-subtle/60 px-3.5 py-2">
-              <Terminal size={12} className="text-accent" />
+          <div className="mt-3 overflow-hidden rounded-md border border-line bg-surface-soft">
+            <div className="flex flex-wrap items-center gap-2 border-b border-line bg-subtle/70 px-3 py-2">
+              <Terminal size={12} className="text-ink-muted" />
               <code className="font-mono text-[11.5px] font-semibold text-ink">
                 {tool.toolName}
               </code>
               {perm && (
                 <span
-                  className={`rounded-md border px-1.5 py-0.5 text-[9.5px] font-medium ${perm.className}`}
+                  className={`rounded-xs border px-1.5 py-px text-[9.5px] font-medium ${perm.className}`}
                 >
                   {perm.label}
                 </span>
               )}
               {tool.status && (
                 <span
-                  className={`ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
-                    toolStatus?.className ?? "bg-sidebar text-ink-secondary"
+                  className={`ml-auto inline-flex items-center gap-1 rounded-xs px-1.5 py-px text-[10px] font-medium ${
+                    toolStatus?.className ?? "bg-subtle text-ink-secondary"
                   }`}
                 >
                   {tool.status === "success" && <CheckCircle2 size={10} />}
@@ -194,20 +190,20 @@ function MessageTurn({
               )}
             </div>
 
-            <div className="space-y-1.5 px-3.5 py-2.5 text-[11.5px]">
+            <div className="space-y-1.5 px-3 py-2.5 text-[11.5px]">
               <div className="flex items-baseline gap-3">
                 <span className="w-14 shrink-0 text-[10.5px] text-ink-muted">执行目标</span>
                 <span className="min-w-0 flex-1 text-ink">{tool.targetSummary}</span>
               </div>
               <div className="flex items-baseline gap-3">
                 <span className="w-14 shrink-0 text-[10.5px] text-ink-muted">参数摘要</span>
-                <code className="min-w-0 flex-1 break-words rounded bg-canvas px-1.5 py-0.5 font-mono text-[11px] text-ink-secondary">
+                <code className="min-w-0 flex-1 break-words rounded-xs bg-surface px-1.5 py-0.5 font-mono text-[11px] text-ink-secondary">
                   {tool.parameterSummary || "无参数"}
                 </code>
               </div>
 
               {tool.errorMessage && (
-                <div className="mt-2 flex items-start gap-2 rounded-lg border border-coral-border bg-coral-bg px-2.5 py-2 text-[11px] text-coral-text">
+                <div className="mt-2 flex items-start gap-2 rounded-sm border border-coral-border bg-coral-bg px-2.5 py-2 text-[11px] text-coral-text">
                   <AlertTriangle size={12} className="mt-0.5 shrink-0" />
                   <span>
                     {tool.errorCode ? `${tool.errorCode}：` : ""}
@@ -218,14 +214,14 @@ function MessageTurn({
             </div>
 
             {canExecute && (
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line bg-canvas/60 px-3.5 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line bg-surface px-3 py-2">
                 <span className="text-[10.5px] text-ink-muted">
-                  点击后将展示预期副作用与脱敏载荷，确认后再执行
+                  点击后展示预期副作用与脱敏载荷，确认后再执行
                 </span>
                 <button
                   type="button"
                   onClick={() => onPreview(message)}
-                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[11px] font-medium text-accent-on shadow-xs transition-colors hover:bg-accent-hover"
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-[11px] font-medium text-accent-on transition-colors hover:bg-accent-hover"
                 >
                   <Play size={10} />
                   预览并授权执行
@@ -236,7 +232,7 @@ function MessageTurn({
         )}
 
         {message.errorMessage && !tool?.errorMessage && (
-          <div className="mt-2.5 flex items-start gap-2 rounded-xl border border-coral-border bg-coral-bg px-3 py-2 text-[11.5px] text-coral-text">
+          <div className="mt-2.5 flex items-start gap-2 rounded-md border border-coral-border bg-coral-bg px-3 py-2 text-[11.5px] text-coral-text">
             <AlertTriangle size={12} className="mt-0.5 shrink-0" />
             <span>{message.errorMessage}</span>
           </div>
@@ -281,50 +277,56 @@ export function AssistantMessageStream({
             : "";
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-6 pb-8">
-      <div className="mx-auto flex w-full max-w-3xl flex-col">
+    <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-6 pb-6">
+      <div className="mx-auto flex w-full max-w-[740px] flex-col">
         {loading && messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center gap-2.5 py-24 text-xs text-ink-muted">
-            <LoaderCircle size={18} className="animate-spin text-accent" />
+          <div className="flex flex-col items-center justify-center gap-2 py-24 text-xs text-ink-muted">
+            <LoaderCircle size={16} className="animate-spin text-accent" />
             <span>正在连接本地 MCP Host…</span>
           </div>
         )}
 
         {!loading && messages.length === 0 && (
-          <div className="my-auto flex flex-col items-center py-10 text-center">
-            <div className="grid h-11 w-11 place-items-center rounded-2xl border border-accent-border bg-accent-soft text-accent shadow-xs">
-              <Bot size={20} />
-            </div>
-            <span className="mt-4 rounded-full border border-line bg-surface px-2.5 py-0.5 text-[10px] font-medium tracking-wider text-ink-muted uppercase">
-              Local MCP Host · Controlled Execution
+          <div className="my-auto py-10">
+            <span className="font-mono text-[10px] font-semibold tracking-[0.08em] text-accent uppercase">
+              LOCAL MCP HOST · CONTROLLED EXECUTION
             </span>
-            <h1 className="mt-3 text-[22px] font-semibold tracking-tight text-ink">
+            <h2 className="mt-1.5 text-[20px] font-semibold tracking-[-0.02em] text-ink">
               今天想推进什么创作任务？
-            </h1>
-            <p className="mt-1.5 max-w-md text-[12.5px] leading-relaxed text-ink-secondary">
+            </h2>
+            <p className="mt-1.5 max-w-xl text-[12.5px] leading-relaxed text-ink-secondary">
               通过本地受控工具查询账号、内容与数据指标，或切换至 BYOK 模型并按显式披露范围生成建议。
             </p>
 
-            <div className="mt-7 grid w-full grid-cols-1 gap-2.5 text-left sm:grid-cols-2">
-              {STARTER_TASKS.map((task) => {
+            {/* Hairline-Divided 2x2 Starter Grid */}
+            <div className="mt-6 grid grid-cols-1 overflow-hidden rounded-lg border border-line bg-surface sm:grid-cols-2">
+              {STARTER_TASKS.map((task, idx) => {
                 const Icon = task.icon;
+                const borderClass = [
+                  idx >= 2 ? "sm:border-t sm:border-line" : "",
+                  idx % 2 === 1 ? "sm:border-l sm:border-line" : "",
+                  idx > 0 ? "border-t border-line sm:border-t-0" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
                 return (
                   <button
                     key={task.title}
                     type="button"
                     onClick={() => onQuickSend(task.prompt)}
                     disabled={Boolean(busyAction)}
-                    className="group flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-surface p-3.5 text-left transition-all hover:border-accent-border hover:bg-surface-soft hover:shadow-[0_4px_14px_rgba(51,43,41,0.05)] disabled:opacity-50"
+                    className={`group flex cursor-pointer items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-subtle/70 disabled:opacity-50 ${borderClass}`}
                   >
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-subtle text-ink-secondary transition-colors group-hover:bg-accent-soft group-hover:text-accent">
-                      <Icon size={14} />
-                    </span>
+                    <Icon
+                      size={14}
+                      className="mt-0.5 shrink-0 text-ink-muted transition-colors group-hover:text-accent"
+                    />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-1.5">
-                        <strong className="truncate text-[12.5px] font-semibold text-ink">
+                        <strong className="truncate text-[12.5px] font-medium text-ink">
                           {task.title}
                         </strong>
-                        <span className="rounded bg-subtle px-1.5 py-0.5 text-[9.5px] text-ink-muted">
+                        <span className="rounded-xs bg-subtle px-1 py-px font-mono text-[9.5px] text-ink-muted">
                           {task.tag}
                         </span>
                       </span>
@@ -333,8 +335,8 @@ export function AssistantMessageStream({
                       </span>
                     </span>
                     <ArrowRight
-                      size={12}
-                      className="mt-1 shrink-0 text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-accent"
+                      size={11}
+                      className="mt-1 shrink-0 text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink-secondary"
                     />
                   </button>
                 );
@@ -352,14 +354,14 @@ export function AssistantMessageStream({
         )}
 
         {busyLabel && (
-          <div className="mt-5 flex items-center gap-2.5 pl-7.5 text-xs text-ink-secondary">
+          <div className="mt-5 flex items-center gap-2 pl-4 text-xs text-ink-secondary">
             <LoaderCircle size={13} className="animate-spin text-accent" />
             <span>{busyLabel}</span>
             {busyAction === "execute" && (
               <button
                 type="button"
                 onClick={onCancelCall}
-                className="ml-2 inline-flex cursor-pointer items-center gap-1 rounded-lg border border-coral-border bg-coral-bg px-2 py-0.5 text-[10.5px] font-medium text-coral-text"
+                className="ml-2 inline-flex cursor-pointer items-center gap-1 rounded-sm border border-coral-border bg-coral-bg px-2 py-0.5 text-[10.5px] font-medium text-coral-text"
               >
                 <X size={10} />
                 取消调用

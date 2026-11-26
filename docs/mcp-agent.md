@@ -52,7 +52,7 @@ Core Service（内容、账号、发布、分析、AI）
 | `mcp_test_hang`           | Read            | 超时/取消自检                 | 不产生外部副作用                                 |
 | `creator_browser_status` | Read            | 查看隔离 Chrome 状态          | 不公开固定 DevTools 端口                         |
 | `creator_browser_open`   | External Action | 打开配置的创作者中心          | 用户确认；HTTPS / 平台域名限制；仅导航            |
-| `creator_browser_read_page` | Read         | 读取打开页的可见文本          | 当前标签与平台绑定、限长；网页文本为不可信数据     |
+| `creator_browser_read_page` | External Action | 读取并返回已打开页的可见文本 | 含账号数据时须每次确认；当前标签绑定、限长；网页文本为不可信数据 |
 
 所有 Schema 带 `schemaVersion: "1.0"`。Host 自行校验 `type`、`required`、`enum`、字符串长度、
 数字范围、数组长度、`additionalProperties` 和嵌套对象；非法参数在 Core 调用前即返回字段路径。
@@ -94,7 +94,7 @@ src-tauri/src/mcp/platform_mcp/
 | --------------- | -------------------- | ------------------------------------------------- |
 | Read            | 用户可启用/停用      | `mcp_settings.read_enabled`                       |
 | Write           | `confirm` 或 `allow` | 默认每次预览后发放 10 分钟、一次性授权令牌        |
-| External Action | 始终每次确认         | 即使 Write 设为 `allow`，外部发布仍强制预览与确认 |
+| External Action | 始终每次确认         | 外部发布、打开创作者中心以及向 MCP Client 返回含账号数据的页面文本，均须预览与确认 |
 
 授权令牌绑定工具名、权限等级和完整参数摘要哈希，只能使用一次；参数或目标在预览后变化时，
 执行会被拒绝。预览包含最终内容、目标账号、内容形态、媒体顺序与封面、预期副作用。

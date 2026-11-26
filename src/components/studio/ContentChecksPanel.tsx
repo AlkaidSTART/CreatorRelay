@@ -202,7 +202,7 @@ export function ContentChecksPanel() {
             onClick={() => setMode("source")}
             className={`flex-1 cursor-pointer rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all ${
               mode === "source"
-                ? "bg-surface text-ink shadow-[0_1px_2px_rgba(51,43,41,0.06)]"
+                ? "bg-surface text-ink"
                 : "text-ink-muted hover:text-ink"
             }`}
           >
@@ -214,7 +214,7 @@ export function ContentChecksPanel() {
             onClick={() => setMode("draft")}
             className={`flex-1 cursor-pointer rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
               mode === "draft"
-                ? "bg-surface text-ink shadow-[0_1px_2px_rgba(51,43,41,0.06)]"
+                ? "bg-surface text-ink"
                 : "text-ink-muted hover:text-ink"
             }`}
           >

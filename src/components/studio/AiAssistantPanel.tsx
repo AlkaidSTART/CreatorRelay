@@ -185,7 +185,7 @@ export function AiAssistantPanel() {
               className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 text-left transition-all ${
                 pendingOperation === operation.operation
                   ? "border-accent bg-accent-soft/45 shadow-xs"
-                  : "border-line bg-surface shadow-[0_1px_2px_rgba(51,43,41,0.02)] hover:border-accent-border"
+                  : "border-line bg-surface hover:border-accent-border"
               }`}
             >
               <Sparkles size={12} className="mt-0.5 shrink-0 text-accent" />

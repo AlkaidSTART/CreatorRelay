@@ -142,14 +142,40 @@ export function CreatorCentersPanel() {
   }
 
   async function refreshPage(platformId: string) {
+    if (!isTauri()) return;
+    setBrowserBusyId(platformId);
+    try {
+      const preview = await invoke<McpAuthorizationPreview>("mcp_preview_tool_call", {
+        request: {
+          toolName: "creator_browser_read_page",
+          arguments: { platformId },
+          threadId: null,
+        },
+      });
+      if (preview.fieldErrors.length) {
+        showToast(preview.fieldErrors.map((item) => item.message).join("；"));
+        return;
+      }
+      setPendingOpen({ preview, platformId });
+    } catch (cause) {
+      showToast(`无法预览页面读取：${errorMessage(cause)}`);
+    } finally {
+      setBrowserBusyId("");
+    }
+  }
+
+  async function confirmReadPage() {
+    if (!pendingOpen || pendingOpen.preview.toolName !== "creator_browser_read_page") return;
+    const { preview, platformId } = pendingOpen;
     setBrowserBusyId(platformId);
     try {
       const result = await invoke<McpCallResult>("mcp_call_tool", {
         request: {
-          callId: `browser-read-${Date.now()}`,
-          toolName: "creator_browser_read_page",
+          callId: preview.callId,
+          toolName: preview.toolName,
           arguments: { platformId },
           threadId: null,
+          authorizationToken: preview.authorizationToken ?? null,
           timeoutMs: 30_000,
         },
       });
@@ -158,7 +184,10 @@ export function CreatorCentersPanel() {
       const page = result.result as BrowserPageSnapshot;
       setPageSnapshot(page);
       setLastBrowsedPlatformId(platformId);
-      showToast(`已读取当前页面：${page.title || page.platformName}`);
+      const status = await invoke<BrowserBridgeStatus>("creator_browser_status");
+      setBrowserStatus(status);
+      setPendingOpen(null);
+      showToast(`已读取页面可见文本：${page.title || page.platformName}`);
     } catch (cause) {
       showToast(`无法读取页面：${errorMessage(cause)}`);
     } finally {
@@ -182,7 +211,7 @@ export function CreatorCentersPanel() {
   }
 
   return (
-    <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-7 py-6">
+    <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
       <section className="rounded-2xl border border-lemon-border bg-lemon-bg/50 p-4">
         <div className="flex items-start gap-3">
           <ShieldAlert className="mt-0.5 shrink-0 text-lemon-text" size={17} />
@@ -416,14 +445,22 @@ export function CreatorCentersPanel() {
           <section
             role="dialog"
             aria-modal="true"
-            aria-label="确认打开创作者中心"
+            aria-label={
+              pendingOpen.preview.toolName === "creator_browser_read_page"
+                ? "确认读取当前页面"
+                : "确认打开创作者中心"
+            }
             className="w-full max-w-lg rounded-2xl border border-line bg-surface p-5 shadow-2xl"
           >
-            <h3 className="text-sm font-semibold text-ink">确认让 MCP 打开创作者中心？</h3>
+            <h3 className="text-sm font-semibold text-ink">
+              {pendingOpen.preview.toolName === "creator_browser_read_page"
+                ? "确认读取当前页面？"
+                : "确认让 MCP 打开创作者中心？"}
+            </h3>
             <p className="mt-2 text-xs leading-5 text-ink-secondary">
-              这会在 CreatorRelay 独立 Chrome
-              配置中导航到目标平台。平台会收到网络连接请求和常规连接元数据；不会提交表单或发布作品。日常
-              Chrome 的 Cookie/密码不会被读取。
+              {pendingOpen.preview.toolName === "creator_browser_read_page"
+                ? "这会把当前页面可见文本（可能包含账号个人信息、作品及指标）返回给 MCP 调用方。仅读取可见正文，不读取 Cookie、密码或隐藏 API，不提交表单或发布。"
+                : "这会在 CreatorRelay 隔离 Chrome 配置中导航到目标平台。平台会收到网络连接请求和常规连接元数据；不会提交表单或发布作品。日常 Chrome 的 Cookie/密码不会被读取。"}
             </p>
             <div className="mt-3 rounded-xl border border-line bg-canvas p-3 text-[11px] text-ink-secondary">
               <div>
@@ -451,10 +488,18 @@ export function CreatorCentersPanel() {
               <button
                 type="button"
                 disabled={Boolean(browserBusyId)}
-                onClick={() => void confirmOpenInIsolatedBrowser()}
+                onClick={() =>
+                  void (pendingOpen.preview.toolName === "creator_browser_read_page"
+                    ? confirmReadPage()
+                    : confirmOpenInIsolatedBrowser())
+                }
                 className="h-8 cursor-pointer rounded-lg bg-accent px-3 text-xs font-medium text-accent-on disabled:opacity-50"
               >
-                {browserBusyId ? "正在打开…" : "确认并打开"}
+                {browserBusyId
+                  ? "处理中…"
+                  : pendingOpen.preview.toolName === "creator_browser_read_page"
+                    ? "确认并读取"
+                    : "确认并打开"}
               </button>
             </div>
           </section>

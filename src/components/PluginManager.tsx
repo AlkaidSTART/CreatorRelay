@@ -180,7 +180,7 @@ function ModalShell({
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className="relative max-h-[min(860px,calc(100vh-32px))] w-full overflow-y-auto rounded-2xl border border-line bg-surface-soft p-6 shadow-[0_20px_60px_rgba(51,43,41,0.2)]"
+        className="relative max-h-[min(860px,calc(100vh-32px))] w-full overflow-y-auto rounded-2xl border border-line bg-surface-soft p-6 shadow-xl"
         style={{ maxWidth: width }}
       >
         {children}
@@ -207,7 +207,7 @@ function CatalogCard({
   onInstall: () => void;
 }) {
   return (
-    <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
+    <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent-deep">
@@ -308,7 +308,7 @@ function PluginCard({
     .every((permission) => permission.granted === true);
 
   return (
-    <article className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
+    <article className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-white text-accent-deep">

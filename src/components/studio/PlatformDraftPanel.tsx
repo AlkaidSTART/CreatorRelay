@@ -336,7 +336,7 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
                   key={key}
                   className={`flex cursor-pointer gap-2.5 rounded-xl border p-3 transition-all ${
                     target.selectable
-                      ? "border-line bg-surface shadow-[0_1px_2px_rgba(51,43,41,0.03)] hover:border-accent-border"
+                      ? "border-line bg-surface hover:border-accent-border"
                       : "cursor-not-allowed border-line bg-canvas/70 opacity-65"
                   }`}
                 >
@@ -401,7 +401,7 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
                   className={`flex w-full cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all ${
                     selectedDraftId === draft.id
                       ? "border-accent bg-accent-soft/50 shadow-xs"
-                      : "border-line bg-surface shadow-[0_1px_2px_rgba(51,43,41,0.02)] hover:border-accent-border"
+                      : "border-line bg-surface hover:border-accent-border"
                   }`}
                 >
                   <Sparkles size={12} className="shrink-0 text-accent" />
@@ -426,7 +426,7 @@ export function PlatformDraftPanel({ onShowChecks }: { onShowChecks: () => void 
         <button
           type="button"
           onClick={() => navigate("/publishing")}
-          className="inline-flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-medium text-ink-secondary shadow-[0_1px_2px_rgba(51,43,41,0.03)] transition-all hover:border-accent hover:text-accent-deep"
+          className="inline-flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-medium text-ink-secondary transition-all hover:border-accent hover:text-accent-deep"
         >
           前往发布中心
           <ArrowRight size={11} />

@@ -49,8 +49,8 @@ pub fn tool_catalog() -> Vec<McpToolDefinition> {
         tool(
             "creator_browser_read_page",
             "读取当前创作者中心页面",
-            "仅返回 MCP 专用浏览器中、通过 creator_browser_open 打开的已配置平台页面可见文本。不会执行页面脚本、读取 Cookie/隐藏网络响应或触发页面动作。",
-            ToolPermission::Read,
+            "读取当前平台页可见文本并返回给 MCP 调用方，可能包含账号个人信息/作品指标；每次读取须单独确认。不会读取 Cookie/隐藏接口或触发表单动作。",
+            ToolPermission::ExternalAction,
             object_schema(
                 json!({ "platformId": { "type": "string", "minLength": 1, "maxLength": 64 } }),
                 vec!["platformId"],

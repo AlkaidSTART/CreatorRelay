@@ -458,7 +458,7 @@ export function StudioPage() {
                 }}
                 className={`flex h-8 w-[200px] items-center gap-2 rounded-xl border bg-surface px-2.5 text-ink-muted transition-colors sm:w-[232px] ${
                   searchOpen
-                    ? "border-accent shadow-[0_2px_8px_rgba(91,72,136,0.08)]"
+                    ? "border-accent shadow-2xs"
                     : "border-line hover:border-line-strong"
                 } ${isMissingWorkspace ? "cursor-pointer opacity-75" : ""}`}
               >
@@ -518,7 +518,7 @@ export function StudioPage() {
               </div>
 
               {searchOpen && (
-                <div className="absolute top-full left-0 z-30 mt-1.5 flex max-h-[min(70vh,520px)] w-[320px] flex-col overflow-hidden rounded-2xl border border-line bg-canvas shadow-[0_12px_32px_rgba(74,58,48,0.14)]">
+                <div className="absolute top-full left-0 z-30 mt-1.5 flex max-h-[min(70vh,520px)] w-[320px] flex-col overflow-hidden rounded-2xl border border-line bg-canvas shadow-lg">
                   <div className="flex h-10 shrink-0 items-center justify-between border-b border-line px-3.5">
                     <div className="flex items-center gap-2">
                       <h2 className="text-xs font-semibold text-ink">本地主稿</h2>
@@ -561,7 +561,7 @@ export function StudioPage() {
                           }}
                           className={`relative block w-full cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-all ${
                             isSelected
-                              ? "border-accent-border bg-surface shadow-[0_2px_8px_rgba(91,72,136,0.08)]"
+                              ? "border-accent-border bg-surface shadow-2xs"
                               : isActive
                                 ? "border-transparent bg-hover/70"
                                 : "border-transparent bg-transparent hover:bg-hover/60"
@@ -719,7 +719,7 @@ export function StudioPage() {
                   onClick={() => setViewMode("write")}
                   className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-all ${
                     viewMode === "write"
-                      ? "bg-surface text-ink shadow-[0_1px_3px_rgba(74,58,48,0.08)]"
+                      ? "bg-surface text-ink shadow-2xs"
                       : "text-ink-secondary hover:text-ink"
                   }`}
                 >
@@ -730,7 +730,7 @@ export function StudioPage() {
                   onClick={() => setViewMode("preview")}
                   className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-all ${
                     viewMode === "preview"
-                      ? "bg-surface text-ink shadow-[0_1px_3px_rgba(74,58,48,0.08)]"
+                      ? "bg-surface text-ink shadow-2xs"
                       : "text-ink-secondary hover:text-ink"
                   }`}
                 >
@@ -802,7 +802,7 @@ export function StudioPage() {
                 <div className="mx-1 h-4 w-px bg-line" />
                 <button
                   onClick={() => navigate("/publishing")}
-                  className="inline-flex h-7.5 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.22)] transition-colors hover:bg-accent-hover"
+                  className="inline-flex h-7.5 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-on transition-colors hover:bg-accent-hover"
                 >
                   发布准备
                   <ArrowRight size={12} />
@@ -984,7 +984,7 @@ export function StudioPage() {
                 onClick={() => setRightPanel("info")}
                 className={`cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
                   rightPanel === "info"
-                    ? "bg-surface text-ink shadow-[0_1px_3px_rgba(74,58,48,0.08)]"
+                    ? "bg-surface text-ink shadow-2xs"
                     : "text-ink-secondary hover:text-ink"
                 }`}
               >
@@ -994,7 +994,7 @@ export function StudioPage() {
                 onClick={() => setRightPanel("history")}
                 className={`cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
                   rightPanel === "history"
-                    ? "bg-surface text-ink shadow-[0_1px_3px_rgba(74,58,48,0.08)]"
+                    ? "bg-surface text-ink shadow-2xs"
                     : "text-ink-secondary hover:text-ink"
                 }`}
               >

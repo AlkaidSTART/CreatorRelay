@@ -146,6 +146,11 @@ impl BrowserBridge {
     }
 
     pub fn start(&self) -> Result<BrowserBridgeStatus, String> {
+        let _operation = self.operations.lock().map_err(|error| error.to_string())?;
+        self.start_internal()
+    }
+
+    fn start_internal(&self) -> Result<BrowserBridgeStatus, String> {
         let mut state = self.state.lock().map_err(|error| error.to_string())?;
         if let Some(child) = state.child.as_mut()
             && child
@@ -173,6 +178,8 @@ impl BrowserBridge {
             .arg(format!("--user-data-dir={}", profile.display()))
             .arg("--no-first-run")
             .arg("--no-default-browser-check")
+            .arg("--disable-extensions")
+            .arg("--disable-sync")
             .arg("--new-window")
             .arg("about:blank")
             .stdin(Stdio::null())
@@ -241,7 +248,7 @@ impl BrowserBridge {
         if allowed.scheme() != "https" || allowed.host_str().is_none() {
             return Err("仅允许访问已配置的 HTTPS 创作者中心地址".to_string());
         }
-        let _ = self.start()?;
+        let _ = self.start_internal()?;
         let port = self
             .state
             .lock()
@@ -580,7 +587,7 @@ fn wait_for_page_text(
     let deadline = Instant::now() + Duration::from_secs(15);
     let mut last_observed = None;
     let value = loop {
-        let result = cdp_command(
+        let result = match cdp_command(
             &target.websocket_url,
             "Runtime.evaluate",
             serde_json::json!({
@@ -589,7 +596,22 @@ fn wait_for_page_text(
                 "awaitPromise": true,
                 "userGesture": false
             }),
-        )?;
+        ) {
+            Ok(result) => result,
+            Err(error) if Instant::now() < deadline => {
+                last_observed.get_or_insert_with(|| {
+                    serde_json::json!({
+                        "title": target.title,
+                        "url": target.url,
+                        "text": ""
+                    })
+                });
+                thread::sleep(Duration::from_millis(300));
+                let _ = error;
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
         if let Some(raw) = result
             .pointer("/result/result/value")
             .and_then(Value::as_str)
@@ -619,14 +641,19 @@ fn wait_for_page_text(
         }
         thread::sleep(Duration::from_millis(300));
     };
-    let url = value
+    let actual_url = value
         .get("url")
         .and_then(Value::as_str)
-        .unwrap_or(&target.url)
-        .to_string();
-    if !url_matches_platform_id(platform_id, &platform, &url) {
+        .unwrap_or(&target.url);
+    if !url_matches_platform_id(platform_id, &platform, actual_url) {
         return Err("页面重定向到未获准的平台域名".to_string());
     }
+    let parsed_url = Url::parse(actual_url).map_err(|error| error.to_string())?;
+    let url = format!(
+        "{}{}",
+        parsed_url.origin().ascii_serialization(),
+        parsed_url.path()
+    );
     let text = value
         .get("text")
         .and_then(Value::as_str)
@@ -642,6 +669,9 @@ fn wait_for_page_text(
         || text.contains("验证码登录")
         || text.contains("登录后您可以")
         || text.trim().starts_with("登录 ")
+        || text.contains("未登录")
+        || text.contains("点击登录")
+        || text.contains("登录/注册")
     {
         "login_required"
     } else if text.trim().chars().count() < 20 {

@@ -10,8 +10,8 @@ export function ModulePlaceholder({ routeId }: { routeId: string }) {
   return (
     <main className="flex h-full min-w-0 flex-col bg-canvas">
       <PageHeader eyebrow={route.eyebrow} title={route.label} description={route.description} />
-      <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
-        <section className="mx-auto max-w-3xl rounded-2xl border border-line bg-surface p-8 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <section className="mx-auto max-w-3xl rounded-2xl border border-line bg-surface p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-start gap-4">
               <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-lemon-border bg-lemon-bg text-lemon-text">

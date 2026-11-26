@@ -103,7 +103,22 @@ fn authorized_call(fixture: &mut Fixture, tool_name: &str, arguments: Value) -> 
         "{:?}",
         preview.field_errors
     );
-    call(fixture, tool_name, arguments, preview.authorization_token)
+    mcp::call_tool(
+        &mut fixture.conn,
+        &fixture.runtime,
+        &fixture.workspace,
+        &fixture.host,
+        mcp::McpCallRequest {
+            call_id: Some(preview.call_id),
+            tool_name: tool_name.to_string(),
+            arguments,
+            thread_id: None,
+            authorization_token: preview.authorization_token,
+            timeout_ms: None,
+            context_scope: None,
+        },
+    )
+    .unwrap()
 }
 
 fn source_with_asset(
@@ -542,12 +557,23 @@ fn m7_write_confirmation_is_one_time_and_rejection_has_no_side_effect() {
     .unwrap();
     assert!(preview.requires_confirmation);
     let token = preview.authorization_token.unwrap();
-    let success = call(
-        &mut fixture,
-        "studio_create_content",
-        arguments.clone(),
-        Some(token.clone()),
-    );
+    let preview_call_id = preview.call_id;
+    let success = mcp::call_tool(
+        &mut fixture.conn,
+        &fixture.runtime,
+        &fixture.workspace,
+        &fixture.host,
+        mcp::McpCallRequest {
+            call_id: Some(preview_call_id.clone()),
+            tool_name: "studio_create_content".to_string(),
+            arguments: arguments.clone(),
+            thread_id: None,
+            authorization_token: Some(token.clone()),
+            timeout_ms: None,
+            context_scope: None,
+        },
+    )
+    .unwrap();
     assert_eq!(success.status, "success");
     let replay = call(
         &mut fixture,

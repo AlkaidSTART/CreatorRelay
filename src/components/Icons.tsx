@@ -81,3 +81,4 @@ export const GripVertical = createIcon("grip-vertical");
 export const Save = createIcon("floppy-disk");
 
 export const Link2 = createIcon("link");
+export const MoreHorizontal = createIcon("ellipsis");

@@ -1,6 +1,15 @@
 @import "tailwindcss";
 
 @theme inline {
+  /* Architectural precision border-radius scale (replaces oversized default radii) */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 5px;
+  --radius-xl: 6px;
+  --radius-2xl: 8px;
+  --radius-3xl: 10px;
+
   --color-canvas: var(--bg-canvas);
   --color-sidebar: var(--bg-sidebar);
   --color-surface: var(--bg-surface);
@@ -39,267 +48,267 @@
 }
 
 /* =========================================================
-   Theme 1 (Default): Taro Cream · 芋泥奶油
+   Theme 1 (Default): Studio Slate · 石墨靛蓝
    ========================================================= */
 :root,
 [data-theme="taro"] {
-  --bg-canvas: #faf7f4;
-  --bg-sidebar: #f4efea;
+  --bg-canvas: #f7f7f8;
+  --bg-sidebar: #f1f1f3;
   --bg-surface: #ffffff;
-  --bg-surface-soft: #fffdfa;
-  --bg-subtle: #f7f2ec;
-  --bg-hover: #efe8e0;
-  --border-hairline: #eae2d9;
-  --border-strong: #dcd2c7;
+  --bg-surface-soft: #fbfbfc;
+  --bg-subtle: #f3f3f5;
+  --bg-hover: #eaeaee;
+  --border-hairline: #e4e4e7;
+  --border-strong: #d1d1d6;
 
-  --ink-primary: #332b29;
-  --ink-secondary: #6f6561;
-  --ink-muted: #9a8f8a;
-  --ink-faint: #cfc4b9;
+  --ink-primary: #18181b;
+  --ink-secondary: #52525b;
+  --ink-muted: #71717a;
+  --ink-faint: #a1a1aa;
 
-  --accent-primary: #7b68a8;
-  --accent-primary-hover: #6a5796;
-  --accent-soft: #f2ecf9;
-  --accent-border: #ddd2ee;
-  --accent-deep: #5b4888;
+  --accent-primary: #4f46e5;
+  --accent-primary-hover: #4338ca;
+  --accent-soft: #eef2ff;
+  --accent-border: #c7d2fe;
+  --accent-deep: #3730a3;
   --accent-on: #ffffff;
-  --selection-bg: #e6dcf7;
-  --scrollbar-thumb: #dcd2c7;
-  --scrollbar-thumb-hover: #c7bbb0;
-  --toast-bg: #3e3432;
-  --toast-ink: #fffdf9;
+  --selection-bg: #e0e7ff;
+  --scrollbar-thumb: #d4d4d8;
+  --scrollbar-thumb-hover: #a1a1aa;
+  --toast-bg: #18181b;
+  --toast-ink: #fafafa;
 
-  --macaron-rose-bg: #fceceb;
-  --macaron-rose-border: #f2c9c6;
-  --macaron-rose-text: #a24752;
+  --macaron-rose-bg: #fdf2f4;
+  --macaron-rose-border: #f5ccd4;
+  --macaron-rose-text: #9f1239;
 
-  --macaron-mint-bg: #e7f4ee;
-  --macaron-mint-border: #bee0cf;
-  --macaron-mint-text: #286b51;
+  --macaron-mint-bg: #ecfdf5;
+  --macaron-mint-border: #a7f3d0;
+  --macaron-mint-text: #065f46;
 
-  --macaron-lemon-bg: #fef5e4;
-  --macaron-lemon-border: #f2dca6;
-  --macaron-lemon-text: #8a6016;
+  --macaron-lemon-bg: #fffbeb;
+  --macaron-lemon-border: #fde68a;
+  --macaron-lemon-text: #92400e;
 
-  --macaron-sky-bg: #eaf3fa;
-  --macaron-sky-border: #c4ddf0;
-  --macaron-sky-text: #2d5f8a;
+  --macaron-sky-bg: #f0f9ff;
+  --macaron-sky-border: #bae6fd;
+  --macaron-sky-text: #075985;
 
-  --macaron-coral-bg: #fdecee;
-  --macaron-coral-border: #f3c4c9;
-  --macaron-coral-text: #ad3a49;
+  --macaron-coral-bg: #fef2f2;
+  --macaron-coral-border: #fecaca;
+  --macaron-coral-text: #991b1b;
 
   color-scheme: light;
 }
 
 /* =========================================================
-   Theme 2: Pistachio Mint · 开心果抹茶
+   Theme 2: Pine Studio · 松烟墨绿
    ========================================================= */
 [data-theme="matcha"] {
-  --bg-canvas: #f4f8f5;
-  --bg-sidebar: #ebf2ed;
+  --bg-canvas: #f6f8f7;
+  --bg-sidebar: #eef2f0;
   --bg-surface: #ffffff;
-  --bg-surface-soft: #fbfdfb;
-  --bg-subtle: #eff5f1;
-  --bg-hover: #e3ece6;
-  --border-hairline: #dce7df;
-  --border-strong: #c9d9ce;
+  --bg-surface-soft: #fafcfb;
+  --bg-subtle: #eff4f1;
+  --bg-hover: #e4ebe7;
+  --border-hairline: #dce4df;
+  --border-strong: #c5d2cb;
 
-  --ink-primary: #27352e;
-  --ink-secondary: #5a6c62;
-  --ink-muted: #84968c;
-  --ink-faint: #bdd0c4;
+  --ink-primary: #17211c;
+  --ink-secondary: #4a5a52;
+  --ink-muted: #6e7f76;
+  --ink-faint: #a3b3aa;
 
-  --accent-primary: #4d8b6e;
-  --accent-primary-hover: #3f785d;
-  --accent-soft: #e5f3ec;
-  --accent-border: #c2e1d2;
-  --accent-deep: #2a6349;
+  --accent-primary: #1e6f50;
+  --accent-primary-hover: #175a40;
+  --accent-soft: #eaf5f0;
+  --accent-border: #badec9;
+  --accent-deep: #144d37;
   --accent-on: #ffffff;
-  --selection-bg: #d4ecdf;
-  --scrollbar-thumb: #cad9cf;
-  --scrollbar-thumb-hover: #b2c7b9;
-  --toast-bg: #273830;
-  --toast-ink: #f8fcf9;
+  --selection-bg: #d1ece0;
+  --scrollbar-thumb: #c8d5ce;
+  --scrollbar-thumb-hover: #a5b8ae;
+  --toast-bg: #17211c;
+  --toast-ink: #f8faf9;
 
-  --macaron-rose-bg: #fceef0;
-  --macaron-rose-border: #f1cdd2;
-  --macaron-rose-text: #a24a58;
+  --macaron-rose-bg: #fdf2f4;
+  --macaron-rose-border: #f3cdd4;
+  --macaron-rose-text: #9f1239;
 
-  --macaron-mint-bg: #e4f4ec;
-  --macaron-mint-border: #b9decb;
-  --macaron-mint-text: #24684b;
+  --macaron-mint-bg: #ecfdf5;
+  --macaron-mint-border: #a7f3d0;
+  --macaron-mint-text: #065f46;
 
-  --macaron-lemon-bg: #fef6e4;
-  --macaron-lemon-border: #f0dba6;
-  --macaron-lemon-text: #855e14;
+  --macaron-lemon-bg: #fffbeb;
+  --macaron-lemon-border: #fde68a;
+  --macaron-lemon-text: #92400e;
 
-  --macaron-sky-bg: #e8f3f9;
-  --macaron-sky-border: #c0dced;
-  --macaron-sky-text: #2a5f84;
+  --macaron-sky-bg: #f0f9ff;
+  --macaron-sky-border: #bae6fd;
+  --macaron-sky-text: #075985;
 
-  --macaron-coral-bg: #fdecef;
-  --macaron-coral-border: #f2c3ca;
-  --macaron-coral-text: #ac3b4a;
+  --macaron-coral-bg: #fef2f2;
+  --macaron-coral-border: #fecaca;
+  --macaron-coral-text: #991b1b;
 
   color-scheme: light;
 }
 
 /* =========================================================
-   Theme 3: Rose Peach · 蜜桃落日
+   Theme 3: Editorial Paper · 暖石素纸
    ========================================================= */
 [data-theme="peach"] {
-  --bg-canvas: #fcf7f6;
-  --bg-sidebar: #f6ecea;
+  --bg-canvas: #f8f6f3;
+  --bg-sidebar: #f1eee9;
   --bg-surface: #ffffff;
-  --bg-surface-soft: #fffcfb;
-  --bg-subtle: #f9f0ee;
-  --bg-hover: #f1e3e0;
-  --border-hairline: #eedfdc;
-  --border-strong: #e1cdc9;
+  --bg-surface-soft: #fcfbfa;
+  --bg-subtle: #f3f0eb;
+  --bg-hover: #e9e4dd;
+  --border-hairline: #e4ded7;
+  --border-strong: #d1c9c0;
 
-  --ink-primary: #392a2a;
-  --ink-secondary: #756161;
-  --ink-muted: #a18d8d;
-  --ink-faint: #d8c3c1;
+  --ink-primary: #1f1b18;
+  --ink-secondary: #574f49;
+  --ink-muted: #7c736c;
+  --ink-faint: #afa69e;
 
-  --accent-primary: #c26474;
-  --accent-primary-hover: #ae5262;
-  --accent-soft: #fcecee;
-  --accent-border: #f3cbd0;
-  --accent-deep: #963d4c;
+  --accent-primary: #b44c37;
+  --accent-primary-hover: #9b3e2b;
+  --accent-soft: #fbf0ed;
+  --accent-border: #eec9c0;
+  --accent-deep: #803020;
   --accent-on: #ffffff;
-  --selection-bg: #f8dce0;
-  --scrollbar-thumb: #e0ccc9;
-  --scrollbar-thumb-hover: #ceb4b0;
-  --toast-bg: #422e30;
-  --toast-ink: #fffafa;
+  --selection-bg: #f4dcd6;
+  --scrollbar-thumb: #d4cbc2;
+  --scrollbar-thumb-hover: #b5aa9f;
+  --toast-bg: #1f1b18;
+  --toast-ink: #faf8f5;
 
-  --macaron-rose-bg: #fcebeb;
-  --macaron-rose-border: #f2c8c8;
-  --macaron-rose-text: #9f4250;
+  --macaron-rose-bg: #fdf2f4;
+  --macaron-rose-border: #f4cdd4;
+  --macaron-rose-text: #9f1239;
 
-  --macaron-mint-bg: #e8f4ee;
-  --macaron-mint-border: #c0e0cf;
-  --macaron-mint-text: #296b52;
+  --macaron-mint-bg: #ecfdf5;
+  --macaron-mint-border: #a7f3d0;
+  --macaron-mint-text: #065f46;
 
-  --macaron-lemon-bg: #fef4e2;
-  --macaron-lemon-border: #f2d8a4;
-  --macaron-lemon-text: #8c5e15;
+  --macaron-lemon-bg: #fffbeb;
+  --macaron-lemon-border: #fde68a;
+  --macaron-lemon-text: #92400e;
 
-  --macaron-sky-bg: #ebf2fa;
-  --macaron-sky-border: #c6dcf0;
-  --macaron-sky-text: #2f5e8a;
+  --macaron-sky-bg: #f0f9ff;
+  --macaron-sky-border: #bae6fd;
+  --macaron-sky-text: #075985;
 
-  --macaron-coral-bg: #fdebee;
-  --macaron-coral-border: #f4c1c9;
-  --macaron-coral-text: #ae3848;
+  --macaron-coral-bg: #fef2f2;
+  --macaron-coral-border: #fecaca;
+  --macaron-coral-text: #991b1b;
 
   color-scheme: light;
 }
 
 /* =========================================================
-   Theme 4: Sea Salt Sky · 海盐晨光
+   Theme 4: Nordic Blue · 极地钴蓝
    ========================================================= */
 [data-theme="seasalt"] {
-  --bg-canvas: #f5f8fc;
-  --bg-sidebar: #ebf1f8;
+  --bg-canvas: #f6f8fb;
+  --bg-sidebar: #eef2f7;
   --bg-surface: #ffffff;
-  --bg-surface-soft: #fbfdff;
-  --bg-subtle: #eff4fa;
-  --bg-hover: #e3ecf6;
-  --border-hairline: #dce6f1;
-  --border-strong: #c8d7e8;
+  --bg-surface-soft: #fafcff;
+  --bg-subtle: #eff3f9;
+  --bg-hover: #e4ebf4;
+  --border-hairline: #dce4ef;
+  --border-strong: #c5d2e3;
 
-  --ink-primary: #243242;
-  --ink-secondary: #58697c;
-  --ink-muted: #8495a8;
-  --ink-faint: #bccbe0;
+  --ink-primary: #141e2b;
+  --ink-secondary: #475569;
+  --ink-muted: #64748b;
+  --ink-faint: #94a3b8;
 
-  --accent-primary: #4f81b5;
-  --accent-primary-hover: #3f6fa1;
-  --accent-soft: #e9f2fa;
-  --accent-border: #c4ddf0;
-  --accent-deep: #2c5b8a;
+  --accent-primary: #2563eb;
+  --accent-primary-hover: #1d4ed8;
+  --accent-soft: #eff6ff;
+  --accent-border: #bfdbfe;
+  --accent-deep: #1e40af;
   --accent-on: #ffffff;
-  --selection-bg: #d4e6f7;
-  --scrollbar-thumb: #c9d7e6;
-  --scrollbar-thumb-hover: #b1c4d9;
-  --toast-bg: #253445;
-  --toast-ink: #f7fbff;
+  --selection-bg: #dbeafe;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
+  --toast-bg: #0f172a;
+  --toast-ink: #f8fafc;
 
-  --macaron-rose-bg: #fceef1;
-  --macaron-rose-border: #f1cdd6;
-  --macaron-rose-text: #a2485c;
+  --macaron-rose-bg: #fdf2f4;
+  --macaron-rose-border: #f3cdd6;
+  --macaron-rose-text: #9f1239;
 
-  --macaron-mint-bg: #e6f4ef;
-  --macaron-mint-border: #bce0d2;
-  --macaron-mint-text: #246a54;
+  --macaron-mint-bg: #ecfdf5;
+  --macaron-mint-border: #a7f3d0;
+  --macaron-mint-text: #065f46;
 
-  --macaron-lemon-bg: #fef6e4;
-  --macaron-lemon-border: #f1dca7;
-  --macaron-lemon-text: #875f15;
+  --macaron-lemon-bg: #fffbeb;
+  --macaron-lemon-border: #fde68a;
+  --macaron-lemon-text: #92400e;
 
-  --macaron-sky-bg: #e7f2fa;
-  --macaron-sky-border: #bedbf0;
-  --macaron-sky-text: #285c8a;
+  --macaron-sky-bg: #f0f9ff;
+  --macaron-sky-border: #bae6fd;
+  --macaron-sky-text: #075985;
 
-  --macaron-coral-bg: #fdecef;
-  --macaron-coral-border: #f2c3cb;
-  --macaron-coral-text: #ad3949;
+  --macaron-coral-bg: #fef2f2;
+  --macaron-coral-border: #fecaca;
+  --macaron-coral-text: #991b1b;
 
   color-scheme: light;
 }
 
 /* =========================================================
-   Theme 5: Cocoa Dusk · 可可暗夜 (Dark Macaron)
+   Theme 5: Obsidian Dark · 深空石墨
    ========================================================= */
 [data-theme="espresso"] {
-  --bg-canvas: #1b171a;
-  --bg-sidebar: #151215;
-  --bg-surface: #241f23;
-  --bg-surface-soft: #211c20;
-  --bg-subtle: #2b252a;
-  --bg-hover: #342d33;
-  --border-hairline: #362f35;
-  --border-strong: #494048;
+  --bg-canvas: #0f1012;
+  --bg-sidebar: #141518;
+  --bg-surface: #18191d;
+  --bg-surface-soft: #15161a;
+  --bg-subtle: #1f2127;
+  --bg-hover: #262931;
+  --border-hairline: #272930;
+  --border-strong: #373a44;
 
-  --ink-primary: #f3ece7;
-  --ink-secondary: #beb2ab;
-  --ink-muted: #8f837d;
-  --ink-faint: #5c5250;
+  --ink-primary: #ededef;
+  --ink-secondary: #a1a4b0;
+  --ink-muted: #707484;
+  --ink-faint: #4c4f5c;
 
-  --accent-primary: #a993db;
-  --accent-primary-hover: #b8a4e6;
-  --accent-soft: #312840;
-  --accent-border: #4a3d61;
-  --accent-deep: #d5c7f7;
-  --accent-on: #19141f;
-  --selection-bg: #45375e;
-  --scrollbar-thumb: #463d45;
-  --scrollbar-thumb-hover: #5c515b;
-  --toast-bg: #f3ece7;
-  --toast-ink: #1b171a;
+  --accent-primary: #6e6bf0;
+  --accent-primary-hover: #7f7cf5;
+  --accent-soft: #1f2038;
+  --accent-border: #363869;
+  --accent-deep: #c4c6ff;
+  --accent-on: #ffffff;
+  --selection-bg: #2e3059;
+  --scrollbar-thumb: #31343e;
+  --scrollbar-thumb-hover: #474b59;
+  --toast-bg: #ededef;
+  --toast-ink: #0f1012;
 
-  --macaron-rose-bg: #3a262c;
-  --macaron-rose-border: #593943;
-  --macaron-rose-text: #f3b5c0;
+  --macaron-rose-bg: #2e1920;
+  --macaron-rose-border: #522936;
+  --macaron-rose-text: #fda4af;
 
-  --macaron-mint-bg: #1e332b;
-  --macaron-mint-border: #315447;
-  --macaron-mint-text: #9de0c3;
+  --macaron-mint-bg: #112a21;
+  --macaron-mint-border: #1d4d3c;
+  --macaron-mint-text: #6ee7b7;
 
-  --macaron-lemon-bg: #382f1f;
-  --macaron-lemon-border: #594a2f;
-  --macaron-lemon-text: #f4d68c;
+  --macaron-lemon-bg: #2d2312;
+  --macaron-lemon-border: #54401e;
+  --macaron-lemon-text: #fcd34d;
 
-  --macaron-sky-bg: #1f2e3d;
-  --macaron-sky-border: #334c64;
-  --macaron-sky-text: #a5d1f5;
+  --macaron-sky-bg: #122436;
+  --macaron-sky-border: #1e4060;
+  --macaron-sky-text: #7dd3fc;
 
-  --macaron-coral-bg: #3d2429;
-  --macaron-coral-border: #5e373f;
-  --macaron-coral-text: #f5aab4;
+  --macaron-coral-bg: #2f171a;
+  --macaron-coral-border: #59272d;
+  --macaron-coral-text: #fca5a5;
 
   color-scheme: dark;
 }
@@ -320,6 +329,7 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
 * {
@@ -344,7 +354,8 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -353,7 +364,7 @@ textarea {
   background: var(--selection-bg);
 }
 
-/* Native-feeling warm minimal scrollbars */
+/* Crisp desktop scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -363,7 +374,7 @@ textarea {
 }
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
-  border-radius: 999px;
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);

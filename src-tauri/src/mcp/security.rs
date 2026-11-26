@@ -106,7 +106,7 @@ pub fn redact_text(text: &str) -> String {
 pub fn security_evidence() -> McpSecurityEvidence {
     McpSecurityEvidence {
         process_isolated: true,
-        transport: "stdio JSON-RPC; business tools return a host-forward marker".to_string(),
+        transport: "stdio JSON-RPC host bridge; creator browser operations only execute in desktop Core after confirmation".to_string(),
         database_path_passed: false,
         credential_reference_passed: false,
         direct_database_api_available: false,

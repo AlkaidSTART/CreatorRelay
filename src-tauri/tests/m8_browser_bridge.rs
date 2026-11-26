@@ -120,7 +120,7 @@ fn browser_tools_are_discoverable_and_open_requires_one_time_confirmation() {
         McpCallRequest {
             call_id: None,
             tool_name: "creator_browser_open".to_string(),
-            arguments: args,
+            arguments: args.clone(),
             thread_id: None,
             authorization_token: None,
             timeout_ms: None,
@@ -133,12 +133,22 @@ fn browser_tools_are_discoverable_and_open_requires_one_time_confirmation() {
     assert_eq!(result.error.unwrap().code, "AUTHORIZATION_REQUIRED");
     assert_eq!(bridge.status().unwrap().state, "stopped");
 
+    let raw_preview = mcp::preview_tool_call(
+        &conn,
+        &workspace,
+        McpPreviewRequest {
+            tool_name: "creator_browser_open".to_string(),
+            arguments: json!({ "platformId": "xiaohongshu" }),
+            thread_id: None,
+        },
+    )
+    .unwrap();
     let stdio_request = McpCallRequest {
-        call_id: Some("direct-stdio-open".to_string()),
+        call_id: Some(raw_preview.call_id),
         tool_name: "creator_browser_open".to_string(),
         arguments: json!({ "platformId": "xiaohongshu" }),
         thread_id: None,
-        authorization_token: preview.authorization_token.clone(),
+        authorization_token: raw_preview.authorization_token,
         timeout_ms: Some(30_000),
         context_scope: None,
     };
@@ -148,6 +158,71 @@ fn browser_tools_are_discoverable_and_open_requires_one_time_confirmation() {
     assert_eq!(direct.status, "failed");
     assert_eq!(direct.error.unwrap().code, "BROWSER_BRIDGE_UNAVAILABLE");
     assert_eq!(bridge.status().unwrap().state, "stopped");
+
+    // A desktop-injected bridge call with a fresh single-use preview token is the supported path.
+    let approved = mcp::preview_tool_call(
+        &conn,
+        &workspace,
+        McpPreviewRequest {
+            tool_name: "creator_browser_open".to_string(),
+            arguments: json!({"platformId":"xiaohongshu"}),
+            thread_id: None,
+        },
+    )
+    .unwrap();
+    let opened = mcp::call_tool_with_browser(
+        &mut conn,
+        &runtime,
+        &workspace,
+        &host,
+        McpCallRequest {
+            call_id: Some(approved.call_id.clone()),
+            tool_name: approved.tool_name.clone(),
+            arguments: json!({ "platformId": "xiaohongshu" }),
+            thread_id: None,
+            authorization_token: approved.authorization_token.clone(),
+            timeout_ms: Some(30_000),
+            context_scope: None,
+        },
+        Some(&bridge),
+    )
+    .unwrap();
+    assert_eq!(opened.status, "success", "error={:?}", opened.error);
+    assert_eq!(bridge.status().unwrap().state, "running");
+    let read_preview = mcp::preview_tool_call(
+        &conn,
+        &workspace,
+        McpPreviewRequest {
+            tool_name: "creator_browser_read_page".to_string(),
+            arguments: json!({"platformId":"xiaohongshu"}),
+            thread_id: None,
+        },
+    )
+    .unwrap();
+    assert!(read_preview.requires_confirmation);
+    let page_read = mcp::call_tool_with_browser(
+        &mut conn,
+        &runtime,
+        &workspace,
+        &host,
+        McpCallRequest {
+            call_id: Some(read_preview.call_id.clone()),
+            tool_name: "creator_browser_read_page".to_string(),
+            arguments: json!({"platformId":"xiaohongshu"}),
+            thread_id: None,
+            authorization_token: read_preview.authorization_token,
+            timeout_ms: Some(30_000),
+            context_scope: None,
+        },
+        Some(&bridge),
+    )
+    .unwrap();
+    assert_eq!(page_read.status, "success", "error={:?}", page_read.error);
+    assert_eq!(
+        page_read.result.as_ref().unwrap()["pageStatus"],
+        "login_required"
+    );
+    bridge.stop().unwrap();
 }
 
 #[test]

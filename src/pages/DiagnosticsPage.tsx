@@ -77,59 +77,57 @@ export function DiagnosticsPage() {
           <button
             type="button"
             onClick={() => void refreshDiagnostics()}
-            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3 text-xs font-medium text-ink-secondary hover:bg-subtle"
+            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-line-strong bg-surface px-3 text-xs font-medium text-ink-secondary transition-colors hover:bg-subtle hover:text-ink"
           >
-            <RefreshCw size={11} />
+            <RefreshCw size={12} />
             刷新状态
           </button>
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
         <div className="max-w-4xl space-y-5">
-          <article className="rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent-deep">
-                <Terminal size={15} />
-              </div>
+          <article className="overflow-hidden rounded-lg border border-line bg-surface">
+            <div className="flex items-center gap-2.5 border-b border-line px-5 py-3.5">
+              <Terminal size={14} className="shrink-0 text-ink-muted" />
               <div>
-                <h2 className="text-sm font-semibold text-ink">M1 运行时诊断</h2>
-                <small className="text-xs text-ink-muted">
+                <h2 className="text-[13px] font-semibold text-ink">M1 运行时诊断</h2>
+                <small className="text-[11.5px] text-ink-muted">
                   验证 schema、数据库完整性、日志路径以及 IPC/数据库错误反馈
                 </small>
               </div>
             </div>
 
             {diagnostics ? (
-              <div className="grid gap-2 text-[11px] sm:grid-cols-2">
-                <div className="rounded-xl border border-line bg-canvas px-3 py-2.5">
-                  <span className="block text-ink-muted">应用版本 / 运行时长</span>
+              <div className="grid divide-y divide-line text-[11.5px] sm:grid-cols-2 sm:divide-x">
+                <div className="px-5 py-3">
+                  <span className="block text-[11px] text-ink-muted">应用版本 / 运行时长</span>
                   <strong className="mt-0.5 block font-mono text-ink">
                     {diagnostics.appVersion} · {diagnostics.uptimeSeconds}s
                   </strong>
                 </div>
-                <div className="rounded-xl border border-line bg-canvas px-3 py-2.5">
-                  <span className="block text-ink-muted">Schema / 完整性</span>
+                <div className="px-5 py-3">
+                  <span className="block text-[11px] text-ink-muted">Schema / 完整性</span>
                   <strong className="mt-0.5 block font-mono text-mint-text">
                     v{diagnostics.schemaVersion} / v{diagnostics.targetSchemaVersion} ·{" "}
                     {diagnostics.databaseIntegrity}
                   </strong>
                 </div>
-                <div className="rounded-xl border border-line bg-canvas px-3 py-2.5">
-                  <span className="block text-ink-muted">数据库</span>
+                <div className="px-5 py-3">
+                  <span className="block text-[11px] text-ink-muted">数据库</span>
                   <strong className="mt-0.5 block break-all font-mono text-ink">
                     {diagnostics.databasePath}
                   </strong>
                 </div>
-                <div className="rounded-xl border border-line bg-canvas px-3 py-2.5">
-                  <span className="block text-ink-muted">脱敏日志</span>
+                <div className="px-5 py-3">
+                  <span className="block text-[11px] text-ink-muted">脱敏日志</span>
                   <strong className="mt-0.5 block break-all font-mono text-ink">
                     {diagnostics.logPath}
                     {diagnostics.logAvailable ? " · available" : " · missing"}
                   </strong>
                 </div>
-                <div className="rounded-xl border border-line bg-canvas px-3 py-2.5 sm:col-span-2">
-                  <span className="block text-ink-muted">应用数据目录 / 当前工作区</span>
+                <div className="px-5 py-3 sm:col-span-2 sm:border-t sm:border-line">
+                  <span className="block text-[11px] text-ink-muted">应用数据目录 / 当前工作区</span>
                   <strong className="mt-0.5 block break-all font-mono text-ink">
                     {diagnostics.dataDir}
                     {" · "}
@@ -138,73 +136,81 @@ export function DiagnosticsPage() {
                 </div>
               </div>
             ) : diagnosticsError ? (
-              <p className="rounded-xl bg-coral-bg px-3 py-2 text-[11px] text-coral-text">
-                {diagnosticsError}
-              </p>
+              <div className="p-5">
+                <p className="rounded-md border border-coral-border bg-coral-bg px-3 py-2 text-[11.5px] text-coral-text">
+                  {diagnosticsError}
+                </p>
+              </div>
             ) : (
-              <p className="rounded-xl bg-sidebar px-3 py-2 text-[11px] text-ink-muted">
-                {isTauri() ? "正在读取运行时诊断..." : "浏览器预览不连接本地数据库和日志。"}
-              </p>
+              <div className="p-5">
+                <p className="rounded-md border border-line bg-subtle px-3 py-2 text-[11.5px] text-ink-muted">
+                  {isTauri() ? "正在读取运行时诊断..." : "浏览器预览不连接本地数据库和日志。"}
+                </p>
+              </div>
             )}
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={Boolean(diagnosticsBusy)}
-                onClick={() => void runProbe("invalid_path")}
-                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3 text-xs font-medium text-ink-secondary hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <AlertTriangle size={11} />
-                测试非法参数 IPC
-              </button>
-              <button
-                type="button"
-                disabled={Boolean(diagnosticsBusy)}
-                onClick={() => void runProbe("ipc_payload")}
-                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3 text-xs font-medium text-ink-secondary hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Shield size={11} />
-                测试日志脱敏
-              </button>
-              <button
-                type="button"
-                disabled={Boolean(diagnosticsBusy)}
-                onClick={() => void runProbe("database_error")}
-                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3 text-xs font-medium text-ink-secondary hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Terminal size={11} />
-                测试数据库错误
-              </button>
+            <div className="border-t border-line bg-surface-soft px-5 py-3.5">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={Boolean(diagnosticsBusy)}
+                  onClick={() => void runProbe("invalid_path")}
+                  className="inline-flex h-7.5 cursor-pointer items-center gap-1.5 rounded-md border border-line-strong bg-surface px-3 text-xs font-medium text-ink-secondary transition-colors hover:bg-subtle hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <AlertTriangle size={11} />
+                  测试非法参数 IPC
+                </button>
+                <button
+                  type="button"
+                  disabled={Boolean(diagnosticsBusy)}
+                  onClick={() => void runProbe("ipc_payload")}
+                  className="inline-flex h-7.5 cursor-pointer items-center gap-1.5 rounded-md border border-line-strong bg-surface px-3 text-xs font-medium text-ink-secondary transition-colors hover:bg-subtle hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Shield size={11} />
+                  测试日志脱敏
+                </button>
+                <button
+                  type="button"
+                  disabled={Boolean(diagnosticsBusy)}
+                  onClick={() => void runProbe("database_error")}
+                  className="inline-flex h-7.5 cursor-pointer items-center gap-1.5 rounded-md border border-line-strong bg-surface px-3 text-xs font-medium text-ink-secondary transition-colors hover:bg-subtle hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Terminal size={11} />
+                  测试数据库错误
+                </button>
+              </div>
+              <p className="mt-2.5 text-[11px] leading-relaxed text-ink-muted">
+                三个探针会返回可识别的错误并在顶部显示；应用保持运行。日志脱敏探针使用固定的模拟
+                password/cookie/token，不读取任何真实凭据。
+              </p>
             </div>
-            <p className="mt-3 rounded-xl bg-sidebar px-3 py-2 text-[10.5px] leading-relaxed text-ink-muted">
-              三个探针会返回可识别的错误并在顶部显示；应用保持运行。日志脱敏探针使用固定的模拟
-              password/cookie/token，不读取任何真实凭据。
-            </p>
           </article>
 
-          <article className="rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
-            <div className="mb-3 flex items-center gap-3">
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-rose-bg text-rose-text">
-                <Server size={15} />
+          <article className="overflow-hidden rounded-lg border border-line bg-surface">
+            <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-3.5">
+              <div className="flex items-center gap-2.5">
+                <Server size={14} className="shrink-0 text-ink-muted" />
+                <div>
+                  <h2 className="text-[13px] font-semibold text-ink">MCP Server 与扩展边界</h2>
+                  <small className="text-[11.5px] text-ink-muted">
+                    外部 MCP 扩展接入、独立进程隔离与权限边界说明
+                  </small>
+                </div>
               </div>
-              <div>
-                <h2 className="text-sm font-semibold text-ink">MCP Server 与扩展边界</h2>
-                <small className="text-[11px] text-ink-muted">
-                  外部 MCP 扩展接入、独立进程隔离与权限边界说明
-                </small>
-              </div>
+              <button
+                disabled
+                className="inline-flex h-7.5 cursor-not-allowed items-center gap-1.5 rounded-md border border-line bg-subtle px-3 text-xs font-medium text-ink-muted"
+              >
+                <Plug size={12} />
+                外部扩展规划中
+              </button>
             </div>
-            <p className="mb-4 text-xs leading-relaxed text-ink-secondary">
-              内置 MCP 工具与安全审计已在「AI 助手」页面提供；外部自定义 MCP Server
-              的独立进程托管将在后续阶段开放。
-            </p>
-            <button
-              disabled
-              className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-xl border border-line bg-sidebar px-3 text-xs font-medium text-ink-muted"
-            >
-              <Plug size={12} />
-              外部扩展规划中
-            </button>
+            <div className="px-5 py-3.5">
+              <p className="text-xs leading-relaxed text-ink-secondary">
+                内置 MCP 工具与安全审计已在「AI 助手」页面提供；外部自定义 MCP Server
+                的独立进程托管将在后续阶段开放。
+              </p>
+            </div>
           </article>
         </div>
       </div>

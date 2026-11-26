@@ -1,23 +1,21 @@
 /* Co-located Markdown preview typography for StudioPage */
 .studio-onboarding-stage {
-  background-image:
-    radial-gradient(620px 360px at 50% 18%, color-mix(in srgb, var(--accent-soft) 55%, transparent), transparent 72%),
-    radial-gradient(460px 320px at 50% 88%, color-mix(in srgb, var(--bg-subtle) 65%, transparent), transparent 75%);
+  background-color: var(--bg-canvas);
 }
 
 .studio-onboarding-preview {
-  background-color: color-mix(in srgb, var(--bg-subtle) 72%, var(--bg-surface));
+  background-color: var(--bg-subtle);
   background-image: radial-gradient(
     color-mix(in srgb, var(--border-strong) 55%, transparent) 1px,
     transparent 1px
   );
-  background-size: 14px 14px;
+  background-size: 16px 16px;
 }
 
 .studio-markdown-preview {
   color: var(--ink-primary);
   font-size: 15px;
-  line-height: 1.85;
+  line-height: 1.8;
 }
 
 .studio-markdown-preview h1,
@@ -26,28 +24,28 @@
   color: var(--ink-primary);
   font-weight: 600;
   letter-spacing: -0.02em;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 
 .studio-markdown-preview h1 {
-  margin: 0 0 20px;
-  font-size: 28px;
+  margin: 0 0 18px;
+  font-size: 26px;
 }
 
 .studio-markdown-preview h2 {
-  margin: 32px 0 12px;
+  margin: 28px 0 12px;
   padding-bottom: 6px;
   border-bottom: 1px solid var(--border-hairline);
-  font-size: 20px;
+  font-size: 19px;
 }
 
 .studio-markdown-preview h3 {
-  margin: 24px 0 10px;
-  font-size: 16px;
+  margin: 22px 0 8px;
+  font-size: 15.5px;
 }
 
 .studio-markdown-preview p {
-  margin: 0 0 16px;
+  margin: 0 0 15px;
 }
 
 .studio-markdown-preview strong {
@@ -56,17 +54,17 @@
 }
 
 .studio-markdown-preview blockquote {
-  margin: 20px 0;
-  padding: 6px 0 6px 16px;
-  border-left: 3px solid var(--accent-primary);
-  border-radius: 0 8px 8px 0;
-  background: var(--accent-soft);
+  margin: 18px 0;
+  padding: 6px 0 6px 14px;
+  border-left: 2px solid var(--accent-primary);
+  border-radius: 0 4px 4px 0;
+  background: var(--bg-subtle);
   color: var(--ink-secondary);
 }
 
 .studio-markdown-preview ul,
 .studio-markdown-preview ol {
-  margin: 0 0 18px;
+  margin: 0 0 16px;
   padding-left: 22px;
 }
 
@@ -83,26 +81,28 @@
 }
 
 .studio-markdown-preview code {
-  border-radius: 5px;
-  padding: 2px 5px;
-  background: var(--accent-soft);
-  color: var(--accent-deep);
+  border-radius: 3px;
+  padding: 1.5px 5px;
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-subtle);
+  color: var(--ink-primary);
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 0.85em;
 }
 
 .studio-markdown-preview pre {
   overflow-x: auto;
-  margin: 18px 0;
-  padding: 16px 18px;
+  margin: 16px 0;
+  padding: 14px 16px;
   border: 1px solid var(--border-hairline);
-  border-radius: 12px;
+  border-radius: 6px;
   background: var(--bg-subtle);
-  line-height: 1.65;
+  line-height: 1.6;
 }
 
 .studio-markdown-preview pre code {
   padding: 0;
+  border: none;
   background: transparent;
   color: var(--ink-primary);
 }
@@ -110,7 +110,7 @@
 .studio-markdown-preview table {
   border-collapse: collapse;
   width: 100%;
-  margin: 18px 0;
+  margin: 16px 0;
   font-size: 13px;
 }
 

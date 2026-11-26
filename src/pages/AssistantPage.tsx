@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { Eye, History, PanelLeftOpen, Server, ShieldCheck, Sparkles } from "../components/Icons";
+import { Eye, History, PanelLeftOpen, Server, Settings2 } from "../components/Icons";
 import { AssistantComposer, type ComposerMode } from "../components/assistant/AssistantComposer";
 import {
   AssistantInspectorDrawer,
@@ -99,105 +99,8 @@ export function AssistantPage() {
   }
 
   return (
-    <main className="flex h-full min-w-0 flex-col bg-canvas">
-      {/* Slim Codex-style Top Workspace Bar */}
-      <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-line bg-surface-soft px-4">
-        <div className="flex min-w-0 items-center gap-2.5">
-          {!threadRailOpen && (
-            <button
-              type="button"
-              onClick={() => setThreadRailOpen(true)}
-              className="grid h-7.5 w-7.5 shrink-0 cursor-pointer place-items-center rounded-lg border border-line bg-surface text-ink-secondary transition-colors hover:border-line-strong hover:text-ink"
-              title="展开任务会话列表"
-              aria-label="展开任务会话列表"
-            >
-              <PanelLeftOpen size={13} />
-            </button>
-          )}
-          <div className="flex min-w-0 items-center gap-2">
-            <h1 className="truncate text-[13.5px] font-semibold tracking-tight text-ink">
-              {mcp.activeThread?.thread.title ?? "AI 助手"}
-            </h1>
-            <span className="hidden rounded-md border border-line bg-surface px-2 py-0.5 font-mono text-[10px] text-ink-muted sm:inline-block">
-              {mcp.activeThread?.thread.providerName ?? "本地编排器"} ·{" "}
-              {mcp.activeThread?.thread.model ?? "deterministic-v1"}
-            </span>
-          </div>
-        </div>
-
-        {/* Right Controls: Inspector Toggles & Quick Actions */}
-        <div className="flex shrink-0 items-center gap-1.5">
-          <div
-            className="hidden items-center gap-0.5 rounded-xl border border-line bg-canvas p-0.5 md:inline-flex"
-            role="group"
-            aria-label="检查面板"
-          >
-            <button
-              type="button"
-              onClick={() => toggleInspector("mcp")}
-              className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium transition-colors ${
-                inspectorTab === "mcp"
-                  ? "bg-surface text-ink shadow-xs"
-                  : "text-ink-secondary hover:text-ink"
-              }`}
-            >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  isHealthy ? "bg-mint-text" : "bg-coral-text"
-                }`}
-              />
-              <Server size={10} />
-              <span>MCP ({mcp.tools.length})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => toggleInspector("privacy")}
-              className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium transition-colors ${
-                inspectorTab === "privacy"
-                  ? "bg-surface text-ink shadow-xs"
-                  : "text-ink-secondary hover:text-ink"
-              }`}
-            >
-              <Eye size={10} />
-              <span>发送披露</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => toggleInspector("audit")}
-              className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium transition-colors ${
-                inspectorTab === "audit"
-                  ? "bg-surface text-ink shadow-xs"
-                  : "text-ink-secondary hover:text-ink"
-              }`}
-            >
-              <History size={10} />
-              <span>审计 ({mcp.audit.length})</span>
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => void mcp.healthCheck()}
-            disabled={Boolean(mcp.busyAction)}
-            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-line bg-surface px-2.5 text-[11.5px] text-ink-secondary transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50"
-            title="执行 MCP Host 健康检查"
-          >
-            <ShieldCheck size={12} />
-            <span className="hidden lg:inline">健康检查</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate("/settings/ai")}
-            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-accent-border bg-accent-soft px-2.5 text-[11.5px] font-medium text-accent-deep transition-colors hover:opacity-90"
-          >
-            <Sparkles size={11} />
-            <span className="hidden sm:inline">模型 Key</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Main Codex 3-Zone Workspace */}
+    <main className="flex h-full min-w-0 flex-col bg-surface">
+      {/* Unified Workspace Container */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {threadRailOpen && (
           <AssistantThreadRail
@@ -215,8 +118,96 @@ export function AssistantPage() {
           />
         )}
 
-        {/* Center Conversation & Strategy Composer Stage */}
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {/* Center Conversation & Composer Stage */}
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
+          {/* Slim Single-Row Conversation Toolbar */}
+          <header className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-4">
+            <div className="flex min-w-0 items-center gap-2">
+              {!threadRailOpen && (
+                <button
+                  type="button"
+                  onClick={() => setThreadRailOpen(true)}
+                  className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-line bg-surface px-2 text-[11.5px] font-medium text-ink-secondary transition-colors hover:border-line-strong hover:text-ink"
+                  title="展开任务会话列表"
+                  aria-label="展开任务会话列表"
+                >
+                  <PanelLeftOpen size={12} />
+                  <span className="hidden sm:inline">会话</span>
+                </button>
+              )}
+              <h1 className="truncate text-[13px] font-semibold tracking-tight text-ink">
+                {mcp.activeThread?.thread.title ?? "AI 助手"}
+              </h1>
+              <span className="hidden truncate font-mono text-[10.5px] text-ink-muted md:inline">
+                {mcp.activeThread?.thread.providerName ?? "本地编排器"} /{" "}
+                {mcp.activeThread?.thread.model ?? "deterministic-v1"}
+              </span>
+            </div>
+
+            {/* Right Controls: Clean On-Demand Inspector Toggles */}
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={() => toggleInspector("mcp")}
+                className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border px-2 text-[11.5px] font-medium transition-colors ${
+                  inspectorTab === "mcp"
+                    ? "border-accent-border bg-accent-soft text-accent-deep"
+                    : "border-line bg-surface text-ink-secondary hover:border-line-strong hover:text-ink"
+                }`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    isHealthy ? "bg-mint-text" : "bg-coral-text"
+                  }`}
+                />
+                <Server size={11} />
+                <span>MCP</span>
+                <span className="font-mono text-[10px] opacity-75">{mcp.tools.length}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleInspector("privacy")}
+                className={`inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border px-2 text-[11.5px] font-medium transition-colors ${
+                  inspectorTab === "privacy"
+                    ? "border-accent-border bg-accent-soft text-accent-deep"
+                    : "border-line bg-surface text-ink-secondary hover:border-line-strong hover:text-ink"
+                }`}
+              >
+                <Eye size={11} />
+                <span className="hidden sm:inline">披露</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleInspector("audit")}
+                className={`inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border px-2 text-[11.5px] font-medium transition-colors ${
+                  inspectorTab === "audit"
+                    ? "border-accent-border bg-accent-soft text-accent-deep"
+                    : "border-line bg-surface text-ink-secondary hover:border-line-strong hover:text-ink"
+                }`}
+              >
+                <History size={11} />
+                <span className="hidden sm:inline">审计</span>
+                {mcp.audit.length > 0 && (
+                  <span className="font-mono text-[10px] opacity-75">{mcp.audit.length}</span>
+                )}
+              </button>
+
+              <span className="mx-0.5 hidden h-4 w-px bg-line sm:inline-block" aria-hidden="true" />
+
+              <button
+                type="button"
+                onClick={() => navigate("/settings/ai")}
+                title="管理模型与 API Key"
+                className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border border-line bg-surface px-2 text-[11.5px] font-medium text-ink-secondary transition-colors hover:border-line-strong hover:text-ink"
+              >
+                <Settings2 size={11} />
+                <span className="hidden lg:inline">模型配置</span>
+              </button>
+            </div>
+          </header>
+
           <AssistantMessageStream
             messages={activeMessages}
             loading={mcp.loading}
@@ -254,7 +245,7 @@ export function AssistantPage() {
           />
         </section>
 
-        {/* Collapsible Right Inspector Drawer */}
+        {/* On-Demand Right Inspector Drawer */}
         {inspectorTab && (
           <AssistantInspectorDrawer
             tab={inspectorTab}

@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { ChevronRight } from "../components/Icons";
 
 interface PageHeaderProps {
   eyebrow: string;
@@ -10,30 +9,21 @@ interface PageHeaderProps {
   actions?: ReactNode;
 }
 
-export function PageHeader({
-  eyebrow,
-  title,
-  description,
-  breadcrumbParent = "CreatorRelay",
-  actions,
-}: PageHeaderProps) {
+export function PageHeader({ eyebrow, title, description, actions }: PageHeaderProps) {
   return (
-    <div className="shrink-0 bg-surface-soft">
-      <header className="flex h-12 items-center justify-between border-b border-line px-7">
-        <div className="flex min-w-0 items-center gap-1.5 text-xs text-ink-muted">
-          <span>{breadcrumbParent}</span>
-          <ChevronRight size={12} className="text-ink-faint" />
-          <strong className="truncate font-medium text-ink">{title}</strong>
+    <header className="shrink-0 border-b border-line bg-surface-soft px-6 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h1 className="text-[17px] font-semibold tracking-[-0.02em] text-ink">{title}</h1>
+            <span className="rounded-xs border border-line bg-subtle px-1.5 py-px font-mono text-[9.5px] font-medium tracking-[0.06em] text-ink-muted uppercase">
+              {eyebrow}
+            </span>
+          </div>
+          <p className="mt-1 text-[12px] leading-relaxed text-ink-secondary">{description}</p>
         </div>
-        {actions && <div className="flex items-center gap-2.5">{actions}</div>}
-      </header>
-      <section className="border-b border-line px-7 pt-5 pb-4">
-        <span className="text-[10px] font-semibold tracking-[0.12em] text-ink-muted uppercase">
-          {eyebrow}
-        </span>
-        <h1 className="mt-0.5 text-[21px] font-semibold tracking-tight text-ink">{title}</h1>
-        <p className="mt-1 text-[13px] leading-relaxed text-ink-secondary">{description}</p>
-      </section>
-    </div>
+        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      </div>
+    </header>
   );
 }

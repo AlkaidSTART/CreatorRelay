@@ -144,6 +144,26 @@ fn preview_details(
         "publishing_create_task" | "publishing_publish_task" => {
             publishing_tools::preview_publishing_tool(conn, workspace, tool_name, arguments)
         }
+        "creator_browser_read_page" => {
+            let platform_id = arguments
+                .get("platformId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let link = crate::creator_centers::list(conn, Some(platform_id))
+                .map_err(|error| vec![field_error("platformId", &error)])?
+                .into_iter()
+                .next()
+                .ok_or_else(|| vec![field_error("platformId", "未找到创作者中心链接")])?;
+            Ok(json!({
+                "platformId": link.platform_id,
+                "platformName": link.platform_name,
+                "url": link.url,
+                "dataReturnedTo": "MCP caller",
+                "maximumVisibleTextCharacters": 60000,
+                "mayContainPersonalAccountData": true,
+                "excludes": ["cookies", "passwords", "hidden API responses", "form submission", "publishing"]
+            }))
+        }
         "creator_browser_open" => {
             let platform_id = arguments
                 .get("platformId")
@@ -208,7 +228,13 @@ pub fn preview_tool_call(
     } else {
         (None, None)
     };
-    let effects = if tool.name == "creator_browser_open" {
+    let effects = if tool.name == "creator_browser_read_page" {
+        vec![
+            "最多读取 60,000 字符的当前页面可见文本，并将其返回给 MCP Client/AI".to_string(),
+            "页面可能含有账号个人信息、作品或数据指标；确认后将发送给当前 MCP 调用方".to_string(),
+            "不会读取 Cookie、密码或隐藏 API 响应；不会提交表单或发布".to_string(),
+        ]
+    } else if tool.name == "creator_browser_open" {
         vec![
             "在 CreatorRelay 隔离浏览器配置中导航至已配置的 HTTPS 平台链接".to_string(),
             "网络连接会向该平台暴露常规连接元数据（如 IP 和请求 URL）；不提交表单、不发布内容"
@@ -459,10 +485,54 @@ pub fn call_tool_with_browser(
         }
     }
 
+    if matches!(
+        tool.name.as_str(),
+        "creator_browser_status" | "creator_browser_open" | "creator_browser_read_page"
+    ) && browser_bridge.is_none()
+    {
+        let result = tool_call_error(
+            call_id,
+            audit_id.clone(),
+            &tool,
+            &request.arguments,
+            "BROWSER_BRIDGE_UNAVAILABLE",
+            "浏览器桥接仅能通过 CreatorRelay 桌面 UI/Core 调用；裸 stdio Server 不持有浏览器进程权限",
+            vec![field_error(
+                "bridge",
+                "请使用桌面版 Assistant 的工具确认流程",
+            )],
+            started.elapsed().as_millis(),
+        );
+        finish_audit(
+            conn,
+            &audit_id,
+            "rejected",
+            Some("BROWSER_BRIDGE_UNAVAILABLE"),
+            result.error.as_ref().map(|error| error.message.as_str()),
+        )?;
+        return Ok(result);
+    }
+
     let cancel = host.register_cancel(&call_id);
     let timeout = StdDuration::from_millis(normalized_timeout(request.timeout_ms));
     let scope = request.context_scope.clone().unwrap_or_default();
     let outcome = (|| -> Result<(String, Value), McpCallError> {
+        if matches!(
+            tool.name.as_str(),
+            "creator_browser_status" | "creator_browser_open" | "creator_browser_read_page"
+        ) {
+            let execution = execute_core_tool(
+                conn,
+                runtime,
+                workspace,
+                &tool.name,
+                &request.arguments,
+                &scope,
+                &cancel,
+                browser_bridge,
+            )?;
+            return Ok((execution.status, execution.result));
+        }
         if tool.name == "mcp_test_hang" {
             let milliseconds = request
                 .arguments

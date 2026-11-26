@@ -40,24 +40,24 @@ function readChartThemeColors(): ChartThemeColors {
   if (typeof document === "undefined" || typeof getComputedStyle === "undefined") {
     return {
       surface: "#ffffff",
-      line: "#EAE2D9",
-      lineStrong: "#DCD2C7",
-      splitLine: "#F4EFEA",
-      ink: "#332B29",
-      inkSecondary: "#6F6561",
-      inkMuted: "#9A8F8A",
+      line: "#e4e4e7",
+      lineStrong: "#d1d1d6",
+      splitLine: "#f3f3f5",
+      ink: "#18181b",
+      inkSecondary: "#52525b",
+      inkMuted: "#71717a",
     };
   }
   const styles = getComputedStyle(document.documentElement);
   const pick = (name: string, fallback: string) => styles.getPropertyValue(name).trim() || fallback;
   return {
     surface: pick("--bg-surface", "#ffffff"),
-    line: pick("--border-hairline", "#EAE2D9"),
-    lineStrong: pick("--border-strong", "#DCD2C7"),
-    splitLine: pick("--bg-subtle", "#F4EFEA"),
-    ink: pick("--ink-primary", "#332B29"),
-    inkSecondary: pick("--ink-secondary", "#6F6561"),
-    inkMuted: pick("--ink-muted", "#9A8F8A"),
+    line: pick("--border-hairline", "#e4e4e7"),
+    lineStrong: pick("--border-strong", "#d1d1d6"),
+    splitLine: pick("--bg-subtle", "#f3f3f5"),
+    ink: pick("--ink-primary", "#18181b"),
+    inkSecondary: pick("--ink-secondary", "#52525b"),
+    inkMuted: pick("--ink-muted", "#71717a"),
   };
 }
 

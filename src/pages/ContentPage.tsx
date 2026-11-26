@@ -136,8 +136,8 @@ export function ContentPage() {
         }
       />
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-7 py-6">
-        <section className="rounded-2xl border border-line bg-surface p-4 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
+        <section className="rounded-2xl border border-line bg-surface p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
             <div className="min-w-0 flex-1">
               <h2 className="text-xs font-semibold text-ink">平台作品同步</h2>
@@ -265,7 +265,7 @@ export function ContentPage() {
           </select>
         </div>
 
-        <article className="rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
+        <article className="rounded-2xl border border-line bg-surface p-5">
           <div className="divide-y divide-line">
             <div className="grid grid-cols-[minmax(220px,2fr)_minmax(160px,1.2fr)_minmax(180px,1.4fr)_minmax(80px,0.6fr)] gap-4 pb-2.5 text-xs font-medium text-ink-muted">
               <span>作品 / 外部 ID</span>

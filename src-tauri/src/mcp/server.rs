@@ -27,6 +27,7 @@ pub fn test_server_main() -> ! {
             continue;
         }
         let response = match method {
+            "resources/list" => json!({ "resources": [] }),
             "initialize" => json!({
                 "protocolVersion": "2024-11-05",
                 "capabilities": { "tools": { "listChanged": false } },
@@ -39,7 +40,15 @@ pub fn test_server_main() -> ! {
                     .get("name")
                     .and_then(Value::as_str)
                     .unwrap_or_default();
-                if name == "mcp_test_echo" {
+                if matches!(
+                    name,
+                    "creator_browser_open" | "creator_browser_read_page" | "creator_browser_status"
+                ) {
+                    json!({
+                        "content": [{ "type": "text", "text": "该浏览器工具只能由 CreatorRelay 桌面 MCP Host 在用户授权后执行；裸 stdio Server 不持有浏览器进程控制能力。" }],
+                        "isError": true
+                    })
+                } else if name == "mcp_test_echo" {
                     json!({
                         "content": [{
                             "type": "text",

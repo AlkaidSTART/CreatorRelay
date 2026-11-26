@@ -124,7 +124,7 @@ function ModalShell({
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className="relative max-h-[min(760px,calc(100vh-32px))] w-full overflow-y-auto rounded-2xl border border-line bg-surface-soft p-6 shadow-[0_20px_60px_rgba(51,43,41,0.2)]"
+        className="relative max-h-[min(760px,calc(100vh-32px))] w-full overflow-y-auto rounded-2xl border border-line bg-surface-soft p-6 shadow-xl"
         style={{ maxWidth: width }}
       >
         {children}
@@ -387,7 +387,7 @@ export function PlatformsPage() {
             </button>
             {!showCreatorCenters && (
               <button
-                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.24)] transition-colors hover:bg-accent-hover"
+                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-on transition-colors hover:bg-accent-hover"
                 onClick={() => {
                   setAddPlatformId(catalog[0]?.id ?? null);
                   setAddAlias("");
@@ -402,7 +402,7 @@ export function PlatformsPage() {
       />
 
       <div
-        className={`${showCreatorCenters ? "hidden " : ""}min-h-0 flex-1 space-y-7 overflow-y-auto px-7 py-6`}
+        className={`${showCreatorCenters ? "hidden " : ""}min-h-0 flex-1 space-y-7 overflow-y-auto px-6 py-5`}
       >
         <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="平台类型筛选">
           {categoryFilterOptions.map((option) => {
@@ -419,7 +419,7 @@ export function PlatformsPage() {
                 onClick={() => setCategoryFilter(option.id)}
                 className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-colors ${
                   selected
-                    ? "border-accent bg-accent text-accent-on shadow-[0_2px_6px_rgba(123,104,168,0.22)]"
+                    ? "border-accent bg-accent text-accent-on"
                     : "border-line bg-surface text-ink-secondary hover:bg-subtle"
                 }`}
               >
@@ -469,11 +469,11 @@ export function PlatformsPage() {
                     return (
                       <article
                         key={account.id}
-                        className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]"
+                        className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-5"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex min-w-0 items-center gap-3">
-                            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-white shadow-[0_1px_2px_rgba(35,28,25,0.04)]">
+                            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-white">
                               <PlatformLogo
                                 platformId={account.platformId}
                                 platformName={account.platformName}

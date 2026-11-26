@@ -100,7 +100,7 @@ export function AnalyticsPage() {
                   onClick={() => setGranularity(item.id)}
                   className={`h-7 cursor-pointer rounded-lg px-2.5 text-xs font-medium transition-all ${
                     granularity === item.id
-                      ? "bg-surface text-ink shadow-[0_1px_3px_rgba(74,58,48,0.08)]"
+                      ? "bg-surface text-ink shadow-2xs"
                       : "text-ink-secondary hover:text-ink"
                   }`}
                 >
@@ -115,7 +115,7 @@ export function AnalyticsPage() {
                   onClick={() => setRange(item.id)}
                   className={`h-7 cursor-pointer rounded-lg px-2.5 text-xs font-medium transition-all ${
                     range === item.id
-                      ? "bg-surface text-ink shadow-[0_1px_3px_rgba(74,58,48,0.08)]"
+                      ? "bg-surface text-ink shadow-2xs"
                       : "text-ink-secondary hover:text-ink"
                   }`}
                 >
@@ -127,7 +127,7 @@ export function AnalyticsPage() {
         }
       />
 
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-7 py-6">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={platformId}
@@ -175,7 +175,7 @@ export function AnalyticsPage() {
           </span>
         </div>
 
-        <section className="rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_12px_rgba(74,58,48,0.03)]">
+        <section className="rounded-2xl border border-line bg-surface p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-ink">流量趋势折线图</h2>
@@ -197,7 +197,7 @@ export function AnalyticsPage() {
                       onClick={() => setMetricScope(item.id)}
                       className={`h-6 cursor-pointer rounded-lg px-2 text-[11px] font-medium transition-all ${
                         metricScope === item.id
-                          ? "bg-surface text-ink shadow-[0_1px_3px_rgba(74,58,48,0.08)]"
+                          ? "bg-surface text-ink shadow-2xs"
                           : "text-ink-secondary hover:text-ink"
                       }`}
                     >
@@ -235,7 +235,7 @@ export function AnalyticsPage() {
             return (
               <article
                 key={series.key}
-                className="rounded-2xl border border-line bg-surface p-5 shadow-[0_2px_10px_rgba(74,58,48,0.03)]"
+                className="rounded-2xl border border-line bg-surface p-5"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
